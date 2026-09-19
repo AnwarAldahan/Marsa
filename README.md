@@ -72,7 +72,7 @@ Open `.env` and set your key — no quotes, no spaces:
 ```
 GEMINI_API_KEY=your_key_here
 ```
-`.env` is git-ignored and must never be committed. Each teammate creates their own.
+`.env` is git-ignored and must never be committed. Each should creates their own.
 
 ### Step 5 — check everything works
 ```bash
@@ -231,12 +231,6 @@ input datasets change.
 
 ---
 
-## 10. Team — AgentX 2026 · Team Marsa
+## 10. Team
 
-| Name | GitHub | Role |
-|---|---|---|
-| Anwar Aldahan | [@AnwarAldahan](https://github.com/AnwarAldahan) | Data integration, repository, digital twin, dashboard wiring & synthetic operations data |
-| Sajedah Alqudaihi | [@Sajedah25 ](https://github.com/Sajedah25) | Maritime agent (AIS) & synthetic operations data & Dashboard design |
-| Anfal bamardouf | [@nbamardouf-source](https://github.com/nbamardouf-source) | Cargo agent & synthetic operations data &Prediction model |
-| Fatima Alawami | [@Fatima Alawami](https://github.com/FatimaAlawami3) | Events & weather agent, API, LLM integration & synthetic operations data|
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+AgentX 2026 — Team Marsa: data & integration, maritime agent, cargo agent, context agent & API, prediction model, dashboard.
