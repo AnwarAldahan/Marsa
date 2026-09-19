@@ -16,6 +16,14 @@ SUPPORTED_ACTIONS = {
     "delay_arrivals", "prioritise_vessel",
 }
 
+ARABIC_CANDIDATE_TITLES = {
+    "baseline": "عدم إجراء تغيير تشغيلي",
+    "shortest_first": "إعطاء الأولوية للسفن ذات مدة الخدمة الأقصر",
+    "gate_extension": "زيادة قدرة التخليص عبر البوابات",
+    "extra_berth": "إضافة رصيف مؤقت",
+    "combined_queue_gate": "الجمع بين تعديل أولوية الانتظار وزيادة قدرة البوابات",
+}
+
 
 class StrategyNarrative(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -208,10 +216,17 @@ def evaluate(scenario: object, candidates: list[dict], cfg: dict) -> list[dict]:
 
 def _deterministic_summary(ranked: list[dict]) -> str:
     best = ranked[0]
+    candidate_title = ARABIC_CANDIDATE_TITLES.get(best["candidate_id"], best["title"])
+    option_count = {
+        1: "خيار واحد",
+        2: "خيارين",
+        3: "ثلاثة خيارات",
+        4: "أربعة خيارات",
+    }.get(len(ranked), f"{len(ranked)} خيارات")
     return (
-        f"Deterministic simulation scoring ranked '{best['title']}' first among "
-        f"{len(ranked)} candidates. The ranking compares modeled outcomes under documented "
-        "assumptions and does not guarantee real-world superiority."
+        f"صنّف التقييم الحتمي لنتائج المحاكاة خيار «{candidate_title}» في المرتبة الأولى "
+        f"من بين {option_count}. تقارن هذه النتيجة المخرجات المحاكاة وفق "
+        "افتراضات موثقة، ولا تضمن تفوق الخيار في التشغيل الفعلي."
     )
 
 

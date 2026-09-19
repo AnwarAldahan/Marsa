@@ -1,4 +1,4 @@
-from marsa.agents.strategy_agent import generate_candidates
+from marsa.agents.strategy_agent import _deterministic_summary, generate_candidates
 
 FORECAST = {"status": "ml_unavailable"}
 HIGH_REAL_FORECAST = {
@@ -169,3 +169,32 @@ def test_non_synthetic_event_cannot_trigger_combined_candidate():
         ),
     )
     assert ids == ["baseline", "shortest_first", "gate_extension"]
+
+
+def test_deterministic_summary_is_arabic_and_translates_candidate_titles():
+    candidates = {
+        "baseline": ("No operational change", "عدم إجراء تغيير تشغيلي"),
+        "shortest_first": (
+            "Prioritize shorter vessel services",
+            "إعطاء الأولوية للسفن ذات مدة الخدمة الأقصر",
+        ),
+        "gate_extension": (
+            "Increase gate clearance capacity",
+            "زيادة قدرة التخليص عبر البوابات",
+        ),
+        "extra_berth": ("Temporarily add one berth", "إضافة رصيف مؤقت"),
+        "combined_queue_gate": (
+            "Combine queue and gate adjustments",
+            "الجمع بين تعديل أولوية الانتظار وزيادة قدرة البوابات",
+        ),
+    }
+
+    for candidate_id, (english_title, arabic_title) in candidates.items():
+        summary = _deterministic_summary([
+            {"candidate_id": candidate_id, "title": english_title},
+        ])
+        assert arabic_title in summary
+        assert english_title not in summary
+        assert "افتراضات موثقة" in summary
+        assert "لا تضمن" in summary
+        assert "من بين خيار واحد" in summary
