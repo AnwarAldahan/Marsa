@@ -29,3 +29,9 @@ def get_cargo_agent() -> CargoInvestigationAgent:
 @lru_cache
 def get_events_weather_agent() -> EventsWeatherAgent:
     return EventsWeatherAgent(llm_provider=_provider())
+
+
+@lru_cache
+def get_strategy_provider():
+    """LLM provider for the Strategy Agent narrative (None -> deterministic Arabic summary)."""
+    return _provider()

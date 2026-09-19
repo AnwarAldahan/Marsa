@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from marsa.common.exceptions import DataNotReadyError
+from marsa.api.dependencies import get_strategy_provider
 from marsa.pipeline import run
 
 router = APIRouter(prefix="/api/decision-support", tags=["decision-support"])
@@ -29,7 +30,7 @@ class DecisionSupportRequest(BaseModel):
 @router.post("/analyze")
 def analyze(request: DecisionSupportRequest) -> dict:
     try:
-        return run(request.timestamp_utc.isoformat())
+        return run(request.timestamp_utc.isoformat(), llm=get_strategy_provider())
     except KeyError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except DataNotReadyError as error:

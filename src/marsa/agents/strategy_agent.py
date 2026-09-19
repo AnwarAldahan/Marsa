@@ -225,7 +225,9 @@ def recommend(ranked: list[dict], forecast: dict, agents: dict,
             raw: Any = llm.generate_structured(
                 system_prompt=(
                     "Write one concise decision-support sentence. Do not use numbers, claim "
-                    "causality, alter facts, or describe simulated outcomes as observed."
+                    "causality, alter facts, or describe simulated outcomes as observed. "
+                    "Respond in Arabic only (Modern Standard Arabic, professional tone for a port "
+                    "operations manager); keep the recommended option name faithful to the summary and translate it to arabaic between parentheses."
                 ),
                 payload={
                     "deterministic_summary": summary,
@@ -240,7 +242,8 @@ def recommend(ranked: list[dict], forecast: dict, agents: dict,
             value = raw.model_dump() if isinstance(raw, BaseModel) else raw
             narrative = (StrategyNarrative.model_validate_json(value) if isinstance(value, str)
                          else StrategyNarrative.model_validate(value))
-            if re.search(r"\d|\b(?:caus\w*|guarantee\w*|observed outcome|execute|must|should)\b", narrative.summary, re.I):
+            if re.search(r"\d|\b(?:caus\w*|guarantee\w*|observed outcome|execute|must|should)\b", narrative.summary, re.I) \
+                    or re.search(r"يضمن|بالتأكيد|نفّذ فورًا|السبب هو|يجب", narrative.summary):
                 raise ValueError("unsafe Strategy narrative")
             summary = narrative.summary
             reasoning_mode = "llm_assisted"
