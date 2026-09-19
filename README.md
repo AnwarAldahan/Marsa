@@ -231,6 +231,12 @@ input datasets change.
 
 ---
 
-## 10. Team
+## 10. Team — AgentX 2026 · Team Marsa
 
-AgentX 2026 — Team Marsa: data & integration, maritime agent, cargo agent, context agent & API, prediction model, dashboard.
+| Name | GitHub | Role |
+|---|---|---|
+| Anwar Aldahan | [@AnwarAldahan](https://github.com/AnwarAldahan) | Data integration, repository, digital twin, dashboard wiring & synthetic operations data |
+| Sajedah Alqudaihi | [@Sajedah25 ](https://github.com/Sajedah25) | Maritime agent (AIS) & synthetic operations data & Dashboard design |
+| Anfal bamardouf | [@nbamardouf-source](https://github.com/nbamardouf-source) | Cargo agent & synthetic operations data &Prediction model |
+| Fatima Alawami | [@Fatima Alawami](https://github.com/FatimaAlawami3) | Events & weather agent, API, LLM integration & synthetic operations data|
+
