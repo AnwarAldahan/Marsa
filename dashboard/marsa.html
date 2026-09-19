@@ -1994,7 +1994,12 @@ window.TwinEngine = (function () {
     const rt = box.querySelector('.recotext'); if (rt) rt.innerHTML = `<span id="alReco">${$('alReco').textContent}</span><br><span style="opacity:.92">${o.decision_support.summary}</span>`;
     const rl = box.querySelector('.recolabel'); if (rl) rl.textContent = 'توصية وكيل الاستراتيجية' + (o.decision_support.reasoning_mode === 'llm_assisted' ? ' (صياغة بمساعدة LLM)' : '');
     const cap = box.querySelector('.metric-cap'); if (cap) cap.textContent = 'المقياس: متوسط انتظار السفن على الرصيف خلال 24 ساعة، من التوأم الرقمي (بدون تدخل مقابل أفضل خيار).';
-    const ab = $('alertButtons'); if (ab) ab.innerHTML = '<div class="adopted-msg">القرار النهائي بيد مشغّل الميناء — مرسى لا ينفذ أي إجراء تلقائيًا.</div>';
+        const ab = $('alertButtons');
+    if (ab) {
+      const sim = $('simBtn'); ab.innerHTML = '';
+      if (sim) ab.appendChild(sim);
+      ab.insertAdjacentHTML('beforeend', '<div class="adopted-msg" style="margin-top:8px">القرار النهائي بيد مشغّل الميناء — مرسى لا ينفذ أي إجراء تلقائيًا.</div>');
+    }
   }
 
   function renderTwinCards(o) {
