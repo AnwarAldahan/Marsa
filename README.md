@@ -72,7 +72,7 @@ Open `.env` and set your key — no quotes, no spaces:
 ```
 GEMINI_API_KEY=your_key_here
 ```
-`.env` is git-ignored and must never be committed. Each teammate creates their own.
+`.env` is git-ignored and must never be committed. Each should creates their own.
 
 ### Step 5 — check everything works
 ```bash
