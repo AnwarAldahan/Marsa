@@ -1878,17 +1878,20 @@ window.TwinEngine = (function () {
      ٣ factors, ٤ alert/recommendation, twin console cards.
      ============================================================ -->
 <style>
-  #marsaLive{position:fixed;top:90px;left:12px;z-index:9999;background:#0f2238;border:1px solid #2a4f7a;border-radius:12px;
-    padding:10px 12px;display:flex;gap:8px;align-items:center;font-family:Tajawal,system-ui,sans-serif;color:#dbe7f5;
-    box-shadow:0 6px 24px rgba(0,0,0,.35);direction:rtl;flex-wrap:wrap;max-width:min(96vw,760px)}
-  #marsaLive select,#marsaLive input{background:#17304d;color:#fff;border:1px solid #2a4f7a;border-radius:8px;padding:6px 8px;font-family:inherit}
-  #marsaLive button{background:#3ED0B6;color:#062033;border:0;border-radius:8px;padding:7px 12px;font-weight:700;cursor:pointer;font-family:inherit}
+  #marsaToggle{position:fixed;top:84px;left:14px;z-index:10000;background:#3ED0B6;color:#062033;border:0;border-radius:999px;
+    padding:9px 16px;font-weight:700;cursor:pointer;font-family:Tajawal,system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.35)}
+  #marsaLive{position:fixed;top:130px;left:14px;z-index:9999;background:#0f2238;border:1px solid #2a4f7a;border-radius:12px;
+    padding:12px 14px;display:none;flex-direction:column;gap:8px;font-family:Tajawal,system-ui,sans-serif;color:#dbe7f5;
+    box-shadow:0 6px 24px rgba(0,0,0,.35);direction:rtl;width:min(92vw,420px)}
+  #marsaLive.open{display:flex}
+  #marsaLive select,#marsaLive input{background:#17304d;color:#fff;border:1px solid #2a4f7a;border-radius:8px;padding:7px 8px;font-family:inherit;width:100%}
+  #marsaLive button{background:#3ED0B6;color:#062033;border:0;border-radius:8px;padding:8px 12px;font-weight:700;cursor:pointer;font-family:inherit}
   #marsaLive .st{font-size:12px;opacity:.85}
   #marsaLive .st.ok{color:#3ED0B6}#marsaLive .st.err{color:#F6837C}
   .live-tag{display:inline-block;font-size:11px;background:#1c4d3f;color:#8ff0d8;border-radius:6px;padding:2px 6px;margin-inline-start:6px}
 </style>
+<button id="marsaToggle" type="button">⏱ اختر اللحظة الحالية</button>
 <div id="marsaLive">
-  <b>اختر اللحظة الحالية</b>
   <select id="mlPreset">
     <option value="2025-07-10T19:00:00Z">10 يوليو 19:00 — ذروة (19 سفينة منتظرة)</option>
     <option value="2025-07-07T22:00:00Z">7 يوليو 22:00 — أرصفة شبه ممتلئة</option>
@@ -1897,7 +1900,7 @@ window.TwinEngine = (function () {
     <option value="2025-05-14T06:00:00Z">14 مايو 06:00 — هادئ</option>
     <option value="2025-11-02T08:00:00Z">2 نوفمبر 08:00 — طقس مفقود</option>
   </select>
-  <input id="mlCustom" placeholder="أو UTC مثل 2025-08-15T14:00:00Z" size="26">
+  <input id="mlCustom" placeholder="أو أي ساعة UTC مثل 2025-08-15T14:00:00Z">
   <button id="mlLoad">تحميل</button>
   <span class="st" id="mlStatus">لم يتم الاتصال بعد</span>
 </div>
@@ -2042,8 +2045,9 @@ window.TwinEngine = (function () {
       st('✗ تعذر الاتصال بالـ API (' + err.message + ') — تأكد أن uvicorn يعمل على 8000 وأن CORS مفعّل.', 'err');
     }
   }
-  $('mlLoad').addEventListener('click', load);
-  $('mlPreset').addEventListener('change', () => { $('mlCustom').value = ''; load(); });
+  $('mlLoad').addEventListener('click', () => { load(); $('marsaLive').classList.remove('open'); });
+  $('mlPreset').addEventListener('change', () => { $('mlCustom').value = ''; load(); $('marsaLive').classList.remove('open'); });
+  $('marsaToggle').addEventListener('click', () => $('marsaLive').classList.toggle('open'));
   setTimeout(load, 600);   // auto-load the default hour after the demo scripts have rendered
 })();
 </script>
