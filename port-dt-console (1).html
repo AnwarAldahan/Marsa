@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>كونسول توأم الأرصفة الرقمي — مرسَى</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #071322;
+  --panel: #0F2138;
+  --panel-2: #142A45;
+  --line: #22405F;
+  --text: #EAF1F8;
+  --muted: #7E93AE;
+  --teal: #2ED9B8;
+  --amber: #F2A93C;
+  --coral: #F0645E;
+  --font-ui: 'Tajawal', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'SFMono-Regular', monospace;
+}
+:root:not([data-theme="light"]) { }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #F4F6FA; --panel: #FFFFFF; --panel-2: #EEF1F7; --line: #DCE2ED;
+    --text: #16202F; --muted: #5B6B85;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #F4F6FA; --panel: #FFFFFF; --panel-2: #EEF1F7; --line: #DCE2ED;
+  --text: #16202F; --muted: #5B6B85;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font-family: var(--font-ui); min-height: 100vh;
+}
+.wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 60px; }
+header { margin-bottom: 22px; }
+header .eyebrow { font-family: var(--font-mono); font-size: 12px; color: var(--teal); letter-spacing: 0.02em; }
+h1 { font-size: 22px; font-weight: 700; margin: 4px 0 6px; }
+header p { color: var(--muted); font-size: 14px; max-width: 62ch; margin: 0; line-height: 1.6; }
+
+.layout { display: grid; grid-template-columns: 260px 1fr; gap: 18px; align-items: start; }
+@media (max-width: 820px) { .layout { grid-template-columns: 1fr; } }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+.panel + .panel { margin-top: 14px; }
+.panel h2 { font-size: 12px; text-transform: none; color: var(--muted); margin: 0 0 12px; font-weight: 500; }
+
+label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+label:first-child { margin-top: 0; }
+input[type=number], select {
+  width: 100%; background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+  border-radius: 6px; padding: 7px 8px; font-family: var(--font-mono); font-size: 13px;
+}
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.hint { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+
+button {
+  font-family: var(--font-ui); font-weight: 500; font-size: 13px; cursor: pointer;
+  border-radius: 6px; border: 1px solid var(--line); padding: 9px 12px; background: var(--panel-2); color: var(--text);
+}
+button:hover { border-color: var(--teal); }
+button:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
+.btn-run { width: 100%; margin-top: 14px; background: var(--teal); color: #052A22; border: none; font-weight: 700; padding: 11px; }
+.btn-run:hover { opacity: 0.92; }
+.presets { display: flex; flex-direction: column; gap: 6px; }
+.presets button { text-align: start; font-size: 12px; }
+
+.canvas-panel { min-height: 420px; display: flex; flex-direction: column; }
+.canvas-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 14px; }
+.clock { font-family: var(--font-mono); font-size: 13px; color: var(--muted); }
+.clock b { color: var(--text); }
+
+.banner { display: none; background: rgba(240,100,94,0.12); border: 1px solid var(--coral); color: var(--coral);
+  border-radius: 6px; padding: 8px 12px; font-size: 12px; margin-bottom: 12px; font-family: var(--font-mono); }
+.banner.show { display: block; }
+
+.berth-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+.berth {
+  flex: 1 1 90px; min-width: 90px; height: 78px; border-radius: 8px; border: 1.5px dashed var(--line);
+  display: flex; align-items: center; justify-content: center; position: relative; background: var(--panel-2);
+  transition: border-color 0.15s;
+}
+.berth.occ { border-style: solid; border-color: var(--teal); background: rgba(46,217,184,0.10); }
+.berth .label { position: absolute; top: 5px; inset-inline-start: 7px; font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+.berth .vessel { width: 30px; height: 30px; border-radius: 5px; background: var(--teal); }
+.berth .svc { position: absolute; bottom: 5px; inset-inline-end: 7px; font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+
+.queue-label { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+.queue { display: flex; gap: 6px; flex-wrap: wrap; min-height: 34px; margin-bottom: 20px; }
+.chip {
+  width: 26px; height: 26px; border-radius: 5px; background: var(--amber); opacity: 0.9;
+  display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 9px; color: #3A2600;
+}
+
+.transport { display: flex; align-items: center; gap: 10px; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); }
+.transport button { padding: 7px 10px; }
+.transport input[type=range] { flex: 1; accent-color: var(--teal); }
+.speed-select { width: 74px; }
+
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 14px; }
+@media (max-width: 560px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+.kpi { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.kpi .v { font-family: var(--font-mono); font-size: 19px; font-weight: 600; }
+.kpi .l { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+.empty { color: var(--muted); font-size: 13px; padding: 40px 0; text-align: center; }
+
+.tabbar { display: flex; gap: 8px; margin-bottom: 16px; }
+.tab-btn { background: transparent; border: 1px solid var(--line); color: var(--muted); }
+.tab-btn.active { background: var(--panel-2); color: var(--text); border-color: var(--teal); }
+
+#contractInput {
+  width: 100%; height: 320px; background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+  border-radius: 6px; padding: 10px; font-family: var(--font-mono); font-size: 12px; line-height: 1.5; resize: vertical;
+  direction: ltr; text-align: left;
+}
+.ctable { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ctable th, .ctable td { text-align: start; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.ctable th { color: var(--muted); font-weight: 500; font-size: 11px; }
+.ctable td.mono, .ctable th.mono { font-family: var(--font-mono); }
+.ctable tr.best { background: rgba(46,217,184,0.10); }
+.ctable tr.best td:first-child::before { content: "★ "; color: var(--teal); }
+.ctable button { padding: 5px 9px; font-size: 12px; }
+.errbox { color: var(--coral); font-family: var(--font-mono); font-size: 12px; white-space: pre-wrap; direction: ltr; text-align: left; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">كونسول توأم الأرصفة الرقمي</div>
+    <h1>اختبر التوأم الرقمي يدويًا</h1>
+    <p>حدد المعطيات بنفسك — حتى غير الواقعية منها — وشاهد كيف يتصرف نموذج الميناء. هذا هو سلوك التوأم الخام، بدون وكيل توصية بعد.</p>
+  </header>
+
+  <div class="tabbar">
+    <button class="tab-btn active" id="tabManual">اختبار يدوي</button>
+    <button class="tab-btn" id="tabContract">اختبار عبر عقد الوكيل (JSON)</button>
+  </div>
+
+  <div class="layout" id="manualView">
+    <div>
+      <div class="panel">
+        <h2>إعداد الميناء</h2>
+        <label for="berths">الأرصفة</label>
+        <input type="number" id="berths" value="3" min="0" max="10">
+        <div class="hint">جرّب صفر لترى التوأم يتجمّد تمامًا.</div>
+
+        <label for="vessels">عدد السفن للمحاكاة</label>
+        <input type="number" id="vessels" value="20" min="1" max="80">
+
+        <div class="row2">
+          <div>
+            <label for="gapMin">فجوة الوصول — أدنى (ساعة)</label>
+            <input type="number" id="gapMin" value="1" min="0" max="48">
+          </div>
+          <div>
+            <label for="gapMax">الأقصى (ساعة)</label>
+            <input type="number" id="gapMax" value="4" min="0" max="48">
+          </div>
+        </div>
+
+        <div class="row2">
+          <div>
+            <label for="svcMin">وقت الخدمة — أدنى (ساعة)</label>
+            <input type="number" id="svcMin" value="3" min="0" max="72">
+          </div>
+          <div>
+            <label for="svcMax">الأقصى (ساعة)</label>
+            <input type="number" id="svcMax" value="10" min="0" max="72">
+          </div>
+        </div>
+
+        <label for="rule">قاعدة الطابور ("التوصية")</label>
+        <select id="rule">
+          <option value="fcfs">الأول فالأول (FCFS)</option>
+          <option value="shortest">الأقصر خدمة أولاً</option>
+          <option value="longest">الأطول خدمة أولاً</option>
+          <option value="reverse">الأحدث وصولاً أولاً</option>
+          <option value="random">أولوية عشوائية</option>
+        </select>
+        <div class="hint" id="ruleHint">الأساس القياسي — ترتيب الوصول يقرر.</div>
+
+        <button class="btn-run" id="runBtn">تشغيل المحاكاة</button>
+      </div>
+
+      <div class="panel">
+        <h2>اختبارات ضغط سريعة</h2>
+        <div class="presets">
+          <button id="presetBaseline">سيناريو واقعي أساسي</button>
+          <button id="presetSurge">تدفق مروري مكثف (غير واقعي)</button>
+          <button id="presetStarve">صفر أرصفة (كسّره)</button>
+          <button id="presetChaos">أولوية عشوائية (فوضى)</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel canvas-panel">
+      <div class="canvas-top">
+        <div class="clock">زمن المحاكاة <b id="clockVal">0.0</b> ساعة</div>
+        <div class="clock" id="statusVal">خامل</div>
+      </div>
+
+      <div class="banner" id="banner"></div>
+
+      <div id="stageContent">
+        <div class="empty">حدد المعطيات واضغط <b>تشغيل المحاكاة</b> لترى التوأم في العمل.</div>
+      </div>
+
+      <div class="transport" id="transport" style="display:none;">
+        <button id="playBtn">▶</button>
+        <input type="range" id="scrub" min="0" max="1000" value="0">
+        <select class="speed-select" id="speedSel">
+          <option value="0.5">0.5×</option>
+          <option value="1" selected>1×</option>
+          <option value="2">2×</option>
+          <option value="5">5×</option>
+        </select>
+      </div>
+
+      <div class="kpis" id="kpis" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="layout" id="contractView" style="display:none;">
+    <div class="panel">
+      <h2>الصق مخرجات الوكيل</h2>
+      <div class="hint" style="margin-bottom:8px;">البداية السريعة: الصق scenario + candidates ثم اضغط تشغيل. هذا كل شي.</div>
+      <textarea id="contractInput" spellcheck="false"></textarea>
+      <button class="btn-run" id="contractRunBtn">تشغيل جميع الخيارات</button>
+      <div class="hint" style="margin-top:10px;">وقت خدمة السفينة يُشتق من <span style="font-family:var(--font-mono)">size_teu</span> إذا لم يُعطَ مباشرة كـ <span style="font-family:var(--font-mono)">service_hours</span>.</div>
+    </div>
+
+    <div class="panel canvas-panel">
+      <h2>مقارنة الخيارات</h2>
+      <div id="contractResults"><div class="empty">الصق عقد JSON وشغّله لمقارنة الخيارات.</div></div>
+
+      <div id="contractStageWrap" style="display:none; margin-top:16px; border-top:1px solid var(--line); padding-top:16px;">
+        <div class="canvas-top">
+          <div class="clock">زمن المحاكاة <b id="clockVal2">0.0</b> ساعة — <span id="animLabel"></span></div>
+          <div class="clock" id="statusVal2">خامل</div>
+        </div>
+        <div id="stageContent2"></div>
+        <div class="transport" id="transport2">
+          <button id="playBtn2">▶</button>
+          <input type="range" id="scrub2" min="0" max="1000" value="0">
+          <select class="speed-select" id="speedSel2">
+            <option value="0.5">0.5×</option>
+            <option value="1" selected>1×</option>
+            <option value="2">2×</option>
+            <option value="5">5×</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const ruleHints = {
+    fcfs: "الأساس القياسي — ترتيب الوصول يقرر.",
+    shortest: "يُفرّغ الطابور بسرعة، لكن السفن الكبيرة قد تنتظر طويلاً.",
+    longest: "يعالج السفن الكبيرة أولاً — غالبًا يزيد الوضع سوءًا.",
+    reverse: "أحدث السفن تتخطى الطابور. غير عادل بشكل متعمد، مفيد لاختبار الضغط.",
+    random: "بدون أي منطق إطلاقًا — فحص سلامة لما يفعله التوأم مع توصية سيئة."
+  };
+  document.getElementById('rule').addEventListener('change', (e) => {
+    document.getElementById('ruleHint').textContent = ruleHints[e.target.value];
+  });
+
+  const presets = {
+    presetBaseline: { berths:3, vessels:20, gapMin:1, gapMax:4, svcMin:3, svcMax:10, rule:'fcfs' },
+    presetSurge:    { berths:3, vessels:40, gapMin:0, gapMax:1, svcMin:5, svcMax:14, rule:'fcfs' },
+    presetStarve:   { berths:0, vessels:10, gapMin:1, gapMax:3, svcMin:3, svcMax:8,  rule:'fcfs' },
+    presetChaos:    { berths:2, vessels:25, gapMin:1, gapMax:3, svcMin:2, svcMax:12, rule:'random' },
+  };
+  Object.keys(presets).forEach(id => {
+    document.getElementById(id).addEventListener('click', () => {
+      const p = presets[id];
+      document.getElementById('berths').value = p.berths;
+      document.getElementById('vessels').value = p.vessels;
+      document.getElementById('gapMin').value = p.gapMin;
+      document.getElementById('gapMax').value = p.gapMax;
+      document.getElementById('svcMin').value = p.svcMin;
+      document.getElementById('svcMax').value = p.svcMax;
+      document.getElementById('rule').value = p.rule;
+      document.getElementById('ruleHint').textContent = ruleHints[p.rule];
+    });
+  });
+
+  // ---- simulation engine ----
+  function rand(min, max) { return min + Math.random() * (max - min); }
+
+  function buildVessels(n, gapMin, gapMax, svcMin, svcMax) {
+    const vessels = [];
+    let t = 0;
+    for (let i = 0; i < n; i++) {
+      t += rand(gapMin, gapMax);
+      const service = Math.max(0.1, rand(svcMin, svcMax));
+      vessels.push({ id: i, arrival: t, service, assignTime: null, berth: null, departTime: null });
+    }
+    return vessels;
+  }
+
+  function priorityFn(rule) {
+    switch (rule) {
+      case 'shortest': return v => v.service;
+      case 'longest':  return v => -v.service;
+      case 'reverse':  return v => -v.arrival;
+      case 'random':   return v => v._rand;
+      case 'custom':   return v => (v._overridePriority !== undefined) ? v._overridePriority : v.arrival;
+      default:         return v => v.arrival; // fcfs
+    }
+  }
+
+  function runEngine(numBerths, vessels, rule) {
+    const pFn = priorityFn(rule);
+    if (rule === 'random') vessels.forEach(v => v._rand = Math.random());
+
+    const berthFree = new Array(numBerths).fill(true);
+    const berthIntervals = Array.from({length: numBerths}, () => []);
+    const waiting = [];
+    const events = []; // {time, type}
+    vessels.forEach(v => events.push({ time: v.arrival, type: 'arrival', vessel: v }));
+
+    function tryAssign(now) {
+      let changed = true;
+      while (changed) {
+        changed = false;
+        if (waiting.length === 0) break;
+        const sorted = [...waiting].sort((a, b) => pFn(a) - pFn(b));
+        for (const v of sorted) {
+          let berthIdx = -1;
+          if (v.forceBerth !== undefined && v.forceBerth !== null && v.forceBerth < berthFree.length) {
+            if (berthFree[v.forceBerth]) berthIdx = v.forceBerth; // else: stays waiting for its required berth
+          } else {
+            berthIdx = berthFree.findIndex(f => f);
+          }
+          if (berthIdx === -1) continue;
+          v.assignTime = now;
+          v.berth = berthIdx;
+          v.departTime = now + v.service;
+          berthFree[berthIdx] = false;
+          berthIntervals[berthIdx].push({ start: now, end: v.departTime, vessel: v });
+          events.push({ time: v.departTime, type: 'departure', berth: berthIdx });
+          waiting.splice(waiting.indexOf(v), 1);
+          changed = true;
+          break; // state changed, re-sort and re-scan
+        }
+      }
+    }
+
+    let served = 0, totalWait = 0, maxWait = 0, makespan = 0;
+
+    while (events.length) {
+      events.sort((a, b) => a.time - b.time);
+      const ev = events.shift();
+      const now = ev.time;
+      makespan = Math.max(makespan, now);
+      if (ev.type === 'arrival') {
+        waiting.push(ev.vessel);
+      } else if (ev.type === 'departure') {
+        berthFree[ev.berth] = true;
+      }
+      tryAssign(now);
+    }
+
+    vessels.forEach(v => {
+      if (v.assignTime !== null) {
+        served++;
+        const w = v.assignTime - v.arrival;
+        totalWait += w;
+        maxWait = Math.max(maxWait, w);
+        makespan = Math.max(makespan, v.departTime);
+      }
+    });
+
+    const busyTime = berthIntervals.flat().reduce((s, iv) => s + (iv.end - iv.start), 0);
+    const utilization = numBerths > 0 && makespan > 0 ? (busyTime / (numBerths * makespan)) * 100 : 0;
+
+    return {
+      vessels, berthIntervals, makespan,
+      avgWait: served ? totalWait / served : null,
+      maxWait, served, total: vessels.length, utilization
+    };
+  }
+
+  // ---- rendering / playback ----
+  let result = null, numBerths = 3;
+  let playing = false, playHead = 0, rate = 1, lastTs = null;
+
+  const stage = document.getElementById('stageContent');
+  const transport = document.getElementById('transport');
+  const kpisEl = document.getElementById('kpis');
+  const banner = document.getElementById('banner');
+  const scrub = document.getElementById('scrub');
+  const clockVal = document.getElementById('clockVal');
+  const statusVal = document.getElementById('statusVal');
+
+  function stateAt(t) {
+    const berths = [];
+    for (let i = 0; i < numBerths; i++) {
+      const iv = result.berthIntervals[i].find(x => x.start <= t && t < x.end);
+      berths.push(iv ? iv.vessel : null);
+    }
+    const waitingNow = result.vessels.filter(v => v.arrival <= t && (v.assignTime === null || v.assignTime > t));
+    return { berths, waitingNow };
+  }
+
+  function renderFrame(t) {
+    clockVal.textContent = t.toFixed(1);
+    const { berths, waitingNow } = stateAt(t);
+
+    let html = '<div class="berth-row">';
+    if (numBerths === 0) {
+      html += '<div class="empty" style="flex:1;">لا توجد أرصفة مُعرّفة — لا يمكن خدمة أي سفينة أبدًا.</div>';
+    }
+    for (let i = 0; i < numBerths; i++) {
+      const v = berths[i];
+      html += `<div class="berth ${v ? 'occ' : ''}"><span class="label">ر${i+1}</span>`;
+      if (v) html += `<div class="vessel" title="سفينة ${v.id}"></div><span class="svc">${(v.departTime - t).toFixed(1)}س متبقية</span>`;
+      html += `</div>`;
+    }
+    html += '</div>';
+    html += `<div class="queue-label">بالانتظار (${waitingNow.length})</div>`;
+    html += '<div class="queue">';
+    waitingNow.slice(0, 40).forEach(v => {
+      html += `<div class="chip" title="انتظرت ${(t - v.arrival).toFixed(1)}س">${(t - v.arrival).toFixed(0)}</div>`;
+    });
+    html += '</div>';
+    stage.innerHTML = html;
+
+    if (numBerths === 0 && result.vessels.some(v => v.arrival <= t)) {
+      banner.textContent = 'جمود تام: لا توجد أرصفة متاحة. كل سفينة تنتظر إلى الأبد.';
+      banner.classList.add('show');
+    } else if (waitingNow.length >= 12) {
+      banner.textContent = `تكدس متصاعد: ${waitingNow.length} سفينة تنتظر في آن واحد.`;
+      banner.classList.add('show');
+    } else {
+      banner.classList.remove('show');
+    }
+
+    scrub.value = Math.round((t / result.makespan) * 1000) || 0;
+    statusVal.textContent = playing ? 'قيد التشغيل' : (t >= result.makespan ? 'انتهى' : 'متوقف مؤقتًا');
+  }
+
+  function renderKpis() {
+    const fmt = (x) => x === null ? '—' : x.toFixed(1);
+    kpisEl.style.display = 'grid';
+    kpisEl.innerHTML = `
+      <div class="kpi"><div class="v">${fmt(result.avgWait)}س</div><div class="l">متوسط الانتظار</div></div>
+      <div class="kpi"><div class="v">${fmt(result.maxWait)}س</div><div class="l">أقصى انتظار</div></div>
+      <div class="kpi"><div class="v">${result.served}/${result.total}</div><div class="l">السفن المخدومة</div></div>
+      <div class="kpi"><div class="v">${fmt(result.utilization)}%</div><div class="l">استغلال الأرصفة</div></div>
+    `;
+  }
+
+  function tick(ts) {
+    if (!playing) return;
+    if (lastTs === null) lastTs = ts;
+    const dtSec = (ts - lastTs) / 1000;
+    lastTs = ts;
+    playHead += dtSec * rate;
+    if (playHead >= result.makespan) {
+      playHead = result.makespan;
+      playing = false;
+      document.getElementById('playBtn').textContent = '▶';
+    }
+    renderFrame(playHead);
+    if (playing) requestAnimationFrame(tick);
+  }
+
+  document.getElementById('runBtn').addEventListener('click', () => {
+    numBerths = Math.max(0, parseInt(document.getElementById('berths').value) || 0);
+    const n = Math.max(1, parseInt(document.getElementById('vessels').value) || 1);
+    const gapMin = parseFloat(document.getElementById('gapMin').value) || 0;
+    const gapMax = Math.max(gapMin, parseFloat(document.getElementById('gapMax').value) || gapMin);
+    const svcMin = parseFloat(document.getElementById('svcMin').value) || 0;
+    const svcMax = Math.max(svcMin, parseFloat(document.getElementById('svcMax').value) || svcMin);
+    const rule = document.getElementById('rule').value;
+
+    const vessels = buildVessels(n, gapMin, gapMax, svcMin, svcMax);
+    result = runEngine(numBerths, vessels, rule);
+
+    playHead = 0; playing = false; lastTs = null;
+    // sim-hour rate so a full run plays back in roughly 22 seconds at 1x
+    rate = result.makespan > 0 ? Math.max(result.makespan / 22, 0.2) : 1;
+    rate = parseFloat(document.getElementById('speedSel').value) * (result.makespan > 0 ? result.makespan / 22 : 1);
+
+    transport.style.display = 'flex';
+    document.getElementById('playBtn').textContent = '▶';
+    renderFrame(0);
+    renderKpis();
+  });
+
+  document.getElementById('playBtn').addEventListener('click', () => {
+    if (!result) return;
+    playing = !playing;
+    document.getElementById('playBtn').textContent = playing ? '❚❚' : '▶';
+    if (playing) {
+      if (playHead >= result.makespan) playHead = 0;
+      lastTs = null;
+      requestAnimationFrame(tick);
+    }
+  });
+
+  document.getElementById('speedSel').addEventListener('change', (e) => {
+    const base = result && result.makespan > 0 ? result.makespan / 22 : 1;
+    rate = parseFloat(e.target.value) * base;
+  });
+
+  scrub.addEventListener('input', (e) => {
+    if (!result) return;
+    playing = false;
+    document.getElementById('playBtn').textContent = '▶';
+    playHead = (parseFloat(e.target.value) / 1000) * result.makespan;
+    renderFrame(playHead);
+  });
+
+  // ---- tabs ----
+  const tabManual = document.getElementById('tabManual');
+  const tabContract = document.getElementById('tabContract');
+  const manualView = document.getElementById('manualView');
+  const contractView = document.getElementById('contractView');
+  tabManual.addEventListener('click', () => {
+    tabManual.classList.add('active'); tabContract.classList.remove('active');
+    manualView.style.display = 'grid'; contractView.style.display = 'none';
+  });
+  tabContract.addEventListener('click', () => {
+    tabContract.classList.add('active'); tabManual.classList.remove('active');
+    contractView.style.display = 'grid'; manualView.style.display = 'none';
+  });
+
+  // ---- contract mode: build vessels from scenario, apply per-candidate overrides ----
+  function vesselsFromScenario(scenario) {
+    const list = (scenario.vessel_forecast || []).map(vf => {
+      const service = vf.service_hours !== undefined
+        ? vf.service_hours
+        : Math.max(1, (vf.size_teu || 4000) / 1000 * 1.2);
+      return {
+        id: vf.vessel_id, arrival: vf.eta, service,
+        assignTime: null, berth: null, departTime: null,
+        forceBerth: null, _overridePriority: undefined
+      };
+    });
+    return list;
+  }
+
+  function applyOverrides(vessels, candidate) {
+    const map = {};
+    (candidate.overrides || []).forEach(o => { map[o.vessel_id] = o; });
+    let n = 0;
+    vessels.forEach(v => {
+      const o = map[v.id];
+      if (o) {
+        if (o.force_berth !== undefined) v.forceBerth = o.force_berth;
+        v._overridePriority = -1e9 + (n++); // overridden vessels always jump the queue
+      }
+    });
+  }
+
+  let contractResults = [];
+  let numBerthsGlobal = 0;
+
+  document.getElementById('contractRunBtn').addEventListener('click', () => {
+    const raw = document.getElementById('contractInput').value;
+    const box = document.getElementById('contractResults');
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch (e) {
+      box.innerHTML = `<div class="errbox">JSON غير صالح: ${e.message}</div>`;
+      return;
+    }
+    if (!data.scenario || !Array.isArray(data.candidates)) {
+      box.innerHTML = `<div class="errbox">يُفترض وجود كائن "scenario" علوي ومصفوفة "candidates".</div>`;
+      return;
+    }
+
+    numBerthsGlobal = data.scenario.num_berths !== undefined ? data.scenario.num_berths : 3;
+    const policyMap = {
+      fcfs: 'fcfs', first_come_first_served: 'fcfs',
+      shortest_service_first: 'shortest', longest_service_first: 'longest',
+      reverse: 'reverse', last_come_first_served: 'reverse', random: 'random'
+    };
+    contractResults = data.candidates.map(c => {
+      const vessels = vesselsFromScenario(data.scenario);
+      const hasOverrides = c.overrides && c.overrides.length;
+      const rule = hasOverrides ? 'custom' : (policyMap[c.policy] || 'fcfs');
+      if (rule === 'custom') applyOverrides(vessels, c);
+      const r = runEngine(numBerthsGlobal, vessels, rule);
+      return { id: c.id, generated_by: c.generated_by || '—', result: r };
+    });
+
+    const best = contractResults.reduce((a, b) => (a.result.avgWait ?? Infinity) <= (b.result.avgWait ?? Infinity) ? a : b);
+
+    let html = `<table class="ctable"><thead><tr>
+      <th>الخيار</th><th class="mono">متوسط الانتظار</th><th class="mono">أقصى انتظار</th>
+      <th class="mono">مخدومة</th><th class="mono">الاستغلال</th><th>المصدر</th><th></th>
+    </tr></thead><tbody>`;
+    contractResults.forEach(cr => {
+      const r = cr.result;
+      const isBest = cr.id === best.id;
+      html += `<tr class="${isBest ? 'best' : ''}">
+        <td>${cr.id}</td>
+        <td class="mono">${r.avgWait === null ? '—' : r.avgWait.toFixed(1) + 'س'}</td>
+        <td class="mono">${r.maxWait.toFixed(1)}س</td>
+        <td class="mono">${r.served}/${r.total}</td>
+        <td class="mono">${r.utilization.toFixed(0)}%</td>
+        <td>${cr.generated_by}</td>
+        <td><button data-id="${cr.id}" class="animateBtn">تشغيل</button></td>
+      </tr>`;
+    });
+    html += `</tbody></table>`;
+    box.innerHTML = html;
+
+    document.querySelectorAll('.animateBtn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const cr = contractResults.find(x => x.id === btn.dataset.id);
+        playFromResult(cr.id, cr.result, numBerthsGlobal);
+      });
+    });
+  });
+
+  // ---- second player (contract view animation) ----
+  let result2 = null, numBerths2 = 0, playing2 = false, playHead2 = 0, rate2 = 1, lastTs2 = null;
+  const stage2 = document.getElementById('stageContent2');
+  const scrub2 = document.getElementById('scrub2');
+  const clockVal2 = document.getElementById('clockVal2');
+  const statusVal2 = document.getElementById('statusVal2');
+  const animLabel = document.getElementById('animLabel');
+
+  function stateAt2(t) {
+    const berths = [];
+    for (let i = 0; i < numBerths2; i++) {
+      const iv = result2.berthIntervals[i].find(x => x.start <= t && t < x.end);
+      berths.push(iv ? iv.vessel : null);
+    }
+    const waitingNow = result2.vessels.filter(v => v.arrival <= t && (v.assignTime === null || v.assignTime > t));
+    return { berths, waitingNow };
+  }
+
+  function renderFrame2(t) {
+    clockVal2.textContent = t.toFixed(1);
+    const { berths, waitingNow } = stateAt2(t);
+    let html = '<div class="berth-row">';
+    for (let i = 0; i < numBerths2; i++) {
+      const v = berths[i];
+      html += `<div class="berth ${v ? 'occ' : ''}"><span class="label">ر${i+1}</span>`;
+      if (v) html += `<div class="vessel" title="${v.id}"></div><span class="svc">${(v.departTime - t).toFixed(1)}س متبقية</span>`;
+      html += `</div>`;
+    }
+    html += '</div>';
+    html += `<div class="queue-label">بالانتظار (${waitingNow.length})</div><div class="queue">`;
+    waitingNow.slice(0, 40).forEach(v => {
+      html += `<div class="chip" title="${v.id}، انتظرت ${(t - v.arrival).toFixed(1)}س">${(t - v.arrival).toFixed(0)}</div>`;
+    });
+    html += '</div>';
+    stage2.innerHTML = html;
+    scrub2.value = Math.round((t / result2.makespan) * 1000) || 0;
+    statusVal2.textContent = playing2 ? 'قيد التشغيل' : (t >= result2.makespan ? 'انتهى' : 'متوقف مؤقتًا');
+  }
+
+  function tick2(ts) {
+    if (!playing2) return;
+    if (lastTs2 === null) lastTs2 = ts;
+    const dtSec = (ts - lastTs2) / 1000;
+    lastTs2 = ts;
+    playHead2 += dtSec * rate2;
+    if (playHead2 >= result2.makespan) {
+      playHead2 = result2.makespan; playing2 = false;
+      document.getElementById('playBtn2').textContent = '▶';
+    }
+    renderFrame2(playHead2);
+    if (playing2) requestAnimationFrame(tick2);
+  }
+
+  function playFromResult(label, r, nb) {
+    result2 = r; numBerths2 = nb;
+    animLabel.textContent = label;
+    playHead2 = 0; playing2 = false; lastTs2 = null;
+    rate2 = parseFloat(document.getElementById('speedSel2').value) * (r.makespan > 0 ? r.makespan / 22 : 1);
+    document.getElementById('contractStageWrap').style.display = 'block';
+    document.getElementById('playBtn2').textContent = '▶';
+    renderFrame2(0);
+  }
+
+  document.getElementById('playBtn2').addEventListener('click', () => {
+    if (!result2) return;
+    playing2 = !playing2;
+    document.getElementById('playBtn2').textContent = playing2 ? '❚❚' : '▶';
+    if (playing2) {
+      if (playHead2 >= result2.makespan) playHead2 = 0;
+      lastTs2 = null;
+      requestAnimationFrame(tick2);
+    }
+  });
+  document.getElementById('speedSel2').addEventListener('change', (e) => {
+    const base = result2 && result2.makespan > 0 ? result2.makespan / 22 : 1;
+    rate2 = parseFloat(e.target.value) * base;
+  });
+  scrub2.addEventListener('input', (e) => {
+    if (!result2) return;
+    playing2 = false;
+    document.getElementById('playBtn2').textContent = '▶';
+    playHead2 = (parseFloat(e.target.value) / 1000) * result2.makespan;
+    renderFrame2(playHead2);
+  });
+
+  // prefill the textarea with a realistic example, including a custom per-vessel strategy
+  document.getElementById('contractInput').value = JSON.stringify({
+    scenario: {
+      num_berths: 3,
+      horizon_hours: 24,
+      vessel_forecast: [
+        { vessel_id: "v1_medsun_express", eta: 2, size_teu: 9000, cargo_priority: "perishable_high" },
+        { vessel_id: "v2_atlas_carrier",  eta: 3, size_teu: 4000, cargo_priority: "standard" },
+        { vessel_id: "v3_nordic_star",    eta: 4, size_teu: 6000, cargo_priority: "standard" },
+        { vessel_id: "v4_delta_king",     eta: 5, size_teu: 3000, cargo_priority: "standard" },
+        { vessel_id: "v5_horizon_bay",    eta: 6, size_teu: 7000, cargo_priority: "standard" },
+        { vessel_id: "v6_pacific_glory",  eta: 7, size_teu: 5000, cargo_priority: "standard" }
+      ],
+      weather_windows: [
+        { start: 5, end: 9, condition: "high_wind", crane_derate: 0.4 }
+      ]
+    },
+    candidates: [
+      { id: "plan_fcfs", policy: "fcfs", generated_by: "baseline" },
+      { id: "plan_shortest_first", policy: "shortest_service_first", generated_by: "cargo_agent" },
+      {
+        id: "plan_priority_v1",
+        policy: "custom",
+        generated_by: "top_agent",
+        overrides: [
+          { vessel_id: "v1_medsun_express", force_berth: 0, reason: "perishable_high, jump the queue and dock at berth 1" }
+        ]
+      }
+    ]
+  }, null, 2);
+})();
+</script>
+</body>
+</html>
