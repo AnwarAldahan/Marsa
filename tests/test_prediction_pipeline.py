@@ -20,7 +20,6 @@ from prediction_model.models.logistic_model import NumpyLogisticRegression
 from prediction_model.src.data_audit import add_congestion_label
 from prediction_model.src.evaluation import optimize_threshold
 from prediction_model.src.features import TabularPreprocessor, build_tabular_lag_features, ensure_time_features
-from prediction_model.src.inference import load_deployment_manifest, predict_future_congestion
 from prediction_model.src.schema import STATUS_COLUMN, TARGET_COLUMN, TIMESTAMP_COLUMN, feature_groups, primary_feature_columns
 from prediction_model.src.sequences import count_sequence_windows
 from prediction_model.src.splits import assign_split_by_target_timestamp
@@ -137,35 +136,10 @@ def test_holdout_labels_do_not_affect_preprocessing_or_threshold() -> None:
     assert threshold_after_holdout_change == threshold
 
 
-def test_saved_deployment_artifacts_load_and_inference_schema() -> None:
-    data_path = ROOT / "data" / "merged_port_dataset_2025.csv"
-    model_dir = ROOT / "prediction_model" / "saved_models"
-    manifest = load_deployment_manifest(model_dir)
-    payload = predict_future_congestion(data_path, model_dir)
-
-    prediction_timestamp = pd.Timestamp(payload["prediction_timestamp"])
-    manifest_horizons = [int(spec["horizon_hours"]) for spec in manifest["horizons"]]
-    output_horizons = [int(row["horizon_hours"]) for row in payload["predictions"]]
-    assert output_horizons == manifest_horizons
-    assert payload["model_version"] == manifest["model_version"]
-
-    for spec in manifest["horizons"]:
-        assert spec["calibration_method"] == "none_raw_probability_calibration_not_statistically_reliable"
-        assert spec["calibrator"] is None
-        assert STATUS_COLUMN not in spec["source_columns"]
-        assert TARGET_COLUMN not in spec["source_columns"]
-        assert "event_id" not in spec["source_columns"]
-        assert "event_start" not in spec["source_columns"]
-        assert "event_end" not in spec["source_columns"]
-        assert not any(column.startswith("target_") for column in spec["source_columns"])
-        assert not any("target_" in column for column in spec["feature_columns"])
-
-    for prediction in payload["predictions"]:
-        horizon = int(prediction["horizon_hours"])
-        target_timestamp = pd.Timestamp(prediction["target_timestamp"])
-        assert target_timestamp == prediction_timestamp + pd.Timedelta(hours=horizon)
-        assert 0.0 <= float(prediction["congestion_probability"]) <= 1.0
-        assert prediction["predicted_congestion_state"] in {0, 1}
+# NOTE: the former test_saved_deployment_artifacts_load_and_inference_schema was removed:
+# it targeted the superseded logistic-regression artifacts in prediction_model/saved_models,
+# which no longer exist. The final XGBoost proxy artifacts are covered by
+# tests/test_final_proxy_pipeline.py.
 
 
 def test_probability_bounds() -> None:
@@ -185,6 +159,5 @@ if __name__ == "__main__":
     test_preprocessor_is_train_only()
     test_primary_feature_governance_excludes_target_derived_columns()
     test_holdout_labels_do_not_affect_preprocessing_or_threshold()
-    test_saved_deployment_artifacts_load_and_inference_schema()
     test_probability_bounds()
     print("All lightweight pipeline tests passed.")

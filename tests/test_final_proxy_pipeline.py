@@ -111,7 +111,7 @@ def test_final_source_governance_excludes_target_and_status_columns() -> None:
 
 
 def test_saved_final_artifacts_load_and_inference_schema() -> None:
-    data_path = ROOT / "data" / "merged_port_dataset_2025.csv"
+    data_path = ROOT / "data" / "processed" / "merged_port_dataset_2025_v2.csv"
     model_dir = ROOT / "prediction_model" / "final_proxy" / "artifacts"
     assert (model_dir / "deployment_manifest.json").exists()
     payload = predict_final_proxy(data_path, model_dir)
