@@ -1,0 +1,7 @@
+pandas>=2.0
+numpy>=1.24
+pyyaml>=6.0
+lightgbm>=4.0
+scikit-learn>=1.3
+pyarrow>=14.0          # only for scripts/berth_occupancy_from_ais.py
+pytest>=7.0
