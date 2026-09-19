@@ -44,6 +44,17 @@ def _has_synthetic_arrival_pressure(events_weather: dict, event_impact: dict) ->
     return float(mapping.get("arrivals", 1.0)) > 1.0
 
 
+def _supports_preventive_cargo_test(forecast: dict, cargo_status: str) -> bool:
+    return (
+        cargo_status == "MODERATE"
+        and forecast.get("status") == "success"
+        and forecast.get("target") == "operational_cargo_congestion_proxy"
+        and forecast.get("classification") == "HIGH"
+        and forecast.get("alert_active") is True
+        and forecast.get("is_real_model_prediction") is True
+    )
+
+
 def generate_candidates(forecast: dict, maritime: dict, cargo: dict,
                         events_weather: dict, event_impact: dict | None = None) -> list[dict]:
     """Generate a small explainable set without forcing cross-domain consensus."""
@@ -68,17 +79,35 @@ def generate_candidates(forecast: dict, maritime: dict, cargo: dict,
             ],
             [{"type": "queue_policy", "value": "shortest_service_first"}],
         ))
-    if cargo_status in {"ELEVATED", "CRITICAL"}:
+    preventive_cargo_test = _supports_preventive_cargo_test(forecast, cargo_status)
+    if cargo_status in {"ELEVATED", "CRITICAL"} or preventive_cargo_test:
+        rationale = (
+            "Current MODERATE synthetic Cargo evidence identifies the gate domain, and an "
+            "active HIGH real six-hour cargo-proxy alert supports preventively testing the "
+            "existing gate-capacity adjustment in simulation without implying it is necessary."
+            if preventive_cargo_test else
+            "Synthetic Cargo state is consistent with elevated cargo-side pressure; the "
+            "simulation tests a 30% gate-capacity adjustment."
+        )
+        evidence_references = [
+            "cargo.cargo_status",
+            "cargo.evidence.yard_occupancy_percent",
+            "cargo.evidence.truck_waiting_time_minutes",
+            "cargo.evidence.gate_throughput_last_1h",
+            "cargo.evidence.cargo_flow_ratio",
+        ]
+        if preventive_cargo_test:
+            evidence_references.extend([
+                "ml_forecast.target",
+                "ml_forecast.classification",
+                "ml_forecast.congestion_score",
+                "ml_forecast.alert_active",
+                "ml_forecast.is_real_model_prediction",
+            ])
         candidates.append(_candidate(
             "gate_extension", "Increase gate clearance capacity",
-            "Synthetic Cargo state is consistent with elevated cargo-side pressure; the simulation tests a 30% gate-capacity adjustment.",
-            [
-                "cargo.cargo_status",
-                "cargo.evidence.yard_occupancy_percent",
-                "cargo.evidence.truck_waiting_time_minutes",
-                "cargo.evidence.gate_throughput_last_1h",
-                "cargo.evidence.cargo_flow_ratio",
-            ],
+            rationale,
+            evidence_references,
             [{"type": "gate_boost", "value": 1.3}],
         ))
     if maritime_status == "CONGESTED" and waiting > 0:
@@ -129,7 +158,7 @@ def synthesize(forecast: dict, maritime: dict, cargo: dict, events_weather: dict
         "ml": {
             "status": forecast["status"],
             "classification": forecast.get("classification"),
-            "probability": forecast.get("probability"),
+            "congestion_score": forecast.get("congestion_score"),
             "is_real_model_prediction": forecast.get("is_real_model_prediction", False),
         },
         "maritime": maritime["maritime_status"],

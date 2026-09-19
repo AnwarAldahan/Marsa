@@ -61,7 +61,7 @@ def test_strategy_accepts_conflicting_signals_without_mutation():
         "ml": {
             "status": "supplied_test_context",
             "classification": "HIGH",
-            "probability": None,
+            "congestion_score": None,
             "is_real_model_prediction": False,
         },
         "maritime": "NORMAL",
@@ -76,6 +76,27 @@ def test_fixed_seed_scoring_is_deterministic():
     first = run("2025-01-01T00:00:00Z")["deterministic_evaluation"]
     second = run("2025-01-01T00:00:00Z")["deterministic_evaluation"]
     assert first == second
+
+
+def test_real_ml_signal_reaches_strategy_without_overwriting_domain_agents():
+    result = run("2025-01-02T08:00:00Z")
+    forecast = result["ml_forecast"]
+    assert forecast["status"] == "success"
+    assert forecast["congestion_score"] == pytest.approx(0.008864540606737137)
+    assert forecast["classification"] == "LOW"
+    assert forecast["provenance"] == "PREDICTED"
+    assert forecast["is_real_model_prediction"] is True
+    assert "probability" not in forecast
+    assert result["strategy_synthesis"]["signals"]["ml"] == {
+        "status": "success",
+        "classification": "LOW",
+        "congestion_score": pytest.approx(0.008864540606737137),
+        "is_real_model_prediction": True,
+    }
+    assert set(result["domain_agents"]) == {"maritime", "cargo", "events_weather"}
+    assert result["digital_twin"]["provenance"] == "SIMULATED"
+    assert result["human_approval_required"] is True
+    assert result["decision_support"]["autonomous_execution"] is False
 
 
 def test_no_active_orchestrator_module():

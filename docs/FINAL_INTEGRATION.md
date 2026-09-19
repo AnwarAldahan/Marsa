@@ -45,17 +45,19 @@ copied into candidate actions and is not claimed to cause current pressure.
 
 ## ML contract
 
-The preserved XGBoost model targets `c1_congestion_next_6h`: whether C1 queue-pressure
-congestion occurs in `(t, t + 6h]`. Output would be a probability plus classification
-using the frozen threshold `0.6866225600242615`.
+The integrated XGBoost model version `layer1-cargo-proxy-v1` targets the
+`operational_cargo_congestion_proxy` at exactly `t + 6h`. It returns an uncalibrated
+`congestion_score` plus LOW/MEDIUM/HIGH classification; it does not return a
+probability. Runtime construction requires the timestamp and every exact source hour
+through `t - 24h`, with no interpolation. Missing history produces a structured
+`ml_unavailable` result.
 
-Real online inference is currently unavailable. The target merged runtime table lacks
-several approved features under their trained semantics, including vessel-type counts,
-median SOG, ship density, average port speed, and exact previous-hour throughput.
-The lineage modeling table is not promoted to an online runtime source. Marsa returns
-structured `ml_unavailable` state with no probability or classification rather than
-renaming or approximating features. Internal tests may inject an explicitly marked
-`supplied_test_context`; it is never represented as a real model prediction.
+This is a retrospective predictive prototype over the finalized 2025 Marsa dataset.
+The target is an operational proxy rather than independently observed congestion
+ground truth. Some synthetic Cargo inputs use retrospective full-period/month
+construction, and `weather_pressure_index` retains a full-period baseline concern.
+The runtime builder itself reads only finalized rows at or before `t`, but the system
+must not be represented as fully leakage-free production online inference.
 
 ## Digital Twin
 

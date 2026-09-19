@@ -1,6 +1,14 @@
 from marsa.agents.strategy_agent import generate_candidates
 
 FORECAST = {"status": "ml_unavailable"}
+HIGH_REAL_FORECAST = {
+    "status": "success",
+    "target": "operational_cargo_congestion_proxy",
+    "classification": "HIGH",
+    "congestion_score": 0.95,
+    "alert_active": True,
+    "is_real_model_prediction": True,
+}
 EVENT_IMPACT = {
     "demand_surge": {
         "minor": {"arrivals": 1.1},
@@ -43,9 +51,9 @@ def weather(*, active=False, event_type=None, severity=None, provenance="SYNTHET
     }
 
 
-def candidate_ids(maritime_result, cargo_result, weather_result):
+def candidate_ids(maritime_result, cargo_result, weather_result, forecast=FORECAST):
     candidates = generate_candidates(
-        FORECAST,
+        forecast,
         maritime_result,
         cargo_result,
         weather_result,
@@ -67,6 +75,42 @@ def test_elevated_maritime_with_waiting_generates_shortest_first():
 def test_elevated_cargo_generates_gate_extension():
     _, ids = candidate_ids(maritime(), cargo("ELEVATED"), weather())
     assert ids == ["baseline", "gate_extension"]
+
+
+def test_high_real_ml_and_moderate_cargo_generate_preventive_gate_test():
+    candidates, ids = candidate_ids(
+        maritime(), cargo("MODERATE"), weather(), HIGH_REAL_FORECAST,
+    )
+    assert ids == ["baseline", "gate_extension"]
+    gate = candidates[-1]
+    assert gate["actions"] == [{"type": "gate_boost", "value": 1.3}]
+    assert "preventively testing" in gate["rationale"]
+    assert "without implying it is necessary" in gate["rationale"]
+    assert "cargo.cargo_status" in gate["evidence_references"]
+    assert "ml_forecast.congestion_score" in gate["evidence_references"]
+    assert "ml_forecast.alert_active" in gate["evidence_references"]
+
+
+def test_high_real_ml_and_normal_cargo_remain_baseline_only():
+    _, ids = candidate_ids(maritime(), cargo("NORMAL"), weather(), HIGH_REAL_FORECAST)
+    assert ids == ["baseline"]
+
+
+def test_low_ml_and_moderate_cargo_preserve_baseline_only():
+    low = {**HIGH_REAL_FORECAST, "classification": "LOW", "alert_active": False}
+    _, ids = candidate_ids(maritime(), cargo("MODERATE"), weather(), low)
+    assert ids == ["baseline"]
+
+
+def test_high_label_without_active_alert_does_not_trigger_preventive_candidate():
+    inactive = {**HIGH_REAL_FORECAST, "alert_active": False}
+    _, ids = candidate_ids(maritime(), cargo("MODERATE"), weather(), inactive)
+    assert ids == ["baseline"]
+
+
+def test_ml_unavailable_and_moderate_cargo_preserve_baseline_only():
+    _, ids = candidate_ids(maritime(), cargo("MODERATE"), weather())
+    assert ids == ["baseline"]
 
 
 def test_domain_pressure_without_active_arrival_event_has_no_combined_candidate():

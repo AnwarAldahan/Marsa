@@ -95,6 +95,8 @@ def run(timestamp: str, cfg=None, df=None, llm=None, save=False,
         "decision_support": decision_support,
         "limitations": [
             "The ML risk horizon is six hours; the Digital Twin simulation horizon is configured independently.",
+            "The ML score is uncalibrated and targets a retrospective operational cargo-congestion proxy.",
+            "The finalized Cargo inputs and weather-pressure baseline have retrospective construction limitations.",
             "Cargo state is synthetic/calibrated synthetic, not observed terminal state.",
             "Digital Twin outcomes are simulated estimates under documented assumptions.",
             "No operational action is executed automatically.",
