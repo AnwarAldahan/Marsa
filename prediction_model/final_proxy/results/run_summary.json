@@ -1,0 +1,11 @@
+{
+  "elapsed_seconds": 981.0607086560049,
+  "models_trained": [
+    "XGBoost",
+    "GRU",
+    "PatchTSMixer",
+    "PatchTST"
+  ],
+  "stage2_preserved": true,
+  "output_dir": "prediction_model/final_proxy"
+}
