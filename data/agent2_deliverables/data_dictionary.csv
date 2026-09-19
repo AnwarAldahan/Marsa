@@ -1,0 +1,16 @@
+feature,unit,classification,description
+timestamp,UTC hour,real timestamp,"Exact unique AIS hour, floored from base_date_time."
+import_teu,TEU/hour,calibrated synthetic,Hourly allocation exactly normalized to supplied official monthly loaded-import TEU totals.
+export_teu,TEU/hour,calibrated synthetic,Hourly allocation exactly normalized to supplied official monthly loaded-export TEU totals.
+container_arrivals,normalized container-equivalent units/hour,synthetic,Yard inflow driven by import signal and distributed-lag cargo AIS activity.
+container_departures,normalized container-equivalent units/hour,synthetic,"Yard outflow tied to gate completions, export handling and inventory pressure."
+containers_in_yard,normalized container-equivalent units,state variable,"Stateful stock: previous inventory + arrivals - departures, including hidden missing AIS hours internally."
+yard_capacity,normalized units,synthetic assumption,"Constant 10,000 modeling units; NOT claimed physical POLA capacity."
+average_dwell_time_hours,hours,calibrated synthetic/state,"Persistent synthetic dwell around monthly baselines, responding to occupancy, imbalance and gate waiting."
+truck_arrivals,trucks/hour,synthetic,"Gate demand with hour/day cycles, cargo availability and yard state."
+truck_departures,trucks/hour,synthetic,Successful truck completions closely tied to gate throughput.
+truck_waiting_time_minutes,minutes,synthetic/state,Persistent queue-pressure indicator; not an observed official truck-turn-time series.
+gate_throughput,transactions/hour,synthetic,Successful gate transactions constrained by demand and synthetic processing capability.
+yard_occupancy_percent,percent,derived,100 * containers_in_yard / yard_capacity.
+cargo_flow_ratio,ratio,derived,"container_arrivals / max(container_departures, epsilon)."
+operations_status,category,derived,Rule-based current operational stress: NORMAL/MODERATE/ELEVATED/CRITICAL; not a future prediction.

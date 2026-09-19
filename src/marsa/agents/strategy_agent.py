@@ -1,72 +1,263 @@
-"""Strategy orchestrator: reads forecast + 3 agents, proposes candidates, sends them to the twin,
-ranks the twin's results with the documented score, and writes the recommendation.
-
-Candidate generation is rule-based (transparent). An LLM, if provided, only writes the narrative.
-"""
+"""Final Strategy Agent: synthesize evidence, generate candidates, and explain ranking."""
 from __future__ import annotations
-from marsa.agents.llm import NoLLM
+
+import re
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict
+
+from marsa.agents.llm import StructuredLLMProvider
+from marsa.provenance.types import DataProvenance
 from marsa.twin.engine import simulate_candidate
 from marsa.twin.scoring import score_results
 
-
-def generate_candidates(forecast: dict, maritime: dict, cargo: dict, context: dict) -> list[dict]:
-    cands = [{"id": "baseline", "label": "No intervention (FCFS)", "actions": []}]
-    bottlenecks = {maritime.get("possible_bottleneck"), cargo.get("possible_bottleneck")}
-    # queue rule always worth testing when vessels are waiting
-    if maritime["waiting_vessels"] > 0:
-        cands.append({"id": "shortest_first", "label": "Prioritise shortest service time",
-                      "actions": [{"type": "queue_policy", "value": "shortest_service_first"}]})
-    if "berth_capacity" in bottlenecks or "vessel_queue" in bottlenecks:
-        cands.append({"id": "extra_berth", "label": "Open one additional berth (lay berth)",
-                      "actions": [{"type": "add_berths", "value": 1}]})
-        cands.append({"id": "virtual_arrival", "label": "Ask approaching vessels to slow (virtual arrival, +4h)",
-                      "actions": [{"type": "delay_arrivals", "value": 4}]})
-    if "yard_capacity" in bottlenecks or "yard_clearance" in bottlenecks or "gate_capacity" in bottlenecks:
-        cands.append({"id": "gate_extension", "label": "Extend gate hours / add gate lanes (+30% clearance)",
-                      "actions": [{"type": "gate_boost", "value": 1.3}]})
-    if context["twin_multipliers"]["crane_multiplier"] < 1.0 or "berth_capacity" in bottlenecks:
-        cands.append({"id": "crane_boost", "label": "Add crane gang on busiest vessels (+25% discharge)",
-                      "actions": [{"type": "crane_boost", "value": 1.25}]})
-    cands.append({"id": "combined", "label": "Shortest-first + gate extension",
-                  "actions": [{"type": "queue_policy", "value": "shortest_service_first"},
-                              {"type": "gate_boost", "value": 1.3}]})
-    return cands
+SUPPORTED_ACTIONS = {
+    "queue_policy", "add_berths", "crane_boost", "gate_boost",
+    "delay_arrivals", "prioritise_vessel",
+}
 
 
-def evaluate(scenario, candidates: list[dict], cfg: dict) -> list[dict]:
-    tw = cfg["twin"]
-    results = [simulate_candidate(scenario, c, runs=tw["monte_carlo_runs"], seed=tw["random_seed"]) for c in candidates]
-    labels = {c["id"]: c["label"] for c in candidates}
-    ranked = score_results(results, cfg["scoring"]["weights"])
-    for r in ranked:
-        r["label"] = labels[r["candidate_id"]]
+class StrategyNarrative(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    summary: str
+
+
+def _candidate(candidate_id: str, title: str, rationale: str,
+               evidence_references: list[str], actions: list[dict]) -> dict:
+    if any(action.get("type") not in SUPPORTED_ACTIONS for action in actions):
+        raise ValueError("Strategy candidate contains an unsupported Digital Twin action")
+    return {
+        "candidate_id": candidate_id,
+        "title": title,
+        "rationale": rationale,
+        "evidence_references": evidence_references,
+        "actions": actions,
+        "provenance": DataProvenance.AGENT_GENERATED.value,
+    }
+
+
+def _has_synthetic_arrival_pressure(events_weather: dict, event_impact: dict) -> bool:
+    event = events_weather.get("external_event_assessment", {})
+    if not event.get("active") or event.get("provenance") != DataProvenance.SYNTHETIC.value:
+        return False
+    mapping = event_impact.get(event.get("type"), {}).get(event.get("severity"), {})
+    return float(mapping.get("arrivals", 1.0)) > 1.0
+
+
+def _supports_preventive_cargo_test(forecast: dict, cargo_status: str) -> bool:
+    return (
+        cargo_status == "MODERATE"
+        and forecast.get("status") == "success"
+        and forecast.get("target") == "operational_cargo_congestion_proxy"
+        and forecast.get("classification") == "HIGH"
+        and forecast.get("alert_active") is True
+        and forecast.get("is_real_model_prediction") is True
+    )
+
+
+def generate_candidates(forecast: dict, maritime: dict, cargo: dict,
+                        events_weather: dict, event_impact: dict | None = None) -> list[dict]:
+    """Generate a small explainable set without forcing cross-domain consensus."""
+    candidates = [_candidate(
+        "baseline", "No operational change",
+        "Provides the baseline required for paired what-if comparison.",
+        ["authoritative current port state"], [],
+    )]
+    maritime_status = maritime["maritime_status"]
+    cargo_status = cargo["cargo_status"]
+    waiting = maritime["evidence"]["waiting_vessels"]
+
+    if maritime_status in {"ELEVATED", "CONGESTED"} and waiting > 0:
+        candidates.append(_candidate(
+            "shortest_first", "Prioritize shorter vessel services",
+            "Current Maritime status and waiting-vessel evidence support testing a queue-policy alternative without changing capacity.",
+            [
+                "maritime.maritime_status",
+                "maritime.evidence.waiting_vessels",
+                "maritime.evidence.waiting_ratio",
+                "maritime.evidence.vessels",
+            ],
+            [{"type": "queue_policy", "value": "shortest_service_first"}],
+        ))
+    preventive_cargo_test = _supports_preventive_cargo_test(forecast, cargo_status)
+    if cargo_status in {"ELEVATED", "CRITICAL"} or preventive_cargo_test:
+        rationale = (
+            "Current MODERATE synthetic Cargo evidence identifies the gate domain, and an "
+            "active HIGH real six-hour cargo-proxy alert supports preventively testing the "
+            "existing gate-capacity adjustment in simulation without implying it is necessary."
+            if preventive_cargo_test else
+            "Synthetic Cargo state is consistent with elevated cargo-side pressure; the "
+            "simulation tests a 30% gate-capacity adjustment."
+        )
+        evidence_references = [
+            "cargo.cargo_status",
+            "cargo.evidence.yard_occupancy_percent",
+            "cargo.evidence.truck_waiting_time_minutes",
+            "cargo.evidence.gate_throughput_last_1h",
+            "cargo.evidence.cargo_flow_ratio",
+        ]
+        if preventive_cargo_test:
+            evidence_references.extend([
+                "ml_forecast.target",
+                "ml_forecast.classification",
+                "ml_forecast.congestion_score",
+                "ml_forecast.alert_active",
+                "ml_forecast.is_real_model_prediction",
+            ])
+        candidates.append(_candidate(
+            "gate_extension", "Increase gate clearance capacity",
+            rationale,
+            evidence_references,
+            [{"type": "gate_boost", "value": 1.3}],
+        ))
+    if maritime_status == "CONGESTED" and waiting > 0:
+        candidates.append(_candidate(
+            "extra_berth", "Temporarily add one berth",
+            "Current Maritime status is CONGESTED; the simulation tests one additional modeled berth.",
+            [
+                "maritime.maritime_status",
+                "maritime.evidence.waiting_vessels",
+                "maritime.evidence.waiting_ratio",
+            ],
+            [{"type": "add_berths", "value": 1}],
+        ))
+    candidate_ids = {candidate["candidate_id"] for candidate in candidates}
+    synthetic_arrival_pressure = _has_synthetic_arrival_pressure(
+        events_weather, event_impact or {},
+    )
+    if (
+        len(candidates) < 4
+        and {"shortest_first", "gate_extension"} <= candidate_ids
+        and synthetic_arrival_pressure
+    ):
+        event = events_weather["external_event_assessment"]
+        event_mapping = f"config.event_impact.{event['type']}.{event['severity']}.arrivals"
+        candidates.append(_candidate(
+            "combined_queue_gate", "Combine queue and gate adjustments",
+            "Both component candidates are independently supported, and configured synthetic arrival-pressure context supports testing their combined modeled response without attributing current pressure to the event.",
+            [
+                "maritime.maritime_status",
+                "maritime.evidence.waiting_vessels",
+                "cargo.cargo_status",
+                "events_weather.external_event_assessment.active",
+                "events_weather.external_event_assessment.type",
+                "events_weather.external_event_assessment.severity",
+                event_mapping,
+            ],
+            [
+                {"type": "queue_policy", "value": "shortest_service_first"},
+                {"type": "gate_boost", "value": 1.3},
+            ],
+        ))
+    return candidates[:4]
+
+
+def synthesize(forecast: dict, maritime: dict, cargo: dict, events_weather: dict) -> dict:
+    """Preserve conflicting signals while identifying supported pressure areas."""
+    signals = {
+        "ml": {
+            "status": forecast["status"],
+            "classification": forecast.get("classification"),
+            "congestion_score": forecast.get("congestion_score"),
+            "is_real_model_prediction": forecast.get("is_real_model_prediction", False),
+        },
+        "maritime": maritime["maritime_status"],
+        "cargo": cargo["cargo_status"],
+        "events_weather": events_weather["contextual_pressure"]["level"],
+    }
+    pressure_areas = []
+    if signals["maritime"] in {"ELEVATED", "CONGESTED"}:
+        pressure_areas.append("maritime")
+    if signals["cargo"] in {"ELEVATED", "CRITICAL"}:
+        pressure_areas.append("cargo")
+    if signals["events_weather"] in {"moderate", "elevated"}:
+        pressure_areas.append("events_weather")
+    return {
+        "signals": signals,
+        "supported_pressure_areas": pressure_areas,
+        "interpretation": (
+            "Signals are retained independently. Elevated evidence may contribute context "
+            "for candidate evaluation but does not establish causality."
+        ),
+        "provenance": DataProvenance.AGENT_GENERATED.value,
+    }
+
+
+def evaluate(scenario: object, candidates: list[dict], cfg: dict) -> list[dict]:
+    twin_cfg = cfg["twin"]
+    raw_results = []
+    for candidate in candidates:
+        twin_candidate = {"id": candidate["candidate_id"], "actions": candidate["actions"]}
+        result = simulate_candidate(
+            scenario, twin_candidate,
+            runs=twin_cfg["monte_carlo_runs"], seed=twin_cfg["random_seed"],
+        )
+        result["provenance"] = DataProvenance.SIMULATED.value
+        raw_results.append(result)
+    ranked = score_results(raw_results, cfg["scoring"]["weights"])
+    by_id = {candidate["candidate_id"]: candidate for candidate in candidates}
+    for result in ranked:
+        candidate = by_id[result["candidate_id"]]
+        result.update({
+            "title": candidate["title"],
+            "rationale": candidate["rationale"],
+            "evidence_references": candidate["evidence_references"],
+        })
     return ranked
 
 
-def recommend(ranked: list[dict], forecast: dict, agents: dict, llm=None) -> dict:
-    base = next(r for r in ranked if r["candidate_id"] == "baseline")
+def _deterministic_summary(ranked: list[dict]) -> str:
     best = ranked[0]
-    k = lambda r, m: r["kpis"][m]["mean"]
-    dw, dd, dy = (k(best, "avg_wait_hours") - k(base, "avg_wait_hours"),
-                  k(best, "delayed_vessels") - k(base, "delayed_vessels"),
-                  k(best, "yard_peak_occupancy") - k(base, "yard_peak_occupancy"))
-    MIN_GAIN = 0.05                      # score gap below this = not worth an intervention
-    if best is not base and base["score"] - best["score"] < MIN_GAIN:
-        best, dw, dd, dy = base, 0.0, 0.0, 0.0
-    if best is base:
-        text = (f"No intervention recommended: the twin finds no candidate that improves waiting, delays or yard "
-                f"pressure meaningfully over the next {len(ranked)} tested options. Baseline estimate: average berth "
-                f"wait {k(base,'avg_wait_hours'):.1f}h, {k(base,'delayed_vessels'):.1f} delayed vessels, "
-                f"yard peak {100*k(base,'yard_peak_occupancy'):.0f}%.")
-    else:
-        text = (f"Recommended: {best['label']}. Over the next horizon the twin estimates average berth wait "
-                f"{k(best,'avg_wait_hours'):.1f}h (baseline {k(base,'avg_wait_hours'):.1f}h, {dw:+.1f}h), "
-                f"{k(best,'delayed_vessels'):.1f} delayed vessels ({dd:+.1f}) and yard peak "
-                f"{100*k(best,'yard_peak_occupancy'):.0f}% ({100*dy:+.0f} pts). "
-                f"Values are simulated estimates, not guaranteed outcomes.")
-    llm = llm or NoLLM()
-    narrative = llm.complete(f"Explain this port recommendation for an operations manager:\n{text}\n"
-                             f"Evidence: {agents}") or text
-    return {"recommended_candidate": best["candidate_id"], "label": best["label"],
-            "expected_change_vs_baseline": {"avg_wait_hours": round(dw, 2), "delayed_vessels": round(dd, 2), "yard_peak_occupancy": round(dy, 3)},
-            "narrative": narrative, "ranking": [{"rank": r["rank"], "id": r["candidate_id"], "score": r["score"]} for r in ranked]}
+    return (
+        f"Deterministic simulation scoring ranked '{best['title']}' first among "
+        f"{len(ranked)} candidates. The ranking compares modeled outcomes under documented "
+        "assumptions and does not guarantee real-world superiority."
+    )
+
+
+def recommend(ranked: list[dict], forecast: dict, agents: dict,
+              llm: StructuredLLMProvider | None = None) -> dict:
+    synthesis = synthesize(forecast, agents["maritime"], agents["cargo"], agents["events_weather"])
+    summary = _deterministic_summary(ranked)
+    reasoning_mode = "deterministic"
+    if llm is not None:
+        try:
+            raw: Any = llm.generate_structured(
+                system_prompt=(
+                    "Write one concise decision-support sentence. Do not use numbers, claim "
+                    "causality, alter facts, or describe simulated outcomes as observed."
+                ),
+                payload={
+                    "deterministic_summary": summary,
+                    "domain_statuses": {
+                        "maritime": agents["maritime"]["maritime_status"],
+                        "cargo": agents["cargo"]["cargo_status"],
+                        "events_weather": agents["events_weather"]["contextual_pressure"]["level"],
+                    },
+                },
+                response_model=StrategyNarrative,
+            )
+            value = raw.model_dump() if isinstance(raw, BaseModel) else raw
+            narrative = (StrategyNarrative.model_validate_json(value) if isinstance(value, str)
+                         else StrategyNarrative.model_validate(value))
+            if re.search(r"\d|\b(?:caus\w*|guarantee\w*|observed outcome|execute|must|should)\b", narrative.summary, re.I):
+                raise ValueError("unsafe Strategy narrative")
+            summary = narrative.summary
+            reasoning_mode = "llm_assisted"
+        except Exception:
+            reasoning_mode = "deterministic_fallback"
+
+    return {
+        "purpose": "Simulation-based candidate evaluation for human review.",
+        "highest_ranked_candidate": ranked[0]["candidate_id"],
+        "summary": summary,
+        "evidence_summary": synthesis,
+        "reasoning_mode": reasoning_mode,
+        "provenance": DataProvenance.AGENT_GENERATED.value,
+        "ranking": [
+            {"rank": item["rank"], "candidate_id": item["candidate_id"], "score": item["score"]}
+            for item in ranked
+        ],
+        "human_approval_required": True,
+        "autonomous_execution": False,
+    }

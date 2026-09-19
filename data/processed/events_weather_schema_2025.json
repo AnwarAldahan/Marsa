@@ -1,0 +1,490 @@
+[
+  {
+    "feature_name": "hour_key",
+    "description": "Hourly timestamp key from the authoritative base dataset.",
+    "dtype": "timestamp[us]",
+    "unit": null,
+    "source": "data/processed/events_weather_state.parquet (2025 row filter only)",
+    "provenance": "OBSERVED",
+    "variable_type": "STATE",
+    "dependencies": [],
+    "constraints": {},
+    "missing_value_count": 0,
+    "unique_value_count": 8688,
+    "agent_visibility": [
+      "events_weather_agent"
+    ],
+    "ml_candidate": true,
+    "notes": "2025-only scope; retained values are exact copies of the finalized 2023-2025 state.",
+    "table_scope": [
+      "events_weather_state_2025"
+    ]
+  },
+  {
+    "feature_name": "wind_speed_10m",
+    "description": "Wind speed at 10 meters, preserved exactly from the base dataset.",
+    "dtype": "double",
+    "unit": null,
+    "source": "data/processed/events_weather_state.parquet (2025 row filter only)",
+    "provenance": "OBSERVED",
+    "variable_type": "STATE",
+    "dependencies": [],
+    "constraints": {},
+    "missing_value_count": 1,
+    "unique_value_count": 279,
+    "agent_visibility": [
+      "events_weather_agent"
+    ],
+    "ml_candidate": true,
+    "notes": "2025-only scope; retained values are exact copies of the finalized 2023-2025 state.",
+    "table_scope": [
+      "events_weather_state_2025"
+    ]
+  },
+  {
+    "feature_name": "wave_height",
+    "description": "Wave height, preserved exactly from the base dataset.",
+    "dtype": "double",
+    "unit": null,
+    "source": "data/processed/events_weather_state.parquet (2025 row filter only)",
+    "provenance": "OBSERVED",
+    "variable_type": "STATE",
+    "dependencies": [],
+    "constraints": {},
+    "missing_value_count": 1,
+    "unique_value_count": 116,
+    "agent_visibility": [
+      "events_weather_agent"
+    ],
+    "ml_candidate": true,
+    "notes": "2025-only scope; retained values are exact copies of the finalized 2023-2025 state.",
+    "table_scope": [
+      "events_weather_state_2025"
+    ]
+  },
+  {
+    "feature_name": "weather_code",
+    "description": "Uninterpreted numeric weather code, preserved exactly from the base dataset.",
+    "dtype": "double",
+    "unit": null,
+    "source": "data/processed/events_weather_state.parquet (2025 row filter only)",
+    "provenance": "OBSERVED",
+    "variable_type": "STATE",
+    "dependencies": [],
+    "constraints": {},
+    "missing_value_count": 1,
+    "unique_value_count": 10,
+    "agent_visibility": [
+      "events_weather_agent"
+    ],
+    "ml_candidate": true,
+    "notes": "Coding system remains unverified and is not mapped to labels. 2025-only scope; retained values are exact copies of the finalized 2023-2025 state.",
+    "table_scope": [
+      "events_weather_state_2025"
+    ]
+  },
+  {
+    "feature_name": "hour",
+    "description": "Hour-of-day integer preserved exactly from the base dataset.",
+    "dtype": "int32",
+    "unit": null,
+    "source": "data/processed/events_weather_state.parquet (2025 row filter only)",
+    "provenance": "DERIVED",
+    "variable_type": "STATE",
+    "dependencies": [],
+    "constraints": {},
+    "missing_value_count": 0,
+    "unique_value_count": 24,
+    "agent_visibility": [
+      "events_weather_agent"
+    ],
+    "ml_candidate": true,
+    "notes": "2025-only scope; retained values are exact copies of the finalized 2023-2025 state.",
+    "table_scope": [
+      "events_weather_state_2025"
+    ]
+  },
+  {
+    "feature_name": "hour_sin",
+    "description": "Sine encoding of hour-of-day preserved exactly from the base dataset.",
+    "dtype": "double",
+    "unit": "unitless",
+    "source": "data/processed/events_weather_state.parquet (2025 row filter only)",
+    "provenance": "DERIVED",
+    "variable_type": "STATE",
+    "dependencies": [],
+    "constraints": {},
+    "missing_value_count": 0,
+    "unique_value_count": 22,
+    "agent_visibility": [
+      "events_weather_agent"
+    ],
+    "ml_candidate": true,
+    "notes": "2025-only scope; retained values are exact copies of the finalized 2023-2025 state.",
+    "table_scope": [
+      "events_weather_state_2025"
+    ]
+  },
+  {
+    "feature_name": "hour_cos",
+    "description": "Cosine encoding of hour-of-day preserved exactly from the base dataset.",
+    "dtype": "double",
+    "unit": "unitless",
+    "source": "data/processed/events_weather_state.parquet (2025 row filter only)",
+    "provenance": "DERIVED",
+    "variable_type": "STATE",
+    "dependencies": [],
+    "constraints": {},
+    "missing_value_count": 0,
+    "unique_value_count": 22,
+    "agent_visibility": [
+      "events_weather_agent"
+    ],
+    "ml_candidate": true,
+    "notes": "2025-only scope; retained values are exact copies of the finalized 2023-2025 state.",
+    "table_scope": [
+      "events_weather_state_2025"
+    ]
+  },
+  {
+    "feature_name": "day_of_week",
+    "description": "Day-of-week integer preserved exactly from the base dataset.",
+    "dtype": "int32",
+    "unit": null,
+    "source": "data/processed/events_weather_state.parquet (2025 row filter only)",
+    "provenance": "DERIVED",
+    "variable_type": "STATE",
+    "dependencies": [],
+    "constraints": {},
+    "missing_value_count": 0,
+    "unique_value_count": 7,
+    "agent_visibility": [
+      "events_weather_agent"
+    ],
+    "ml_candidate": true,
+    "notes": "2025-only scope; retained values are exact copies of the finalized 2023-2025 state.",
+    "table_scope": [
+      "events_weather_state_2025"
+    ]
+  },
+  {
+    "feature_name": "month",
+    "description": "Month integer preserved exactly from the base dataset.",
+    "dtype": "int32",
+    "unit": null,
+    "source": "data/processed/events_weather_state.parquet (2025 row filter only)",
+    "provenance": "DERIVED",
+    "variable_type": "STATE",
+    "dependencies": [],
+    "constraints": {},
+    "missing_value_count": 0,
+    "unique_value_count": 12,
+    "agent_visibility": [
+      "events_weather_agent"
+    ],
+    "ml_candidate": true,
+    "notes": "2025-only scope; retained values are exact copies of the finalized 2023-2025 state.",
+    "table_scope": [
+      "events_weather_state_2025"
+    ]
+  },
+  {
+    "feature_name": "is_weekend",
+    "description": "True on Saturday or Sunday in the timestamp calendar.",
+    "dtype": "bool",
+    "unit": null,
+    "source": "data/processed/events_weather_state.parquet (2025 row filter only)",
+    "provenance": "DERIVED",
+    "variable_type": "CONTEXT",
+    "dependencies": [
+      "hour_key"
+    ],
+    "constraints": {},
+    "missing_value_count": 0,
+    "unique_value_count": 2,
+    "agent_visibility": [
+      "events_weather_agent"
+    ],
+    "ml_candidate": true,
+    "notes": "2025-only scope; retained values are exact copies of the finalized 2023-2025 state.",
+    "table_scope": [
+      "events_weather_state_2025"
+    ]
+  },
+  {
+    "feature_name": "is_public_holiday",
+    "description": "True on US federal holidays observed under pandas USFederalHolidayCalendar rules.",
+    "dtype": "bool",
+    "unit": null,
+    "source": "data/processed/events_weather_state.parquet (2025 row filter only)",
+    "provenance": "DERIVED",
+    "variable_type": "CONTEXT",
+    "dependencies": [
+      "hour_key"
+    ],
+    "constraints": {},
+    "missing_value_count": 0,
+    "unique_value_count": 2,
+    "agent_visibility": [
+      "events_weather_agent"
+    ],
+    "ml_candidate": true,
+    "notes": "Historical US/LA-LB context only; excludes Saudi holidays, Ramadan, and Eid. 2025-only scope; retained values are exact copies of the finalized 2023-2025 state.",
+    "table_scope": [
+      "events_weather_state_2025"
+    ]
+  },
+  {
+    "feature_name": "weather_pressure_index",
+    "description": "Transparent Agent-facing wind/wave pressure indicator; not an official metric.",
+    "dtype": "double",
+    "unit": "unitless",
+    "source": "data/processed/events_weather_state.parquet (2025 row filter only)",
+    "provenance": "DERIVED",
+    "variable_type": "DERIVED",
+    "dependencies": [
+      "wind_speed_10m",
+      "wave_height"
+    ],
+    "constraints": {
+      "ml_candidate": false
+    },
+    "missing_value_count": 1,
+    "unique_value_count": 89,
+    "agent_visibility": [
+      "events_weather_agent"
+    ],
+    "ml_candidate": false,
+    "notes": "Agent-facing only; not an official meteorological or port metric. If used for ML, fit percentile thresholds on the training period only. 2025-only scope; retained values are exact copies of the finalized 2023-2025 state. Thresholds remain those derived from the full 2023-2025 historical weather baseline; they were not refitted to 2025.",
+    "table_scope": [
+      "events_weather_state_2025"
+    ]
+  },
+  {
+    "feature_name": "event_active",
+    "description": "True when the hour falls within a generated synthetic event interval.",
+    "dtype": "bool",
+    "unit": null,
+    "source": "data/processed/events_weather_state.parquet (2025 row filter only)",
+    "provenance": "SYNTHETIC",
+    "variable_type": "EVENT",
+    "dependencies": [
+      "hour_key"
+    ],
+    "constraints": {
+      "ml_candidate": false
+    },
+    "missing_value_count": 0,
+    "unique_value_count": 2,
+    "agent_visibility": [
+      "events_weather_agent"
+    ],
+    "ml_candidate": false,
+    "notes": "Synthetic MVP feature generated without congestion, vessel, cargo, prediction, or future information. 2025-only scope; retained values are exact copies of the finalized 2023-2025 state.",
+    "table_scope": [
+      "events_weather_state_2025"
+    ]
+  },
+  {
+    "feature_name": "event_id",
+    "description": "Unique synthetic event identifier, repeated over active hourly rows.",
+    "dtype": "large_string",
+    "unit": null,
+    "source": "data/processed/events_weather_state.parquet (2025 row filter only)",
+    "provenance": "SYNTHETIC",
+    "variable_type": "EVENT",
+    "dependencies": [
+      "hour_key"
+    ],
+    "constraints": {
+      "ml_candidate": false
+    },
+    "missing_value_count": 8516,
+    "unique_value_count": 15,
+    "agent_visibility": [
+      "events_weather_agent"
+    ],
+    "ml_candidate": false,
+    "notes": "Synthetic MVP feature generated without congestion, vessel, cargo, prediction, or future information. 2025-only scope; retained values are exact copies of the finalized 2023-2025 state.",
+    "table_scope": [
+      "events_weather_state_2025"
+    ]
+  },
+  {
+    "feature_name": "event_type",
+    "description": "Synthetic event category.",
+    "dtype": "large_string",
+    "unit": null,
+    "source": "data/processed/events_weather_state.parquet (2025 row filter only)",
+    "provenance": "SYNTHETIC",
+    "variable_type": "EVENT",
+    "dependencies": [
+      "hour_key"
+    ],
+    "constraints": {
+      "ml_candidate": false
+    },
+    "missing_value_count": 8516,
+    "unique_value_count": 4,
+    "agent_visibility": [
+      "events_weather_agent"
+    ],
+    "ml_candidate": false,
+    "notes": "Synthetic MVP feature generated without congestion, vessel, cargo, prediction, or future information. 2025-only scope; retained values are exact copies of the finalized 2023-2025 state.",
+    "table_scope": [
+      "events_weather_state_2025"
+    ]
+  },
+  {
+    "feature_name": "event_severity",
+    "description": "Synthetic severity: minor, moderate, or severe.",
+    "dtype": "large_string",
+    "unit": null,
+    "source": "data/processed/events_weather_state.parquet (2025 row filter only)",
+    "provenance": "SYNTHETIC",
+    "variable_type": "EVENT",
+    "dependencies": [
+      "hour_key"
+    ],
+    "constraints": {
+      "ml_candidate": false
+    },
+    "missing_value_count": 8516,
+    "unique_value_count": 3,
+    "agent_visibility": [
+      "events_weather_agent"
+    ],
+    "ml_candidate": false,
+    "notes": "Synthetic MVP feature generated without congestion, vessel, cargo, prediction, or future information. 2025-only scope; retained values are exact copies of the finalized 2023-2025 state.",
+    "table_scope": [
+      "events_weather_state_2025"
+    ]
+  },
+  {
+    "feature_name": "event_start",
+    "description": "Inclusive synthetic event start timestamp.",
+    "dtype": "timestamp[us]",
+    "unit": null,
+    "source": "data/processed/events_weather_state.parquet (2025 row filter only)",
+    "provenance": "SYNTHETIC",
+    "variable_type": "EVENT",
+    "dependencies": [
+      "hour_key"
+    ],
+    "constraints": {
+      "ml_candidate": false
+    },
+    "missing_value_count": 8516,
+    "unique_value_count": 15,
+    "agent_visibility": [
+      "events_weather_agent"
+    ],
+    "ml_candidate": false,
+    "notes": "Synthetic MVP feature generated without congestion, vessel, cargo, prediction, or future information. 2025-only scope; retained values are exact copies of the finalized 2023-2025 state.",
+    "table_scope": [
+      "events_weather_state_2025"
+    ]
+  },
+  {
+    "feature_name": "event_end",
+    "description": "Exclusive synthetic event end timestamp.",
+    "dtype": "timestamp[us]",
+    "unit": null,
+    "source": "data/processed/events_weather_state.parquet (2025 row filter only)",
+    "provenance": "SYNTHETIC",
+    "variable_type": "EVENT",
+    "dependencies": [
+      "hour_key"
+    ],
+    "constraints": {
+      "ml_candidate": false
+    },
+    "missing_value_count": 8516,
+    "unique_value_count": 15,
+    "agent_visibility": [
+      "events_weather_agent"
+    ],
+    "ml_candidate": false,
+    "notes": "Synthetic MVP feature generated without congestion, vessel, cargo, prediction, or future information. 2025-only scope; retained values are exact copies of the finalized 2023-2025 state.",
+    "table_scope": [
+      "events_weather_state_2025"
+    ]
+  },
+  {
+    "feature_name": "event_duration_hours",
+    "description": "Elapsed clock-hour duration between event_start and event_end.",
+    "dtype": "int32",
+    "unit": null,
+    "source": "data/processed/events_weather_state.parquet (2025 row filter only)",
+    "provenance": "SYNTHETIC",
+    "variable_type": "EVENT",
+    "dependencies": [
+      "hour_key"
+    ],
+    "constraints": {
+      "ml_candidate": false
+    },
+    "missing_value_count": 8516,
+    "unique_value_count": 8,
+    "agent_visibility": [
+      "events_weather_agent"
+    ],
+    "ml_candidate": false,
+    "notes": "Synthetic MVP feature generated without congestion, vessel, cargo, prediction, or future information. 2025-only scope; retained values are exact copies of the finalized 2023-2025 state.",
+    "table_scope": [
+      "events_weather_state_2025"
+    ]
+  },
+  {
+    "feature_name": "event_represented_hours",
+    "description": "Number of authoritative hourly rows present within the event interval.",
+    "dtype": "int32",
+    "unit": null,
+    "source": "data/processed/events_weather_state.parquet (2025 row filter only)",
+    "provenance": "SYNTHETIC",
+    "variable_type": "EVENT",
+    "dependencies": [
+      "hour_key"
+    ],
+    "constraints": {
+      "ml_candidate": false
+    },
+    "missing_value_count": 8516,
+    "unique_value_count": 8,
+    "agent_visibility": [
+      "events_weather_agent"
+    ],
+    "ml_candidate": false,
+    "notes": "Synthetic MVP feature generated without congestion, vessel, cargo, prediction, or future information. 2025-only scope; retained values are exact copies of the finalized 2023-2025 state. This preserves the original event-level represented count. All retained events are wholly inside 2025; the 2025 event registry also exposes event_represented_hours_2025 explicitly.",
+    "table_scope": [
+      "events_weather_state_2025"
+    ]
+  },
+  {
+    "feature_name": "event_represented_hours_2025",
+    "description": "Number of authoritative 2025 hourly rows present within the event interval.",
+    "dtype": "int64",
+    "unit": "hours represented as rows",
+    "source": "Derived by counting finalized 2025 state rows within the original event interval",
+    "provenance": "DERIVED",
+    "variable_type": "EVENT",
+    "dependencies": [
+      "hour_key",
+      "event_start",
+      "event_end"
+    ],
+    "constraints": {
+      "ml_candidate": false
+    },
+    "missing_value_count": 0,
+    "unique_value_count": 8,
+    "agent_visibility": [
+      "events_weather_agent"
+    ],
+    "ml_candidate": false,
+    "table_scope": [
+      "synthetic_events_2025"
+    ],
+    "notes": "Registry-only 2025 scope count. It does not alter event_start, event_end, event_duration_hours, or the original event_represented_hours definition."
+  }
+]

@@ -69,3 +69,11 @@ twin:
 
 scoring:                         # composite score, lower is better (docs/LIMITATIONS.md)
   weights: {avg_wait_hours: 0.4, max_wait_hours: 0.2, delayed_vessels: 0.25, yard_peak_occupancy: 0.15}
+
+ml_contract:
+  target: "operational_cargo_congestion_proxy"
+  horizon_hours: 6
+  model_version: "layer1-cargo-proxy-v1"
+  artifact: "prediction_model/final_proxy/artifacts/XGBoost_6h/model.json"
+  score_calibrated_as_probability: false
+  prototype_scope: "retrospective finalized 2025 dataset"

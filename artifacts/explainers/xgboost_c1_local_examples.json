@@ -1,0 +1,158 @@
+{
+  "true_positive": {
+    "test_index": 12,
+    "true_label": 1,
+    "predicted_probability": 0.6897052526473999,
+    "top_contributors": [
+      {
+        "feature": "vessels_in_area",
+        "shap_value": 1.917272686958313
+      },
+      {
+        "feature": "vessels_waiting",
+        "shap_value": -1.185552716255188
+      },
+      {
+        "feature": "tanker_vessels_in_area",
+        "shap_value": -0.4998055398464203
+      },
+      {
+        "feature": "ship_density",
+        "shap_value": 0.317081093788147
+      },
+      {
+        "feature": "hour_cos",
+        "shap_value": 0.30189597606658936
+      },
+      {
+        "feature": "cargo_vessels_in_area",
+        "shap_value": 0.29705679416656494
+      },
+      {
+        "feature": "avg_sog",
+        "shap_value": -0.2760104238986969
+      },
+      {
+        "feature": "wind_speed_10m",
+        "shap_value": 0.2572704553604126
+      }
+    ]
+  },
+  "true_negative": {
+    "test_index": 0,
+    "true_label": 0,
+    "predicted_probability": 0.3515690565109253,
+    "top_contributors": [
+      {
+        "feature": "vessels_in_area",
+        "shap_value": 1.8415913581848145
+      },
+      {
+        "feature": "vessels_waiting",
+        "shap_value": -1.537347674369812
+      },
+      {
+        "feature": "hour_cos",
+        "shap_value": -0.6613222360610962
+      },
+      {
+        "feature": "tanker_vessels_in_area",
+        "shap_value": -0.6573752760887146
+      },
+      {
+        "feature": "avg_sog",
+        "shap_value": -0.39489784836769104
+      },
+      {
+        "feature": "waiting_ratio",
+        "shap_value": 0.36094382405281067
+      },
+      {
+        "feature": "ship_density",
+        "shap_value": 0.2887389361858368
+      },
+      {
+        "feature": "cargo_vessels_in_area",
+        "shap_value": 0.24617770314216614
+      }
+    ]
+  },
+  "false_positive": {
+    "test_index": 16,
+    "true_label": 0,
+    "predicted_probability": 0.7747005820274353,
+    "top_contributors": [
+      {
+        "feature": "vessels_in_area",
+        "shap_value": 1.837812900543213
+      },
+      {
+        "feature": "vessels_waiting",
+        "shap_value": -1.1839282512664795
+      },
+      {
+        "feature": "hour_cos",
+        "shap_value": 0.29371577501296997
+      },
+      {
+        "feature": "cargo_vessels_in_area",
+        "shap_value": 0.27342742681503296
+      },
+      {
+        "feature": "ship_density",
+        "shap_value": 0.24712708592414856
+      },
+      {
+        "feature": "waiting_ratio",
+        "shap_value": -0.184987410902977
+      },
+      {
+        "feature": "avg_sog",
+        "shap_value": 0.1561627984046936
+      },
+      {
+        "feature": "wave_height",
+        "shap_value": -0.13184016942977905
+      }
+    ]
+  },
+  "false_negative": {
+    "test_index": 10,
+    "true_label": 1,
+    "predicted_probability": 0.6810563802719116,
+    "top_contributors": [
+      {
+        "feature": "vessels_in_area",
+        "shap_value": 2.1433401107788086
+      },
+      {
+        "feature": "vessels_waiting",
+        "shap_value": -1.1469175815582275
+      },
+      {
+        "feature": "tanker_vessels_in_area",
+        "shap_value": -0.7109731435775757
+      },
+      {
+        "feature": "ship_density",
+        "shap_value": 0.3441077768802643
+      },
+      {
+        "feature": "hour_cos",
+        "shap_value": 0.2936534881591797
+      },
+      {
+        "feature": "wave_height",
+        "shap_value": -0.19039933383464813
+      },
+      {
+        "feature": "cargo_vessels_in_area",
+        "shap_value": 0.14243295788764954
+      },
+      {
+        "feature": "avg_sog",
+        "shap_value": 0.12609347701072693
+      }
+    ]
+  }
+}
