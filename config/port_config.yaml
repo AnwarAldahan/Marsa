@@ -1,0 +1,71 @@
+# Marsa MVP - port configuration and assumptions.
+# Every value has a source tag. ASSUMPTION = synthetic modelling choice, not a measured fact.
+port:
+  name: "Port of Los Angeles (container chain only)"
+  timezone_data: "UTC"
+  timezone_operational: "America/Los_Angeles"
+  ais_lon_split: -118.245        # ASSUMPTION: LA/LB boundary estimated from stationary-vessel map
+  ais_lat_min_inner: 33.72       # ASSUMPTION: inside the breakwater
+
+capacity:
+  container_berths: 23           # SOURCE: portoflosangeles.org terminal pages (7 container terminals)
+  container_cranes: 79           # SOURCE: portoflosangeles.org terminal pages
+  crane_moves_per_hour: 28       # REFERENCE: 25-30 gross moves/hr (JOC; APM Pier 400 record run = 30)
+  teu_per_move: 1.6              # ASSUMPTION: mix of 20ft/40ft boxes
+  cranes_per_vessel: 4           # ASSUMPTION: typical gang per vessel
+  yard_capacity_units: 10000     # ASSUMPTION: normalised yard scale of the cargo dataset (agent 2)
+  # Twin flows are expressed in the same normalised yard units as the cargo dataset, so that the
+  # twin starts from containers_in_yard and stays consistent with it.
+  discharge_units_per_vessel_hour: 13.8   # DERIVED: sum(container_arrivals)/sum(berthed vessel-hours), 2025
+  gate_units_per_hour_capacity: 200       # DERIVED/ASSUMPTION: ~p95 of container_departures (mean 141, max 330)
+  yard_slowdown_occupancy: 0.95           # ASSUMPTION: above this, discharge halves (yard congestion)
+
+vessel_service:
+  mean_service_hours: 24         # ASSUMPTION: calibrated so Little's law gives ~10 berthed vessels
+  min_service_hours: 8
+  max_service_hours: 48
+  la_share_of_waiting: 0.4       # ASSUMPTION: share of AIS waiting_vessel_count that is LA-bound
+  arrival_rate_per_hour: null    # null -> estimated from data via Little's law
+
+weather:
+  crane_stop_wind_kmh: 60        # ASSUMPTION: never reached in 2025 data (max 34.7)
+  crane_slowdown_wind_kmh: 40    # ASSUMPTION: 20% slowdown above this
+
+event_impact:                    # ASSUMPTION: synthetic event -> capacity multipliers by severity
+  labor_operational_disruption: {minor: {cranes: 0.9}, moderate: {cranes: 0.75}, severe: {cranes: 0.5}}
+  landside_access_disruption:   {minor: {gate: 0.9},   moderate: {gate: 0.7},   severe: {gate: 0.5}}
+  logistics_disruption:         {minor: {gate: 0.95, cranes: 0.95}, moderate: {gate: 0.85, cranes: 0.9}, severe: {gate: 0.7, cranes: 0.8}}
+  demand_surge:                 {minor: {arrivals: 1.1}, moderate: {arrivals: 1.25}, severe: {arrivals: 1.5}}
+
+model:
+  target_column: "waiting_vessel_count"
+  horizons_hours: [6, 12, 24]
+  train_end: "2025-09-30 23:00"
+  valid_end: "2025-10-31 23:00"
+  excluded_features:             # reasons in docs/DATA_DICTIONARY.md
+    - hour_key
+    - yard_capacity
+    - event_id
+    - event_start
+    - event_end
+    - event_duration_hours
+    - event_represented_hours
+    - weather_pressure_index
+    - event_active
+    - event_type
+    - event_severity
+    - import_teu
+    - yard_occupancy_percent
+    - cargo_flow_ratio
+    - operations_status
+    - is_public_holiday
+    - is_weekend
+
+twin:
+  horizon_hours: 24
+  monte_carlo_runs: 30
+  random_seed: 42
+  late_threshold_hours: 6        # a vessel waiting longer than this counts as delayed
+
+scoring:                         # composite score, lower is better (docs/LIMITATIONS.md)
+  weights: {avg_wait_hours: 0.4, max_wait_hours: 0.2, delayed_vessels: 0.25, yard_peak_occupancy: 0.15}
