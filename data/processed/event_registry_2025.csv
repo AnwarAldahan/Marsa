@@ -1,0 +1,16 @@
+event_id,event_type,event_severity,event_start,event_end,event_duration_hours,generation_seed,event_represented_hours,event_represented_hours_2025
+EVT_0025,demand_surge,moderate,2025-01-13 18:00:00,2025-01-14 14:00:00,20,20260917,20,20
+EVT_0026,landside_access_disruption,minor,2025-02-11 21:00:00,2025-02-12 07:00:00,10,20260917,10,10
+EVT_0027,demand_surge,minor,2025-02-28 10:00:00,2025-03-01 00:00:00,14,20260917,14,14
+EVT_0028,landside_access_disruption,minor,2025-03-27 06:00:00,2025-03-27 12:00:00,6,20260917,6,6
+EVT_0029,logistics_disruption,minor,2025-04-03 17:00:00,2025-04-04 03:00:00,10,20260917,10,10
+EVT_0030,logistics_disruption,moderate,2025-04-23 06:00:00,2025-04-23 12:00:00,6,20260917,6,6
+EVT_0031,demand_surge,minor,2025-04-26 17:00:00,2025-04-27 08:00:00,15,20260917,15,15
+EVT_0032,logistics_disruption,moderate,2025-05-11 11:00:00,2025-05-11 17:00:00,6,20260917,6,6
+EVT_0033,labor_operational_disruption,minor,2025-05-26 20:00:00,2025-05-27 06:00:00,10,20260917,10,10
+EVT_0034,demand_surge,minor,2025-06-10 12:00:00,2025-06-11 02:00:00,14,20260917,14,14
+EVT_0035,landside_access_disruption,minor,2025-07-04 09:00:00,2025-07-04 15:00:00,6,20260917,6,6
+EVT_0036,labor_operational_disruption,minor,2025-08-19 04:00:00,2025-08-19 17:00:00,13,20260917,13,13
+EVT_0037,labor_operational_disruption,severe,2025-08-24 14:00:00,2025-08-25 15:00:00,25,20260917,25,25
+EVT_0038,logistics_disruption,minor,2025-11-18 00:00:00,2025-11-18 11:00:00,11,20260917,11,11
+EVT_0039,landside_access_disruption,moderate,2025-11-22 08:00:00,2025-11-22 14:00:00,6,20260917,6,6
