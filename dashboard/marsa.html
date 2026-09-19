@@ -1,0 +1,2047 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>مرسَى</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --navy: #12263F; --navy-2: #17304D; --panel: #1B3654; --panel-2: #234264; --line: #38597F;
+  --text: #F1F5FA; --muted: #A3B4CA; --teal: #3ED0B6; --teal-dim: #2A8F7C;
+  --amber: #F3B657; --red: #F6837C; --cyan-glow: rgba(62,208,182,0.07);
+  --font: 'Tajawal', system-ui, sans-serif; color-scheme: dark; --font-mono: 'IBM Plex Mono', monospace;
+}
+* { box-sizing: border-box; }
+html,body { margin:0; background:var(--navy); color:var(--text); font-family:var(--font); }
+.stage { position:relative; width:1440px; max-width:100%; margin:0 auto; min-height:100vh; overflow:hidden; }
+
+.bgfx { position:absolute; inset:0; z-index:0; overflow:hidden; pointer-events:none; }
+.bgfx svg { position:absolute; inset:0; width:100%; height:100%; opacity:0.12; }
+.bgfx .glow { position:absolute; top:-200px; left:50%; transform:translateX(-50%); width:900px; height:900px;
+  background:radial-gradient(circle, var(--cyan-glow) 0%, transparent 70%); }
+.radar { position:absolute; width:220px; height:220px; border-radius:50%; border:1px solid rgba(62,208,182,0.18);
+  animation:radarPulse 4s ease-out infinite; }
+@keyframes radarPulse { 0%{ transform:scale(0.3); opacity:0.6; } 100%{ transform:scale(1.6); opacity:0; } }
+.trackline { stroke:rgba(62,208,182,0.5); stroke-width:1; stroke-dasharray:3 5; fill:none;
+  animation:dashMove 22s linear infinite; }
+@keyframes dashMove { to { stroke-dashoffset:-400; } }
+
+.content { position:relative; z-index:1; padding:26px 32px 70px; }
+
+.topbar { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:28px; flex-wrap:wrap; }
+.brand { display:flex; align-items:center; gap:10px; }
+.brand .word { font-size:24px; font-weight:800; letter-spacing:0.5px; }
+.brand .sub { font-size:12px; color:var(--muted); margin-top:2px; }
+.topmeta { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+select.portsel { background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:8px;
+  padding:8px 12px; font-family:var(--font); font-size:13px; }
+.clockbit { font-family:var(--font-mono); font-size:12px; color:var(--muted); }
+.conn { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--teal); }
+.conn .dot { width:7px; height:7px; border-radius:50%; background:var(--teal); animation:pulseDot 2s infinite; }
+@keyframes pulseDot { 0%,100%{ opacity:1;} 50%{ opacity:0.3;} }
+.bellwrap { position:relative; }
+.bellbtn { background:var(--panel-2); border:1px solid var(--line); color:var(--text); width:36px; height:36px;
+  border-radius:8px; cursor:pointer; position:relative; font-size:15px; }
+.bellbtn .n { position:absolute; top:-4px; left:-4px; background:var(--red); color:#fff; font-size:10px;
+  font-family:var(--font-mono); width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+.bellpanel { position:absolute; left:0; top:44px; width:300px; background:var(--panel); border:1px solid var(--line);
+  border-radius:10px; padding:8px; display:none; z-index:20; box-shadow:0 12px 30px rgba(8,20,36,0.35); }
+.bellpanel.open { display:block; }
+.notif { padding:10px 10px; border-radius:7px; cursor:pointer; font-size:12.5px; }
+.notif:hover { background:var(--panel-2); }
+.notif .ntype { font-size:10px; font-weight:700; margin-bottom:3px; }
+.notif.type-warn .ntype{ color:var(--red);} .notif.type-watch .ntype{ color:var(--amber);} .notif.type-info .ntype{ color:var(--teal);}
+.notif .ntext { color:var(--text); }
+
+section { margin-bottom:34px; }
+.storylabel { font-size:12px; color:var(--muted); font-weight:500; margin-bottom:6px; display:flex; align-items:center; gap:8px; }
+.storylabel .num { width:20px; height:20px; border-radius:50%; background:var(--panel-2); border:1px solid var(--line);
+  color:var(--teal); font-family:var(--font-mono); font-size:11px; display:flex; align-items:center; justify-content:center; }
+h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
+
+/* section 1 — flow */
+.flowrow { display:flex; align-items:stretch; gap:0; }
+.flownode { flex:1; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 12px;
+  cursor:pointer; transition:border-color .15s; position:relative; }
+.flownode:hover, .flownode.active { border-color:var(--teal); }
+.flownode .flabel { font-size:12px; color:var(--muted); margin-bottom:6px; }
+.flownode .fval { font-family:var(--font-mono); font-size:19px; font-weight:600; }
+.flownode .fsub { font-size:11px; color:var(--muted); margin-top:2px; }
+.flownode .fval.amber { color:var(--amber); } .flownode .fval.red { color:var(--red); } .flownode .fval.teal { color:var(--teal); }
+.flowarrow { width:26px; display:flex; align-items:center; justify-content:center; color:var(--teal); font-size:16px; }
+.flowexpand { grid-column:1/-1; background:var(--panel-2); border:1px solid var(--line); border-radius:10px;
+  margin-top:12px; padding:14px 16px; font-size:12.5px; color:var(--muted); display:none; }
+.flowexpand.show { display:block; }
+.spark { display:block; margin-top:8px; }
+
+/* section 2 — prediction timeline */
+.timeline-wrap { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:26px 30px 20px; }
+.tline { position:relative; height:70px; }
+.tline svg { width:100%; height:100%; overflow:visible; }
+.tnode-labels { display:flex; justify-content:space-between; margin-top:6px; }
+.tnode-labels div { flex:1; text-align:center; font-size:12px; }
+.tnode-labels .tt { color:var(--text); font-weight:500; }
+.tnode-labels .ts { color:var(--muted); font-size:11px; margin-top:2px; }
+.tooltip { position:absolute; background:var(--navy-2); border:1px solid var(--teal); border-radius:8px; padding:10px 12px;
+  font-size:12px; width:190px; display:none; z-index:10; pointer-events:none; bottom:80px; }
+.tooltip .tt-row { display:flex; justify-content:space-between; margin:3px 0; }
+.tooltip .tt-row b { font-family:var(--font-mono); color:var(--teal); }
+.delayband { margin-top:18px; background:var(--panel-2); border:1px solid var(--amber); border-radius:8px; padding:12px 16px;
+  display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; }
+.delayband .dtitle { font-size:13px; color:var(--amber); font-weight:600; }
+.delayband .dstats { display:flex; gap:22px; }
+.delayband .dstats div { font-size:12px; color:var(--muted); }
+.delayband .dstats b { display:block; font-family:var(--font-mono); font-size:14px; color:var(--text); margin-top:2px; }
+
+/* section 3 — why */
+.factors { display:flex; flex-direction:column; gap:8px; }
+.factor { background:var(--panel); border:1px solid var(--line); border-radius:9px; padding:12px 16px; cursor:pointer; }
+.factor-top { display:flex; align-items:center; justify-content:space-between; gap:14px; }
+.factor-name { font-size:13.5px; flex:1.4; }
+.factor-vals { font-family:var(--font-mono); font-size:12px; color:var(--muted); flex:0.9; text-align:center; }
+.factor-vals b { color:var(--text); }
+.factor-bar-wrap { flex:1.2; height:6px; background:var(--panel-2); border-radius:3px; overflow:hidden; }
+.factor-bar { height:100%; background:var(--teal); border-radius:3px; }
+.factor-trend { width:20px; text-align:center; font-size:13px; }
+.trend-up { color:var(--red); } .trend-down { color:var(--teal); }
+.factor-detail { display:none; margin-top:10px; padding-top:10px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); }
+.factor.open .factor-detail { display:block; }
+.showall-btn { background:none; border:none; color:var(--teal); font-size:12.5px; cursor:pointer; margin-top:10px; padding:0; }
+.hidden-factor { display:none; }
+.hidden-factor.show { display:block; }
+
+/* section 4 — alert */
+.alertbox { background:var(--panel); border:1px solid var(--red); border-inline-start:4px solid var(--red); border-radius:12px; padding:22px 26px; }
+.alertbox.dismissed { display:none; }
+.ahead { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+.aicon { color:var(--red); font-size:18px; }
+.atitle { font-size:16px; font-weight:700; }
+.ameta { display:flex; gap:26px; margin:10px 0 14px; flex-wrap:wrap; }
+.ameta div { font-size:12px; color:var(--muted); }
+.ameta b { display:block; font-family:var(--font-mono); font-size:14px; color:var(--text); margin-top:2px; }
+.areason { font-size:13px; color:var(--muted); line-height:1.7; margin-bottom:16px; }
+.recobox { background:var(--panel-2); border:1px solid var(--line); border-radius:9px; padding:14px 18px; margin-bottom:16px; }
+.recolabel { font-size:11px; color:var(--teal); font-weight:700; margin-bottom:6px; }
+.recotext { font-size:13.5px; line-height:1.7; margin-bottom:12px; }
+.recocompare { display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
+.rc-box { text-align:center; }
+.rc-box .l { font-size:11px; color:var(--muted); } .rc-box .v { font-family:var(--font-mono); font-size:17px; font-weight:600; margin-top:2px; }
+.rc-arrow { color:var(--teal); font-size:16px; }
+.rc-improve { font-size:12px; color:var(--teal); margin-inline-start:auto; }
+.predicted-note { font-size:10.5px; color:var(--muted); margin-top:4px; }
+.abuttons { display:flex; gap:10px; }
+.b-primary { background:var(--teal); color:#062F29; border:none; font-weight:700; font-family:var(--font); font-size:13.5px; padding:10px 20px; border-radius:7px; cursor:pointer; }
+.b-secondary { background:transparent; color:var(--text); border:1px solid var(--line); font-family:var(--font); font-size:13.5px; padding:10px 20px; border-radius:7px; cursor:pointer; }
+.b-secondary:hover { border-color:var(--muted); }
+.b-secondary:focus-visible, .b-primary:focus-visible, .b-ghost:focus-visible { outline:2px solid var(--teal); outline-offset:2px; }
+.b-ghost { background:none; border:none; color:var(--muted); font-family:var(--font); font-size:13.5px; cursor:pointer; }
+.adopted-msg { display:flex; align-items:center; gap:8px; color:var(--teal); font-size:13.5px; }
+.no-alert { background:var(--panel); border:1px dashed var(--line); border-radius:12px; padding:30px; text-align:center; color:var(--muted); font-size:13.5px; }
+
+.hl-flash { animation:flashHL 1.4s ease; }
+@keyframes flashHL { 0%,100%{ box-shadow:none; } 30%{ box-shadow:0 0 0 3px var(--teal); } }
+
+/* ---- views (dashboard / simulator inside the same page) ---- */
+#dashView[hidden], #consoleView[hidden] { display:none; }
+#consoleView { --bg:var(--navy); --coral:var(--red); --font-ui:var(--font); }
+#consoleView .cv-bar { max-width:1180px; margin:0 auto; padding:22px 20px 0; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+#consoleView .cv-back { background:transparent; color:var(--text); border:1px solid var(--line); border-radius:7px; padding:9px 18px; font-size:13.5px; font-weight:500; }
+#consoleView .cv-back:hover { border-color:var(--muted); }
+
+/* ---- interactive port map ---- */
+:root { --sky:#7FB2E5; }
+.flownode.linked { border-color:var(--teal); background:var(--panel-2); }
+.flownode:focus-visible { outline:2px solid var(--teal); outline-offset:2px; }
+.pm-card { position:relative; margin-top:14px; background:var(--panel); border:1px solid var(--line); border-radius:12px; }
+.pm-head { display:flex; align-items:center; justify-content:space-between; gap:10px 20px; flex-wrap:wrap; padding:14px 20px; border-bottom:1px solid var(--line); }
+.pm-title { display:flex; align-items:center; gap:8px; font-size:15px; font-weight:700; }
+.pm-title .ld { width:7px; height:7px; border-radius:50%; background:var(--teal); animation:pulseDot 2s infinite; }
+.pm-status { display:flex; align-items:center; gap:7px; font-size:12px; color:var(--amber); background:rgba(243,182,87,0.10); border:1px solid rgba(243,182,87,0.35); padding:4px 12px; border-radius:20px; }
+.pm-status i { width:6px; height:6px; border-radius:50%; background:var(--amber); }
+.pm-hint { font-size:12px; color:var(--muted); }
+.pm-scroll { overflow-x:auto; }
+.pm-svg { display:block; width:100%; min-width:860px; height:auto; direction:rtl; }
+.pm-svg text { font-family:var(--font); fill:var(--text); pointer-events:none; }
+.pm-svg .mono { font-family:var(--font-mono); }
+.pm-svg .dim { fill:var(--muted); }
+.pm-svg .amb { fill:var(--amber); }
+.pm-svg .tl  { fill:var(--teal); }
+.pm-svg .rd  { fill:var(--red); }
+.pm-svg .sk  { fill:var(--sky); }
+.pm-land { fill:var(--navy-2); opacity:0.55; }
+.pm-wave { fill:none; stroke:var(--sky); stroke-width:1.2; opacity:0.10; pointer-events:none; }
+.pm-route { fill:none; stroke:var(--sky); stroke-width:1.3; stroke-dasharray:3 5; opacity:0.6; animation:dashMove 22s linear infinite; pointer-events:none; }
+.pm-anch { fill:rgba(127,178,229,0.05); stroke:var(--sky); stroke-width:1.2; stroke-dasharray:5 6; opacity:0.85; }
+.pm-tag { fill:var(--navy-2); stroke:var(--line); }
+.pm-quay { fill:var(--panel-2); stroke:var(--line); }
+.pm-crane { color:var(--muted); }
+.pm-crane.hot { color:var(--amber); }
+.pm-shipa { color:var(--muted); }
+.pm-shipw { color:var(--amber); }
+.pm-shipb { color:var(--sky); }
+.pm-bx { fill:var(--panel-2); stroke:var(--line); stroke-width:1.4; }
+.pm-bx.busy { stroke:var(--sky); fill:rgba(127,178,229,0.10); }
+.pm-bx.free { stroke:var(--teal); stroke-dasharray:5 5; fill:rgba(62,208,182,0.06); }
+.pm-bx.hot  { stroke:var(--amber); fill:rgba(243,182,87,0.10); stroke-width:1.8; }
+.pm-pulse { fill:none; stroke:var(--amber); stroke-width:2; pointer-events:none; animation:pmPulse 2.4s ease-in-out infinite; }
+@keyframes pmPulse { 0%,100%{ opacity:0.85; } 50%{ opacity:0.15; } }
+.pm-track { fill:var(--navy); }
+.pm-fill { fill:var(--sky); }
+.pm-fill.hot { fill:var(--amber); }
+.pm-yb { fill:var(--panel-2); stroke:var(--line); stroke-width:1.2; }
+.pm-yb.warn { stroke:rgba(243,182,87,0.6); }
+.pm-yb.bad  { stroke:var(--red); fill:rgba(246,131,124,0.08); }
+.pm-cell { fill:var(--navy); }
+.pm-cell.on { fill:var(--teal); opacity:0.7; }
+.pm-cell.on.warn { fill:var(--amber); opacity:0.75; }
+.pm-cell.on.bad  { fill:var(--red); opacity:0.85; }
+.pm-g { transition:opacity .18s; }
+.pm-svg.has-focus .pm-g { opacity:0.22; }
+.pm-svg.has-focus .pm-g.on { opacity:1; }
+.pm-hit { cursor:pointer; outline:none; transition:filter .12s; }
+.pm-hit:hover, .pm-hit:focus-visible { filter:brightness(1.3); }
+.pm-hit:hover > .pm-bx, .pm-hit:focus-visible > .pm-bx { stroke-width:2.4; }
+.pm-hit:focus-visible { outline:2px solid var(--teal); outline-offset:3px; }
+
+.pm-tip { position:absolute; z-index:15; width:240px; background:var(--navy-2); border:1px solid var(--line); border-radius:10px; padding:12px 14px; box-shadow:0 12px 30px rgba(8,20,36,0.4); pointer-events:none; opacity:0; transform:translateY(4px); transition:opacity .12s, transform .12s; font-size:12.5px; top:0; left:0; }
+.pm-tip.show { opacity:1; transform:none; }
+.pm-tip .t { display:flex; align-items:center; justify-content:space-between; gap:8px; font-weight:700; font-size:13.5px; margin-bottom:8px; }
+.pm-badge { font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; border:1px solid; white-space:nowrap; }
+.pm-badge.ok   { color:var(--teal);  border-color:rgba(62,208,182,0.45);  background:rgba(62,208,182,0.10); }
+.pm-badge.warn { color:var(--amber); border-color:rgba(243,182,87,0.45);  background:rgba(243,182,87,0.10); }
+.pm-badge.bad  { color:var(--red);   border-color:rgba(246,131,124,0.5);  background:rgba(246,131,124,0.10); }
+.pm-badge.info { color:var(--sky);   border-color:rgba(127,178,229,0.45); background:rgba(127,178,229,0.10); }
+.pm-row { display:flex; justify-content:space-between; gap:12px; margin:5px 0; color:var(--muted); }
+.pm-row b { color:var(--text); font-family:var(--font-mono); font-weight:500; text-align:end; }
+.pm-bar { height:5px; border-radius:3px; background:var(--navy); overflow:hidden; margin:9px 0 2px; }
+.pm-bar i { display:block; height:100%; border-radius:3px; background:var(--sky); margin-inline-start:auto; }
+.pm-bar i.warn { background:var(--amber); } .pm-bar i.bad { background:var(--red); } .pm-bar i.ok { background:var(--teal); }
+.pm-note { margin-top:8px; padding-top:8px; border-top:1px solid var(--line); font-size:11.5px; color:var(--muted); line-height:1.7; }
+.pm-legend { display:flex; flex-wrap:wrap; gap:8px 20px; padding:10px 20px 14px; border-top:1px solid var(--line); font-size:11.5px; color:var(--muted); }
+.pm-legend span { display:inline-flex; align-items:center; gap:6px; }
+.pm-legend i { display:inline-block; width:14px; height:10px; border-radius:3px; border:1.5px solid; }
+@media (prefers-reduced-motion: reduce) { .pm-route, .pm-pulse, .pm-title .ld { animation:none; } .pm-tip, .pm-g { transition:none; } }
+
+
+/* ---- التوأم الرقمي ---- */
+#dashView[hidden], #consoleView[hidden] { display:none; }
+#consoleView { background:var(--navy); color:var(--text); font-family:var(--font); min-height:100vh; }
+#consoleView .cv-bar { max-width:1180px; margin:0 auto; padding:22px 20px 0; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+#consoleView .cv-back { font-family:var(--font); background:transparent; color:var(--text); border:1px solid var(--line); border-radius:7px; padding:9px 18px; font-size:13.5px; font-weight:500; cursor:pointer; }
+#consoleView .cv-back:hover { border-color:var(--muted); }
+#consoleView button:focus-visible, #consoleView select:focus-visible { outline:2px solid var(--teal); outline-offset:2px; }
+#consoleView .tw-wrap { max-width:1180px; margin:0 auto; padding:22px 20px 60px; }
+#consoleView .tw-h1 { font-size:24px; font-weight:800; margin:0 0 6px; }
+#consoleView .tw-sub { font-size:14px; color:var(--muted); margin:0 0 16px; max-width:64ch; line-height:1.8; }
+#consoleView .tw-steps { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:20px; }
+#consoleView .tw-step { display:flex; align-items:center; gap:8px; font-size:12.5px; background:var(--panel); border:1px solid var(--line); border-radius:20px; padding:5px 12px; }
+#consoleView .tw-step i { font-style:normal; width:20px; height:20px; border-radius:50%; background:var(--panel-2); border:1px solid var(--line); color:var(--teal); font-family:var(--font-mono); font-size:11px; display:flex; align-items:center; justify-content:center; }
+#consoleView .tw-arr { color:var(--teal); }
+
+#consoleView .tw-cards { display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; }
+@media (max-width: 980px) { #consoleView .tw-cards { grid-template-columns:repeat(2, 1fr); } }
+@media (max-width: 560px) { #consoleView .tw-cards { grid-template-columns:1fr; } }
+#consoleView .tw-card { font-family:var(--font); text-align:start; color:var(--text); background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; display:flex; flex-direction:column; gap:8px; cursor:pointer; }
+#consoleView .tw-card:hover { border-color:var(--muted); }
+#consoleView .tw-card.sel { border-color:var(--teal); background:var(--panel-2); }
+#consoleView .tw-tagrow { min-height:22px; }
+#consoleView .tw-badge { display:inline-block; font-size:10.5px; font-weight:700; color:var(--teal); border:1px solid rgba(62,208,182,0.5); background:rgba(62,208,182,0.10); border-radius:20px; padding:2px 10px; }
+#consoleView .tw-ct { font-size:14.5px; font-weight:700; line-height:1.55; }
+#consoleView .tw-cl { font-size:12.5px; color:var(--muted); line-height:1.7; }
+#consoleView .tw-gain { margin-top:auto; padding-top:6px; font-size:12px; color:var(--muted); }
+#consoleView .tw-gain b { font-family:var(--font-mono); font-size:21px; font-weight:600; color:var(--teal); margin-inline-end:3px; }
+#consoleView .tw-bar { height:5px; border-radius:3px; background:var(--navy); overflow:hidden; }
+#consoleView .tw-bar i { display:block; height:100%; border-radius:3px; background:var(--teal); margin-inline-start:auto; }
+#consoleView .tw-side { font-size:11.5px; color:var(--amber); min-height:18px; }
+
+#consoleView .tw-sim { margin-top:18px; background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+#consoleView .tw-sim-head { display:flex; justify-content:space-between; align-items:center; gap:10px 16px; flex-wrap:wrap; padding:14px 18px; border-bottom:1px solid var(--line); }
+#consoleView .tw-sim-title { display:flex; align-items:center; gap:10px; font-size:15px; font-weight:700; flex-wrap:wrap; }
+#consoleView .tw-wx { font-size:12px; color:var(--muted); border:1px solid var(--line); border-radius:20px; padding:3px 12px; }
+#consoleView .tw-wx.on { color:var(--amber); border-color:rgba(243,182,87,0.5); background:rgba(243,182,87,0.08); }
+#consoleView .tw-scroll { overflow-x:auto; padding:6px 0 0; }
+#consoleView .tw-svg { min-width:760px; }
+#consoleView .tw-stats { display:flex; gap:10px; flex-wrap:wrap; padding:8px 18px 14px; }
+#consoleView .tw-stats div { background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:6px 16px; font-size:12px; color:var(--muted); }
+#consoleView .tw-stats b { display:block; font-family:var(--font-mono); font-size:16px; font-weight:600; color:var(--text); margin-top:1px; }
+#consoleView .tw-ctl { display:flex; align-items:center; gap:12px; padding:12px 18px; border-top:1px solid var(--line); }
+#consoleView .tw-ctl button { font-family:var(--font); width:40px; background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:7px; padding:7px 0; font-size:13px; cursor:pointer; }
+#consoleView .tw-ctl button:hover { border-color:var(--teal); }
+#consoleView .tw-ctl input[type=range] { flex:1; accent-color:var(--teal); }
+#consoleView .tw-ctl select { font-family:var(--font-mono); background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:7px; padding:6px 8px; font-size:12.5px; }
+.metric-cap { font-size:11px; color:var(--muted); margin-bottom:8px; }
+
+
+/* ---- الأداء والملاحظات ---- */
+.pf-demo { font-size:11px; font-weight:500; color:var(--muted); border:1px solid var(--line); border-radius:20px; padding:2px 10px; margin-inline-start:12px; vertical-align:middle; }
+.pf-grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:12px; }
+@media (max-width: 900px) { .pf-grid { grid-template-columns:repeat(2, 1fr); } }
+.pf-kpi { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+.pf-kpi .l { font-size:12px; color:var(--muted); }
+.pf-kpi .v { font-family:var(--font-mono); font-size:23px; font-weight:600; margin:5px 0 3px; }
+.pf-kpi .v .u { font-family:var(--font); font-size:12.5px; font-weight:500; color:var(--muted); margin-inline-start:5px; }
+.pf-kpi .s { font-size:11.5px; color:var(--muted); line-height:1.7; }
+.pf-chart { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px 20px 12px; }
+.pf-chart-head { display:flex; justify-content:space-between; align-items:center; gap:8px 16px; flex-wrap:wrap; margin-bottom:6px; }
+.pf-chart-title { font-size:14px; font-weight:700; }
+.pf-legend { display:flex; gap:18px; font-size:12px; color:var(--muted); }
+.pf-legend span { display:inline-flex; align-items:center; gap:7px; }
+.pf-legend i { display:inline-block; width:18px; height:0; border-top:2.5px solid var(--teal); }
+.pf-legend i.pred { border-top:2px dashed var(--sky); }
+.pf-svg { display:block; width:100%; height:auto; direction:rtl; }
+.pf-svg text { font-family:var(--font); fill:var(--muted); font-size:13px; }
+.pf-cap { font-size:12px; color:var(--muted); margin-top:4px; }
+
+.fb-card { margin-top:18px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:20px 22px; }
+.fb-title { font-size:16px; font-weight:700; margin-bottom:4px; }
+.fb-sub { font-size:12.5px; color:var(--muted); margin-bottom:18px; }
+.fb-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 36px; }
+@media (max-width: 820px) { .fb-grid { grid-template-columns:1fr; } }
+.fb-q { margin-bottom:18px; }
+.fb-ql { display:block; font-size:13px; margin-bottom:9px; }
+.fb-opt-note { font-size:11px; color:var(--muted); margin-inline-start:6px; }
+.fb-stars { display:flex; gap:4px; }
+.fb-star { background:none; border:none; padding:2px; cursor:pointer; color:var(--line); line-height:0; border-radius:6px; }
+.fb-star svg { width:30px; height:30px; fill:currentColor; }
+.fb-star.on { color:var(--amber); }
+.fb-star:focus-visible, .fb-opt:focus-visible, .fb-text:focus-visible { outline:2px solid var(--teal); outline-offset:2px; }
+.fb-opts { display:flex; flex-wrap:wrap; gap:8px; }
+.fb-opt { font-family:var(--font); font-size:12.5px; background:var(--panel-2); color:var(--muted); border:1px solid var(--line); border-radius:20px; padding:6px 14px; cursor:pointer; }
+.fb-opt:hover { border-color:var(--muted); }
+.fb-opt.on { color:var(--teal); border-color:var(--teal); background:rgba(62,208,182,0.12); }
+.fb-text { width:100%; min-height:136px; resize:vertical; background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-family:var(--font); font-size:13px; line-height:1.8; }
+.fb-actions { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-top:12px; }
+.fb-msg { font-size:12.5px; color:var(--amber); }
+.fb-thanks { display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:4px 0 2px; }
+.fb-thanks[hidden] { display:none; }
+.fb-thanks .ok { color:var(--teal); font-size:14px; }
+
+
+/* ---- الاختبار اليدوي (الأصلي) ---- */
+#manualTest {
+  margin: 0; background: var(--bg); color: var(--text);
+  font-family: var(--font-ui); min-height: 100vh;
+}
+#manualTest .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 60px; }
+#manualTest header { margin-bottom: 22px; }
+#manualTest header .eyebrow { font-family: var(--font-mono); font-size: 12px; color: var(--teal); letter-spacing: 0.02em; }
+#manualTest h1 { font-size: 22px; font-weight: 700; margin: 4px 0 6px; }
+#manualTest header p { color: var(--muted); font-size: 14px; max-width: 62ch; margin: 0; line-height: 1.6; }
+#manualTest .layout { display: grid; grid-template-columns: 260px 1fr; gap: 18px; align-items: start; }
+@media (max-width: 820px) {
+#manualTest .layout { grid-template-columns: 1fr; }
+}
+#manualTest .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+#manualTest .panel + .panel { margin-top: 14px; }
+#manualTest .panel h2 { font-size: 12px; text-transform: none; color: var(--muted); margin: 0 0 12px; font-weight: 500; }
+#manualTest label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+#manualTest label:first-child { margin-top: 0; }
+#manualTest input[type=number], #manualTest select {
+  width: 100%; background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+  border-radius: 6px; padding: 7px 8px; font-family: var(--font-mono); font-size: 13px;
+}
+#manualTest .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+#manualTest .hint { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+#manualTest button {
+  font-family: var(--font-ui); font-weight: 500; font-size: 13px; cursor: pointer;
+  border-radius: 6px; border: 1px solid var(--line); padding: 9px 12px; background: var(--panel-2); color: var(--text);
+}
+#manualTest button:hover { border-color: var(--teal); }
+#manualTest button:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
+#manualTest .btn-run { width: 100%; margin-top: 14px; background: var(--teal); color: #062F29; border: none; font-weight: 700; padding: 11px; }
+#manualTest .btn-run:hover { opacity: 0.92; }
+#manualTest .presets { display: flex; flex-direction: column; gap: 6px; }
+#manualTest .presets button { text-align: start; font-size: 12px; }
+#manualTest .canvas-panel { min-height: 420px; display: flex; flex-direction: column; }
+#manualTest .canvas-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 14px; }
+#manualTest .clock { font-family: var(--font-mono); font-size: 13px; color: var(--muted); }
+#manualTest .clock b { color: var(--text); }
+#manualTest .banner { display: none; background: rgba(246,131,124,0.12); border: 1px solid var(--coral); color: var(--coral);
+  border-radius: 6px; padding: 8px 12px; font-size: 12px; margin-bottom: 12px; font-family: var(--font-mono); }
+#manualTest .banner.show { display: block; }
+#manualTest .berth-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+#manualTest .berth {
+  flex: 1 1 90px; min-width: 90px; height: 78px; border-radius: 8px; border: 1.5px dashed var(--line);
+  display: flex; align-items: center; justify-content: center; position: relative; background: var(--panel-2);
+  transition: border-color 0.15s;
+}
+#manualTest .berth.occ { border-style: solid; border-color: var(--teal); background: rgba(62,208,182,0.10); }
+#manualTest .berth .label { position: absolute; top: 5px; inset-inline-start: 7px; font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+#manualTest .berth .vessel { width: 30px; height: 30px; border-radius: 5px; background: var(--teal); }
+#manualTest .berth .svc { position: absolute; bottom: 5px; inset-inline-end: 7px; font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+#manualTest .queue-label { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+#manualTest .queue { display: flex; gap: 6px; flex-wrap: wrap; min-height: 34px; margin-bottom: 20px; }
+#manualTest .chip {
+  width: 26px; height: 26px; border-radius: 5px; background: var(--amber); opacity: 0.9;
+  display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 9px; color: #3A2600;
+}
+#manualTest .transport { display: flex; align-items: center; gap: 10px; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); }
+#manualTest .transport button { padding: 7px 10px; }
+#manualTest .transport input[type=range] { flex: 1; accent-color: var(--teal); }
+#manualTest .speed-select { width: 74px; }
+#manualTest .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 14px; }
+@media (max-width: 560px) {
+#manualTest .kpis { grid-template-columns: repeat(2, 1fr); }
+}
+#manualTest .kpi { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+#manualTest .kpi .v { font-family: var(--font-mono); font-size: 19px; font-weight: 600; }
+#manualTest .kpi .l { font-size: 11px; color: var(--muted); margin-top: 2px; }
+#manualTest .empty { color: var(--muted); font-size: 13px; padding: 40px 0; text-align: center; }
+#manualTest .tabbar { display: flex; gap: 8px; margin-bottom: 16px; }
+#manualTest .tab-btn { background: transparent; border: 1px solid var(--line); color: var(--muted); }
+#manualTest .tab-btn.active { background: var(--panel-2); color: var(--text); border-color: var(--teal); }
+#manualTest #contractInput {
+  width: 100%; height: 320px; background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+  border-radius: 6px; padding: 10px; font-family: var(--font-mono); font-size: 12px; line-height: 1.5; resize: vertical;
+  direction: ltr; text-align: left;
+}
+#manualTest .ctable { width: 100%; border-collapse: collapse; font-size: 13px; }
+#manualTest .ctable th, #manualTest .ctable td { text-align: start; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+#manualTest .ctable th { color: var(--muted); font-weight: 500; font-size: 11px; }
+#manualTest .ctable td.mono, #manualTest .ctable th.mono { font-family: var(--font-mono); }
+#manualTest .ctable tr.best { background: rgba(62,208,182,0.10); }
+#manualTest .ctable tr.best td:first-child::before { content: "★ "; color: var(--teal); }
+#manualTest .ctable button { padding: 5px 9px; font-size: 12px; }
+#manualTest .errbox { color: var(--coral); font-family: var(--font-mono); font-size: 12px; white-space: pre-wrap; direction: ltr; text-align: left; }
+#manualTest { --bg:var(--navy); --coral:var(--red); --font-ui:var(--font); min-height:0; background:transparent; margin-top:44px; padding-top:26px; border-top:1px solid var(--line); }
+#manualTest .mt-title { font-size:18px; font-weight:700; margin:0 0 4px; }
+#manualTest .mt-sub { font-size:13.5px; color:var(--muted); margin:0 0 16px; }
+
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs><symbol id="pmShip" viewBox="0 0 100 36">
+        <path d="M3 22 H97 L88 34 H14 Z" fill="currentColor"/>
+        <rect x="10" y="12" width="15" height="10" rx="1.5" fill="currentColor" opacity=".55"/>
+        <rect x="27" y="12" width="15" height="10" rx="1.5" fill="currentColor" opacity=".8"/>
+        <rect x="44" y="12" width="15" height="10" rx="1.5" fill="currentColor" opacity=".55"/>
+        <rect x="61" y="12" width="15" height="10" rx="1.5" fill="currentColor" opacity=".8"/>
+        <rect x="18" y="3" width="15" height="9" rx="1.5" fill="currentColor" opacity=".7"/>
+        <rect x="80" y="4" width="11" height="18" rx="1.5" fill="currentColor"/>
+      </symbol><symbol id="pmCrane" viewBox="0 0 28 34">
+        <path d="M6 33 L9 8 M22 33 L19 8 M8 20 H20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+        <path d="M1 8 H27" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+        <path d="M14 8 V1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </symbol><symbol id="pmTruck" viewBox="0 0 44 22">
+        <rect x="0" y="3" width="28" height="13" rx="2" fill="currentColor"/>
+        <path d="M30 7 H38 L43 12 V16 H30 Z" fill="currentColor" opacity=".8"/>
+        <circle cx="8" cy="18" r="3" fill="currentColor"/><circle cx="22" cy="18" r="3" fill="currentColor"/><circle cx="37" cy="18" r="3" fill="currentColor"/>
+      </symbol></defs></svg>
+<div class="stage" id="dashView">
+  <div class="bgfx" id="bgfx">
+    <svg viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice">
+      <path class="trackline" d="M -50 620 C 300 560, 600 680, 950 600 S 1400 500, 1500 540"/>
+      <path class="trackline" d="M -50 300 C 250 340, 500 260, 800 320 S 1300 260, 1500 300" style="animation-delay:-6s"/>
+      <path class="trackline" d="M -50 780 C 350 760, 700 820, 1050 770 S 1400 720, 1500 760" style="animation-delay:-12s"/>
+      <path d="M0 850 L60 850 L60 820 L160 820 L160 850 L260 850 L260 800 L360 800 L360 850" stroke="rgba(62,208,182,0.18)" stroke-width="1" fill="none"/>
+    </svg>
+    <div class="glow"></div>
+    <div class="radar" style="top:180px; right:220px;"></div>
+  </div>
+
+  <div class="content">
+
+    <div class="topbar">
+      <div class="brand">
+        <svg width="34" height="34" viewBox="0 0 40 40" fill="none">
+          <path d="M6 26 Q13 20 20 26 T34 26" stroke="#3ED0B6" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <path d="M6 31 Q13 25 20 31 T34 31" stroke="#2A8F7C" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <rect x="18" y="6" width="4" height="18" rx="2" fill="#3ED0B6"/>
+          <circle cx="20" cy="6" r="3.4" fill="#3ED0B6"/>
+        </svg>
+        <div>
+          <div class="word">مرسَى</div>
+          <div class="sub">Marsa — AI Port Intelligence</div>
+        </div>
+      </div>
+      <div class="topmeta">
+        <div class="clockbit" id="clockNow"></div>
+        <div class="conn"><span class="dot"></span><span>البيانات متصلة (تجريبي)</span></div>
+        <div class="clockbit" id="lastUpdate">آخر تحديث منذ 3 ثوانٍ</div>
+        <div class="bellwrap">
+          <button class="bellbtn" id="bellBtn">🔔<span class="n" id="bellCount">3</span></button>
+          <div class="bellpanel" id="bellPanel"></div>
+        </div>
+      </div>
+    </div>
+
+    <section id="sec1">
+      <div class="storylabel"><span class="num">١</span> ماذا يحدث الآن؟ — تحليل حركة الميناء</div>
+      <div class="flowrow" id="flowRow"></div>
+      <div class="flowexpand" id="flowExpand"></div>
+
+      <div class="pm-card" id="pmWrap">
+        <div class="pm-head">
+          <div class="pm-title"><span class="ld"></span>الميناء الحي</div>
+          <div class="pm-status"><i></i>ضغط متزايد عند الرصيف B4 والساحة 3</div>
+          <div class="pm-hint">مرّر المؤشر أو المس أي عنصر لعرض التفاصيل</div>
+        </div>
+        <div class="pm-scroll">
+          <svg class="pm-svg" id="pmSvg" viewBox="0 0 1100 540" role="group" aria-label="خريطة تفاعلية لحركة الميناء"></svg>
+        </div>
+        <div class="pm-legend">
+          <span><i style="border-color:var(--sky);background:rgba(127,178,229,.2)"></i>رصيف مشغول</span>
+          <span><i style="border-color:var(--teal);border-style:dashed"></i>رصيف متاح</span>
+          <span><i style="border-color:var(--amber);background:rgba(243,182,87,.2)"></i>نقطة ضغط</span>
+          <span><i style="border-color:var(--amber)"></i>سفينة منتظرة</span>
+          <span><i style="border-color:var(--muted)"></i>سفينة قادمة</span>
+        </div>
+        <div class="pm-tip" id="pmTip" role="tooltip"></div>
+      </div>
+
+    </section>
+
+    <section id="sec2">
+      <div class="storylabel"><span class="num">٢</span> ماذا سيحدث؟ — التنبؤ المبكر</div>
+      <h2 class="stitle">ماذا سيحدث خلال الساعات القادمة؟</h2>
+      <div class="timeline-wrap">
+        <div class="tline">
+          <svg id="tlineSvg" viewBox="0 0 1000 70" preserveAspectRatio="none"></svg>
+          <div class="tooltip" id="tlTooltip"></div>
+        </div>
+        <div class="tnode-labels" id="tlLabels"></div>
+        <div class="delayband">
+          <div class="dtitle">تأخير متوقع للشحنات</div>
+          <div class="dstats">
+            <div>الوقت المتوقع<b id="dbWindow">17:00 – 20:00</b></div>
+            <div>متوسط التأخير المتوقع<b>45 دقيقة</b></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="sec3">
+      <div class="storylabel"><span class="num">٣</span> لماذا؟ — العوامل الأكثر ارتباطاً بالتوقع الحالي</div>
+      <h2 class="stitle">لماذا يتوقع مرسَى التكدس؟</h2>
+      <div class="factors" id="factorsList"></div>
+      <button class="showall-btn" id="showAllBtn">عرض جميع العوامل</button>
+    </section>
+
+    <section id="sec4">
+      <div class="storylabel"><span class="num">٤</span> ماذا يجب أن نفعل؟</div>
+      <div class="alertbox" id="alertBox">
+        <div class="ahead"><span class="aicon">⚠</span><span class="atitle">تكدس محتمل</span></div>
+        <div class="ameta">
+          <div>متوقع خلال<b>3 ساعات</b></div>
+          <div>المنطقة<b>الرصيف B4</b></div>
+        </div>
+        <div class="areason">ارتفاع عدد السفن المنتظرة بالتزامن مع انخفاض معدل التخليص، مع توقع رياح تخفض كفاءة الأوناش بعد <span id="alWind">7</span> ساعات.</div>
+        <div class="recobox">
+          <div class="recolabel">توصية مرسَى</div>
+          <div class="recotext"><span id="alReco">—</span>، وقد يساعد على تخفيف ضغط الانتظار قبل الساعة <span id="alTime">18:00</span>.</div>
+          <div class="metric-cap">المقياس: متوسط وقت انتظار السفن</div>
+          <div class="recocompare">
+            <div class="rc-box"><div class="l">قبل التوصية</div><div class="v" id="alBefore">3.2h</div></div>
+            <div class="rc-arrow">←</div>
+            <div class="rc-box"><div class="l">بعد التوصية</div><div class="v" id="alAfter" style="color:var(--teal)">2.9h</div></div>
+            <div class="rc-improve" id="alImprove">تحسّن متوقع: 18 دقيقة</div>
+          </div>
+          <div class="predicted-note">قيم متوقعة بناءً على النموذج، وليست نتيجة مضمونة.</div>
+        </div>
+        <div class="abuttons" id="alertButtons">
+          <button class="b-secondary" id="simBtn" type="button">محاكاة التوصية</button>
+          <button class="b-primary" id="adoptBtn">اعتماد التوصية</button>
+          <button class="b-ghost" id="dismissBtn">تجاهل</button>
+        </div>
+      </div>
+      <div class="no-alert" id="noAlert" style="display:none;">لا توجد تنبيهات حرجة حاليًا — الوضع مستقر.</div>
+    </section>
+
+    <section id="sec5">
+      <div class="storylabel"><span class="num">٥</span> كيف كان أداء مرسى؟</div>
+      <h2 class="stitle">أداء مرسى خلال آخر 30 يومًا<span class="pf-demo">بيانات تجريبية</span></h2>
+
+      <div class="pf-grid" id="pfGrid"></div>
+
+      <div class="pf-chart">
+        <div class="pf-chart-head">
+          <div class="pf-chart-title">متوسط انتظار السفن: المتوقع مقابل الفعلي (بالساعات)</div>
+          <div class="pf-legend"><span><i class="pred"></i>المتوقع</span><span><i class="act"></i>الفعلي</span></div>
+        </div>
+        <svg id="pfSvg" class="pf-svg" viewBox="0 0 1200 230" role="img" aria-label="مقارنة بين متوسط الانتظار المتوقع والفعلي خلال آخر 7 أيام"></svg>
+        <div class="pf-cap" id="pfCap"></div>
+      </div>
+
+      <div class="fb-card" id="fbCard">
+        <div class="fb-title">رأيك يساعدنا نحسّن مرسى</div>
+        <div class="fb-sub">ملاحظاتك تُستخدم لتطوير التنبؤات والتوصيات في المستقبل.</div>
+
+        <div id="fbForm">
+          <div class="fb-grid">
+            <div>
+              <div class="fb-q">
+                <div class="fb-ql" id="fbRateL">كيف تقيّم أداء مرسى؟</div>
+                <div class="fb-stars" role="radiogroup" aria-labelledby="fbRateL" id="fbStars"></div>
+              </div>
+              <div class="fb-q">
+                <div class="fb-ql">هل كانت توصية مرسى مفيدة؟</div>
+                <div class="fb-opts" id="fbUseful" role="radiogroup" aria-label="فائدة التوصية">
+                  <button type="button" class="fb-opt" role="radio" aria-checked="false" data-v="yes">نعم</button>
+                  <button type="button" class="fb-opt" role="radio" aria-checked="false" data-v="some">إلى حد ما</button>
+                  <button type="button" class="fb-opt" role="radio" aria-checked="false" data-v="no">لا</button>
+                </div>
+              </div>
+              <div class="fb-q">
+                <div class="fb-ql">ما الذي تحب أن نحسّنه؟ <span class="fb-opt-note">اختياري</span></div>
+                <div class="fb-opts" id="fbTopics">
+                  <button type="button" class="fb-opt" aria-pressed="false" data-v="accuracy">دقة التوقعات</button>
+                  <button type="button" class="fb-opt" aria-pressed="false" data-v="clarity">وضوح التوصيات</button>
+                  <button type="button" class="fb-opt" aria-pressed="false" data-v="twin">التوأم الرقمي</button>
+                  <button type="button" class="fb-opt" aria-pressed="false" data-v="speed">سرعة التحديث</button>
+                  <button type="button" class="fb-opt" aria-pressed="false" data-v="ease">سهولة الاستخدام</button>
+                </div>
+              </div>
+            </div>
+            <div>
+              <label class="fb-ql" for="fbText">ملاحظات إضافية <span class="fb-opt-note">اختياري</span></label>
+              <textarea id="fbText" class="fb-text" maxlength="500" placeholder="اكتب ما لاحظته أو ما تقترحه"></textarea>
+              <div class="fb-actions">
+                <button type="button" class="b-primary" id="fbSend">إرسال الملاحظات</button>
+                <span class="fb-msg" id="fbMsg" role="status" aria-live="polite"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="fb-thanks" id="fbThanks" hidden>
+          <span class="ok">✓ شكرًا لك، سجّلنا ملاحظتك وسنستخدمها لتحسين مرسى.</span>
+          <button type="button" class="b-secondary" id="fbAgain">إرسال ملاحظة أخرى</button>
+        </div>
+      </div>
+    </section>
+
+
+  </div>
+</div>
+
+<div id="consoleView" hidden>
+  <div class="cv-bar">
+    <div class="brand">
+      <svg width="34" height="34" viewBox="0 0 40 40" fill="none">
+          <path d="M6 26 Q13 20 20 26 T34 26" stroke="#3ED0B6" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <path d="M6 31 Q13 25 20 31 T34 31" stroke="#2A8F7C" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <rect x="18" y="6" width="4" height="18" rx="2" fill="#3ED0B6"/>
+          <circle cx="20" cy="6" r="3.4" fill="#3ED0B6"/>
+        </svg>
+      <div>
+        <div class="word">مرسَى</div>
+        <div class="sub">Marsa — AI Port Intelligence</div>
+      </div>
+    </div>
+    <button class="cv-back" id="cvBack" type="button">العودة إلى لوحة مرسى</button>
+  </div>
+
+  <div class="tw-wrap">
+    <h1 class="tw-h1">التوأم الرقمي</h1>
+    <p class="tw-sub">يختبر التوأم كل اقتراح على حالة الميناء الحالية، ثم يرسل النتائج إلى الوكيل ليختار الأفضل.</p>
+    <div class="tw-steps">
+      <div class="tw-step"><i>1</i>التوأم يختبر الاقتراحات</div><span class="tw-arr">←</span>
+      <div class="tw-step"><i>2</i>الوكيل يختار الأفضل</div><span class="tw-arr">←</span>
+      <div class="tw-step"><i>3</i>تظهر توصيةً في لوحة مرسى</div>
+    </div>
+
+    <div class="tw-cards" id="twCards"></div>
+
+    <div class="tw-sim">
+      <div class="tw-sim-head">
+        <div class="tw-sim-title"><span id="twTitle"></span><span class="tw-badge" id="twBest" style="display:none">التوصية المعتمدة</span></div>
+        <div class="tw-wx" id="twWx"></div>
+      </div>
+      <div class="tw-scroll"><svg class="pm-svg tw-svg" id="twSvg" viewBox="0 0 1000 334" role="img" aria-label="محاكاة حركة السفن والأرصفة"></svg></div>
+      <div class="tw-stats">
+        <div><span>الزمن</span><b id="twT">0.0 س</b></div>
+        <div><span>بالانتظار</span><b id="twQ">0</b></div>
+        <div><span>الأرصفة المشغولة</span><b id="twB">0 / 6</b></div>
+      </div>
+      <div class="tw-ctl">
+        <button id="twPlay" type="button" aria-label="تشغيل / إيقاف">▶</button>
+        <input type="range" id="twScrub" min="0" max="1000" value="0" aria-label="الزمن">
+        <select id="twSpeed" aria-label="السرعة">
+          <option value="0.5">0.5×</option>
+          <option value="1" selected>1×</option>
+          <option value="2">2×</option>
+          <option value="4">4×</option>
+        </select>
+      </div>
+    </div>
+
+    <section id="manualTest">
+      <div class="mt-head">
+        <h2 class="mt-title">اختبار يدوي</h2>
+        <p class="mt-sub">حدد المعطيات بنفسك — حتى غير الواقعية منها — وشاهد كيف يتصرف نموذج الميناء.</p>
+      </div>
+      <div class="layout" id="manualView">
+    <div>
+      <div class="panel">
+        <h2>إعداد الميناء</h2>
+        <label for="berths">الأرصفة</label>
+        <input type="number" id="berths" value="3" min="0" max="10">
+        <div class="hint">جرّب صفر لترى التوأم يتجمّد تمامًا.</div>
+
+        <label for="vessels">عدد السفن للمحاكاة</label>
+        <input type="number" id="vessels" value="20" min="1" max="80">
+
+        <div class="row2">
+          <div>
+            <label for="gapMin">فجوة الوصول — أدنى (ساعة)</label>
+            <input type="number" id="gapMin" value="1" min="0" max="48">
+          </div>
+          <div>
+            <label for="gapMax">الأقصى (ساعة)</label>
+            <input type="number" id="gapMax" value="4" min="0" max="48">
+          </div>
+        </div>
+
+        <div class="row2">
+          <div>
+            <label for="svcMin">وقت الخدمة — أدنى (ساعة)</label>
+            <input type="number" id="svcMin" value="3" min="0" max="72">
+          </div>
+          <div>
+            <label for="svcMax">الأقصى (ساعة)</label>
+            <input type="number" id="svcMax" value="10" min="0" max="72">
+          </div>
+        </div>
+
+        <label for="rule">قاعدة الطابور ("التوصية")</label>
+        <select id="rule">
+          <option value="fcfs">الأول فالأول (FCFS)</option>
+          <option value="shortest">الأقصر خدمة أولاً</option>
+          <option value="longest">الأطول خدمة أولاً</option>
+          <option value="reverse">الأحدث وصولاً أولاً</option>
+          <option value="random">أولوية عشوائية</option>
+        </select>
+        <div class="hint" id="ruleHint">الأساس القياسي — ترتيب الوصول يقرر.</div>
+
+        <button class="btn-run" id="runBtn">تشغيل المحاكاة</button>
+      </div>
+
+      <div class="panel">
+        <h2>اختبارات ضغط سريعة</h2>
+        <div class="presets">
+          <button id="presetBaseline">سيناريو واقعي أساسي</button>
+          <button id="presetSurge">تدفق مروري مكثف (غير واقعي)</button>
+          <button id="presetStarve">صفر أرصفة (كسّره)</button>
+          <button id="presetChaos">أولوية عشوائية (فوضى)</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel canvas-panel">
+      <div class="canvas-top">
+        <div class="clock">زمن المحاكاة <b id="clockVal">0.0</b> ساعة</div>
+        <div class="clock" id="statusVal">خامل</div>
+      </div>
+
+      <div class="banner" id="banner"></div>
+
+      <div id="stageContent">
+        <div class="empty">حدد المعطيات واضغط <b>تشغيل المحاكاة</b> لترى التوأم في العمل.</div>
+      </div>
+
+      <div class="transport" id="transport" style="display:none;">
+        <button id="playBtn">▶</button>
+        <input type="range" id="scrub" min="0" max="1000" value="0">
+        <select class="speed-select" id="speedSel">
+          <option value="0.5">0.5×</option>
+          <option value="1" selected>1×</option>
+          <option value="2">2×</option>
+          <option value="5">5×</option>
+        </select>
+      </div>
+
+      <div class="kpis" id="kpis" style="display:none;"></div>
+    </div>
+  </div>
+    </section>
+  </div>
+</div>
+
+<script>
+// ===== حالة الميناء الحالية (مصدر واحد للوحة والخريطة والتنبيه والتوأم الرقمي) =====
+window.PORT = {
+  weather: { label: 'رياح', speed: 38, windows: [{ start: 7, end: 11, derate: 0.35 }] },
+  berths: [
+    { id: 'B1', accepts: ['container'], busy: true, cargo: 'حاويات', size: '6,200 TEU', pct: 72, left: 2.1, cranes: [3, 3] },
+    { id: 'B2', accepts: ['container'], busy: true, cargo: 'حاويات', size: '4,100 TEU', pct: 38, left: 4.6, cranes: [2, 3] },
+    { id: 'B3', accepts: ['container'], busy: false, readyIn: 0.67, short: 'قيد التجهيز', note: 'يجري تجهيز الرصيف للسفينة التالية — يتوفر خلال 40 دقيقة تقريبًا.' },
+    { id: 'B4', accepts: ['container'], busy: true, hot: true, cargo: 'حاويات', size: '8,800 TEU', pct: 23, left: 7.4, cranes: [2, 4] },
+    { id: 'B5', accepts: ['container'], busy: true, cargo: 'حاويات', size: '3,600 TEU', pct: 85, left: 1.0, cranes: [2, 2] },
+    { id: 'B6', accepts: ['general'], busy: false, short: 'حمولة عامة', note: 'رصيف مخصص للحمولة العامة — لا توجد سفينة مناسبة له حاليًا.' },
+  ],
+  waiting: [
+    { waited: 3.1, type: 'container', size: '5,200 TEU', svc: 6.5 },
+    { waited: 2.6, type: 'container', size: '3,900 TEU', svc: 4.8 },
+    { waited: 1.8, type: 'container', size: '6,800 TEU', svc: 8.2 },
+    { waited: 1.2, type: 'container', size: '2,400 TEU', svc: 3.2 },
+    { waited: 0.4, type: 'container', size: '4,500 TEU', svc: 5.6 },
+  ],
+  // أول 3 تظهر على الخريطة، والباقي ضمن «+10»
+  arrivals: [
+    { eta: 0.75, type: 'container', size: '5,400 TEU', svc: 6.0 },
+    { eta: 2,    type: 'general',   size: '18,000 طن', svc: 3.5 },
+    { eta: 3,    type: 'container', size: '7,100 TEU', svc: 8.0 },
+    { eta: 4.2,  type: 'container', size: '3,000 TEU', svc: 4.5 },
+    { eta: 6,    type: 'container', size: '4,800 TEU', svc: 5.5 },
+    { eta: 7.5,  type: 'general',   size: '12,000 طن', svc: 3.0 },
+    { eta: 9,    type: 'container', size: '5,500 TEU', svc: 6.0 },
+    { eta: 11,   type: 'container', size: '2,800 TEU', svc: 3.8 },
+    { eta: 13,   type: 'container', size: '6,400 TEU', svc: 7.0 },
+    { eta: 15.5, type: 'general',   size: '14,000 طن', svc: 4.0 },
+    { eta: 18,   type: 'container', size: '4,200 TEU', svc: 5.0 },
+    { eta: 20.5, type: 'container', size: '3,600 TEU', svc: 4.2 },
+    { eta: 23,   type: 'container', size: '5,900 TEU', svc: 6.5 },
+  ],
+  yard: [
+    { n: 1, pct: 58, cap: 4800, trend: 'مستقر',      lvl: 'ok' },
+    { n: 2, pct: 71, cap: 5200, trend: 'صاعد',       lvl: 'warn' },
+    { n: 3, pct: 88, cap: 4000, trend: 'صاعد بسرعة', lvl: 'bad' },
+  ],
+  quay: { ratePct: 68 },
+  gate: { last6h: 9, usual: 11 },
+};
+
+// ===== محرك التوأم الرقمي =====
+window.TwinEngine = (function () {
+  function rand(min, max) { return min + Math.random() * (max - min); }
+
+  function buildVessels(n, gapMin, gapMax, svcMin, svcMax) {
+    const vessels = []; let t = 0;
+    for (let i = 0; i < n; i++) {
+      t += rand(gapMin, gapMax);
+      vessels.push({ id: i, arrival: t, service: Math.max(0.1, rand(svcMin, svcMax)), type: 'container', assignTime: null, berth: null, departTime: null });
+    }
+    return vessels;
+  }
+
+  // كفاءة العمل تنخفض داخل نوافذ الطقس السيئ
+  function rateAt(t, windows) {
+    let r = 1;
+    windows.forEach(w => { if (t >= w.start && t < w.end) r *= (1 - w.derate); });
+    return r;
+  }
+  function finishTime(start, work, windows) {
+    let t = start, w = work;
+    const pts = [...new Set(windows.flatMap(x => [x.start, x.end]))].filter(p => p > t).sort((a, b) => a - b);
+    pts.push(Infinity);
+    for (const p of pts) {
+      const r = rateAt(t, windows), cap = (p - t) * r;
+      if (cap >= w) return t + w / r;
+      w -= cap; t = p;
+    }
+    return t;
+  }
+
+  function priorityFn(rule) {
+    switch (rule) {
+      case 'shortest': return v => v.service;
+      case 'longest':  return v => -v.service;
+      case 'reverse':  return v => -v.arrival;
+      case 'random':   return v => v._rand;
+      default:         return v => v.arrival;
+    }
+  }
+
+  // berthSpec: رقم (أرصفة متطابقة) أو مصفوفة { label, accepts, busyWork, readyAt }
+  function runEngine(berthSpec, vessels, rule, opts) {
+    opts = opts || {};
+    const windows = opts.weather || [];
+    const berths = typeof berthSpec === 'number'
+      ? Array.from({ length: berthSpec }, (_, i) => ({ label: 'B' + (i + 1), accepts: null }))
+      : berthSpec;
+    const nB = berths.length;
+    const pFn = priorityFn(rule);
+    if (rule === 'random') vessels.forEach(v => v._rand = Math.random());
+
+    const berthFree = new Array(nB).fill(true);
+    const berthIntervals = Array.from({ length: nB }, () => []);
+    const waiting = [];
+    const events = [];
+    vessels.forEach(v => events.push({ time: v.arrival, type: 'arrival', vessel: v }));
+
+    berths.forEach((b, i) => {
+      if (b.busyWork != null) {
+        berthFree[i] = false;
+        const end = finishTime(0, b.busyWork, windows);
+        berthIntervals[i].push({ start: 0, end, vessel: { id: 'cur' + i, arrival: 0, service: end, assignTime: 0, departTime: end, initial: true } });
+        events.push({ time: end, type: 'departure', berth: i });
+      } else if (b.readyAt > 0) {
+        berthFree[i] = false;
+        events.push({ time: b.readyAt, type: 'departure', berth: i });
+      }
+    });
+
+    const okBerth = (i, v) => !berths[i].accepts || berths[i].accepts.includes(v.type || 'container');
+
+    function tryAssign(now) {
+      let changed = true;
+      while (changed) {
+        changed = false;
+        const cap = opts.waitCap;
+        const sorted = waiting.slice().sort((a, b) => {
+          if (cap != null && rule === 'shortest') {           // الأقصر خدمة مع حدّ أقصى للانتظار
+            const ca = (now - a.arrival) >= cap, cb = (now - b.arrival) >= cap;
+            if (ca !== cb) return ca ? -1 : 1;
+            if (ca) return a.arrival - b.arrival;
+          }
+          return pFn(a) - pFn(b);
+        });
+        for (const v of sorted) {
+          const bi = berthFree.findIndex((f, i) => f && okBerth(i, v));
+          if (bi === -1) continue;
+          v.assignTime = now; v.berth = bi;
+          v.departTime = finishTime(now, v.service, windows);
+          berthFree[bi] = false;
+          berthIntervals[bi].push({ start: now, end: v.departTime, vessel: v });
+          events.push({ time: v.departTime, type: 'departure', berth: bi });
+          waiting.splice(waiting.indexOf(v), 1);
+          changed = true;
+          break;
+        }
+      }
+    }
+
+    let served = 0, totalWait = 0, maxWait = 0, makespan = 0;
+    while (events.length) {
+      events.sort((a, b) => a.time - b.time);
+      const ev = events.shift();
+      const now = Math.max(ev.time, 0);
+      makespan = Math.max(makespan, now);
+      if (ev.type === 'arrival') waiting.push(ev.vessel);
+      else berthFree[ev.berth] = true;
+      tryAssign(now);
+    }
+    vessels.forEach(v => {
+      if (v.assignTime !== null) {
+        served++;
+        const w = v.assignTime - v.arrival;
+        totalWait += w; maxWait = Math.max(maxWait, w);
+        makespan = Math.max(makespan, v.departTime);
+      }
+    });
+    const busyTime = berthIntervals.flat().reduce((s, iv) => s + (iv.end - iv.start), 0);
+    return {
+      vessels, berthIntervals, makespan, labels: berths.map(b => b.label),
+      avgWait: served ? totalWait / served : null, maxWait, served, total: vessels.length,
+      utilization: nB > 0 && makespan > 0 ? (busyTime / (nB * makespan)) * 100 : 0,
+    };
+  }
+
+  // ===== تحليل حالة الميناء: الوضع الحالي + التوصيات الأربع =====
+  function analyze(P) {
+    const windows = P.weather.windows;
+    const b4 = P.berths.findIndex(b => b.hot);
+    const b6 = P.berths.findIndex(b => b.accepts && b.accepts.length === 1 && b.accepts[0] === 'general');
+    const CRANE_GAIN = 1.5;      // ونش ثالث بدل ثانيين = +50% معدل تفريغ
+    const WAIT_CAP = 5;          // أقصى انتظار مسموح قبل رفع أولوية السفينة
+    const DELAY = 2;             // تأخير وصول السفينة الكبيرة القادمة
+    const bigIdx = P.arrivals.map((a, i) => ({ a, i })).filter(x => x.a.type === 'container')
+                     .sort((x, y) => x.a.eta - y.a.eta)[1].i;   // ثاني سفينة حاويات قادمة (≈ 3 ساعات)
+
+    function mkBerths(mods) {
+      return P.berths.map((b, i) => {
+        const s = { label: b.id, accepts: (mods.accepts && mods.accepts[i]) || b.accepts };
+        if (b.busy) s.busyWork = (mods.busyWork && mods.busyWork[i] != null) ? mods.busyWork[i] : b.left;
+        else if (b.readyIn) s.readyAt = b.readyIn;
+        return s;
+      });
+    }
+    function mkVessels(shift) {
+      const list = [];
+      P.waiting.forEach((w, i) => list.push({ id: 'w' + i, kind: 'waiting', idx: i, arrival: -w.waited, service: w.svc, type: w.type, assignTime: null, berth: null, departTime: null }));
+      P.arrivals.forEach((a, i) => list.push({ id: 'a' + i, kind: 'arrival', idx: i, arrival: a.eta + ((shift && shift[i]) || 0), service: a.svc, type: a.type, assignTime: null, berth: null, departTime: null }));
+      return list;
+    }
+    function run(mods, rule) { return runEngine(mkBerths(mods), mkVessels(mods.shift), rule, { weather: windows, waitCap: mods.waitCap }); }
+
+    const baseline = run({}, 'fcfs');
+    const plans = {
+      priority:   { result: run({ waitCap: WAIT_CAP }, 'shortest'), waitCap: WAIT_CAP },
+      cranes:     { result: run({ busyWork: { [b4]: P.berths[b4].left / CRANE_GAIN } }, 'fcfs'), b4Left: P.berths[b4].left / CRANE_GAIN },
+      openB6:     { result: run({ accepts: { [b6]: ['container', 'general'] } }, 'fcfs') },
+      reschedule: { result: run({ shift: { [bigIdx]: DELAY } }, 'fcfs'), bigIdx, delay: DELAY },
+    };
+    // أثر كل خطة: تحسّن متوسط/أقصى الانتظار، وأكثر سفينة تنتظر وقتًا أطول
+    function score(p) {
+      const r = p.result;
+      p.deltaAvgMin = Math.round((baseline.avgWait - r.avgWait) * 60);
+      p.deltaMaxMin = Math.round((baseline.maxWait - r.maxWait) * 60);
+      let worse = 0, worseCount = 0;
+      r.vessels.forEach((v, i) => {
+        const b = baseline.vessels[i];
+        const dw = (v.assignTime - v.arrival) - (b.assignTime - b.arrival);
+        if (dw > 0.17) { worseCount++; worse = Math.max(worse, dw); }
+      });
+      p.worseCount = worseCount; p.worseMaxMin = Math.round(worse * 60);
+      return p;
+    }
+    Object.values(plans).forEach(score);
+
+    // اختيار المستخدم: أي مزيج من الخيارات الأربعة
+    function custom(o) {
+      const mods = {};
+      if (o.crane)   mods.busyWork = { [b4]: P.berths[b4].left / CRANE_GAIN };
+      if (o.openB6)  mods.accepts  = { [b6]: ['container', 'general'] };
+      if (o.delay > 0) mods.shift  = { [bigIdx]: o.delay };
+      if (o.rule === 'shortest') mods.waitCap = WAIT_CAP;
+      return score({ result: run(mods, o.rule === 'shortest' ? 'shortest' : 'fcfs') });
+    }
+    // ---- نصوص الاقتراحات (مصدر واحد للوحة والتوأم) ----
+    const hoursAr = n => Number.isInteger(n) ? (n === 1 ? 'ساعة' : n === 2 ? 'ساعتين' : n <= 10 ? n + ' ساعات' : n + ' ساعة') : n + ' ساعة';
+    const B4 = P.berths[b4], B6 = P.berths[b6];
+    const info = {
+      priority:   { title: 'إعطاء أولوية للسفن الأقصر خدمة',
+                    line: 'تدخل السفن ذات زمن الخدمة الأقصر أولًا، بحدّ أقصى للانتظار ' + hoursAr(WAIT_CAP) + '.',
+                    alert: 'إعطاء أولوية للسفينة ذات أقصر وقت خدمة متوقع، مع حدّ أقصى للانتظار (' + hoursAr(WAIT_CAP) + ')' },
+      cranes:     { title: 'تشغيل ونش إضافي على الرصيف ' + B4.id,
+                    line: 'ينهي خدمة السفينة الحالية خلال ' + plans.cranes.b4Left.toFixed(1) + ' ساعات، قبل الرياح.',
+                    alert: 'تشغيل ونش إضافي على الرصيف ' + B4.id + ' لإنهاء خدمة سفينته قبل نافذة الرياح' },
+      openB6:     { title: 'فتح الرصيف ' + B6.id + ' مؤقتًا للحاويات',
+                    line: 'يستوعب سفن الحاويات المنتظرة بدل بقائه فارغًا.',
+                    alert: 'فتح الرصيف ' + B6.id + ' مؤقتًا لسفن الحاويات المنتظرة' },
+      reschedule: { title: 'تأخير السفينة الكبيرة القادمة ' + hoursAr(DELAY),
+                    line: 'يخفف الذروة عند وصولها.',
+                    alert: 'تأخير وصول السفينة الكبيرة القادمة ' + hoursAr(DELAY) + ' لتخفيف ذروة الوصول' },
+    };
+    // اختيار الوكيل: أعلى تحسّن بدون تأخير أي سفينة (وإلا أعلى تحسّن)
+    const keys = Object.keys(plans);
+    const safe = keys.filter(k => plans[k].worseCount === 0);
+    const best = (safe.length ? safe : keys).slice().sort((x, y) => plans[y].deltaAvgMin - plans[x].deltaAvgMin)[0];
+    return { baseline, plans, custom, info, best, b4, b6, bigIdx, craneGain: CRANE_GAIN, delay: DELAY, waitCap: WAIT_CAP, hoursAr };
+  }
+
+  return { rand, buildVessels, runEngine, finishTime, analyze };
+})();
+
+</script>
+<script>
+(function() {
+  const spark = (arr, color) => {
+    const w=100,h=28, max=Math.max(...arr), min=Math.min(...arr);
+    const pts = arr.map((v,i)=> `${(i/(arr.length-1))*w},${h - ((v-min)/((max-min)||1))*h}`).join(' ');
+    return `<svg class="spark" width="${w}" height="${h}"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6"/></svg>`;
+  };
+
+  const flowData = [
+    { key:'in', label:'السفن القادمة', val:String(window.PORT.arrivals.length), sub:'سفينة خلال 24 ساعة', trend:[9,10,11,12,13], color:'' },
+    { key:'wait', label:'الانتظار', val:String(window.PORT.waiting.length), sub:'سفن بانتظار الرصيف', trend:[2,3,4,4,5], color:'amber' },
+    { key:'berth', label:'الأرصفة', val:window.PORT.berths.filter(b => b.busy).length + ' / ' + window.PORT.berths.length, sub:'مشغولة', trend:[3,4,4,5,4], color:'' },
+    { key:'unload', label:'تفريغ / تحميل', val:'↑ مرتفع', sub:'التخليص أبطأ من المعتاد', trend:[90,85,80,75,68], color:'red' },
+    { key:'yard', label:'الساحة', val:Math.round(window.PORT.yard.reduce((s, z) => s + z.pct, 0) / window.PORT.yard.length) + '%', sub:'إشغال', trend:[55,60,65,70,72], color:'amber' },
+    { key:'out', label:'خروج الشحنات', val:String(window.PORT.gate.last6h), sub:'شحنة آخر 6 ساعات', trend:[11,10,9,9,9], color:'' },
+  ];
+
+  const flowRow = document.getElementById('flowRow');
+  flowRow.innerHTML = flowData.map((f,i) => `
+    ${i>0 ? '<div class="flowarrow">←</div>' : ''}
+    <div class="flownode" data-key="${f.key}">
+      <div class="flabel">${f.label}</div>
+      <div class="fval ${f.color}">${f.val}</div>
+      <div class="fsub">${f.sub}</div>
+    </div>`).join('');
+
+  let openFlow = null;
+  document.querySelectorAll('.flownode').forEach(node => {
+    node.addEventListener('click', () => {
+      const key = node.dataset.key;
+      const f = flowData.find(x => x.key === key);
+      const box = document.getElementById('flowExpand');
+      if (openFlow === key) { box.classList.remove('show'); openFlow = null; document.querySelectorAll('.flownode').forEach(n=>n.classList.remove('active')); return; }
+      openFlow = key;
+      document.querySelectorAll('.flownode').forEach(n=>n.classList.toggle('active', n===node));
+      box.innerHTML = `الاتجاه خلال آخر 5 قراءات لـ«${f.label}»${spark(f.trend, '#3ED0B6')}`;
+      box.classList.add('show');
+    });
+  });
+
+
+  // ---- interactive port map (no names: only berth codes, types and numbers) ----
+  (function buildPortMap() {
+    const svg  = document.getElementById('pmSvg');
+    const card = document.getElementById('pmWrap');
+    const tipEl = document.getElementById('pmTip');
+    if (!svg) return;
+
+    const P = window.PORT, A = window.TwinEngine.analyze(P), base = A.baseline.vessels;
+    const fmt = n => n.toLocaleString('en-US');
+    const H = h => (Math.round(h * 10) / 10) + ' س';
+    const etaTxt = h => h < 1 ? Math.round(h * 60) + ' د' : H(h);
+    const typeAr = t => t === 'container' ? 'حاويات' : 'حمولة عامة';
+    const berths = P.berths, waiting = P.waiting, yard = P.yard, arrivals = P.arrivals.slice(0, 3);
+    const shortIdx = waiting.reduce((mi, v, i) => v.svc < waiting[mi].svc ? i : mi, 0);
+    const wx = P.weather.windows[0];
+
+    // ---------- tooltips ----------
+    const tips = {};
+    arrivals.forEach((a, i) => {
+      const bv = base[waiting.length + i];
+      tips['in:' + i] = { title:'سفينة قادمة', badge:['في الطريق', 'info'],
+        rows:[['الوصول المتوقع', 'خلال ' + etaTxt(a.eta)], ['نوع الشحنة', typeAr(a.type)], ['الحمولة', a.size],
+              ['الرصيف المتوقع', bv.berth === null ? '—' : 'B' + (bv.berth + 1)], ['بدء الخدمة المتوقع', 'خلال ' + H(bv.assignTime)]],
+        note:'الرصيف وموعد البدء تقدير من التوأم الرقمي.' };
+    });
+    tips['in:more'] = { title:'قادمة خلال 24 ساعة', badge:[P.arrivals.length + ' سفينة', 'info'],
+      rows:[['ظاهرة على الخريطة', '3'], ['غير ظاهرة', String(P.arrivals.length - 3)]],
+      note:'ارتفع عدد السفن القادمة من 9 إلى ' + P.arrivals.length + ' خلال آخر 5 قراءات.' };
+    waiting.forEach((v, i) => {
+      const bv = base[i];
+      tips['wait:' + i] = { title:'سفينة منتظرة', badge:['بانتظار رصيف', 'warn'],
+        rows:[['مدة الانتظار', H(v.waited)], ['الحمولة', v.size], ['وقت الخدمة المتوقع', H(v.svc)],
+              ['الرصيف المتوقع', 'B' + (bv.berth + 1)], ['بدء الخدمة المتوقع', 'خلال ' + H(bv.assignTime)]],
+        note: i === shortIdx ? 'أقصر وقت خدمة بين السفن المنتظرة.' : 'الرصيف وموعد البدء تقدير من التوأم الرقمي.' };
+    });
+    tips['wait:zone'] = { title:'منطقة الانتظار', badge:[waiting.length + ' سفن', 'warn'],
+      rows:[['متوسط الانتظار', H(waiting.reduce((s, v) => s + v.waited, 0) / waiting.length)], ['أطول انتظار', H(Math.max(...waiting.map(v => v.waited)))]],
+      note:'السفن بانتظار رصيف مناسب لنوع حمولتها.' };
+    berths.forEach((b, i) => {
+      if (!b.busy) { tips['berth:' + i] = { title:'الرصيف ' + b.id, badge:['متاح', 'ok'], rows:[['الحالة', 'غير مشغول']], note:b.note }; return; }
+      const t = { title:'الرصيف ' + b.id, badge: b.hot ? ['نقطة ضغط', 'warn'] : ['مشغول', 'info'],
+        rows:[['نوع الشحنة', b.cargo], ['الحمولة', b.size], ['المتبقي للمغادرة', H(b.left)], ['الأوناش العاملة', b.cranes[0] + ' من ' + b.cranes[1]]],
+        bar:{ label:'تقدّم التفريغ ' + b.pct + '%', pct:b.pct, cls: b.hot ? 'warn' : '' } };
+      if (b.hot) {
+        t.rows.push(['خطر التكدس خلال 3 ساعات', '78%']);
+        t.note = 'سفينة كبيرة بوقت خدمة طويل — هذا الرصيف هو مصدر الضغط المتوقع.' + (b.left > wx.start ? ' وتتأثر خدمتها بالرياح المتوقعة بعد ' + wx.start + ' ساعات.' : '');
+      }
+      tips['berth:' + i] = t;
+    });
+    const crA = berths.filter(b => b.busy).reduce((s, b) => s + b.cranes[0], 0), crT = berths.filter(b => b.busy).reduce((s, b) => s + b.cranes[1], 0);
+    tips['quay'] = { title:'التفريغ والتحميل', badge:['أبطأ من المعتاد', 'bad'],
+      rows:[['المعدل الحالي', P.quay.ratePct + '% من المعتاد'], ['الأوناش العاملة', crA + ' من ' + crT]],
+      note:'انخفض المعدل من 90% إلى ' + P.quay.ratePct + '% خلال آخر 5 قراءات.' };
+    yard.forEach((z, i) => tips['yard:' + i] = {
+      title:'الساحة ' + z.n, badge:[z.lvl === 'ok' ? 'طبيعي' : z.lvl === 'warn' ? 'مرتفع' : 'ضغط مرتفع', z.lvl],
+      rows:[['الإشغال', z.pct + '%'], ['الحاويات', fmt(Math.round(z.cap * z.pct / 100)) + ' / ' + fmt(z.cap)], ['الاتجاه', z.trend]],
+      bar:{ label:'', pct:z.pct, cls:z.lvl === 'ok' ? 'ok' : z.lvl },
+      note: z.lvl === 'bad' ? 'أعلى من حد التنبيه (85%) — يرفع احتمال التكدس عند الرصيف B4.' : '' });
+    tips['out'] = { title:'خروج الشحنات', badge:['أبطأ قليلًا', 'warn'],
+      rows:[['آخر 6 ساعات', P.gate.last6h + ' شحنات'], ['المعتاد', P.gate.usual + ' شحنة']],
+      note:'انخفض من ' + P.gate.usual + ' إلى ' + P.gate.last6h + ' شحنات خلال آخر 5 قراءات.' };
+
+    function renderTip(t) {
+      let h = `<div class="t"><span>${t.title}</span>${t.badge ? `<span class="pm-badge ${t.badge[1]}">${t.badge[0]}</span>` : ''}</div>`;
+      (t.rows || []).forEach(r => h += `<div class="pm-row"><span>${r[0]}</span><b>${r[1]}</b></div>`);
+      if (t.bar) h += `${t.bar.label ? `<div class="pm-row" style="margin-bottom:0"><span>${t.bar.label}</span></div>` : ''}<div class="pm-bar"><i class="${t.bar.cls}" style="width:${t.bar.pct}%"></i></div>`;
+      if (t.note) h += `<div class="pm-note">${t.note}</div>`;
+      return h;
+    }
+
+    // ---------- drawing ----------
+    const bx = i => 130 + i * 142;
+    let s = `
+    <defs>
+      <linearGradient id="pmWater" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" style="stop-color:var(--sky);stop-opacity:.11"/>
+        <stop offset="1" style="stop-color:var(--sky);stop-opacity:.02"/>
+      </linearGradient>
+      
+      
+      
+    </defs>
+    <rect x="0" y="0" width="1100" height="326" fill="url(#pmWater)"/>
+    <rect x="0" y="326" width="1100" height="214" class="pm-land"/>`;
+    [70, 152, 212].forEach(y => {
+      s += `<path class="pm-wave" d="M0 ${y} q 55 -9 110 0` + ' t 110 0'.repeat(9) + `"/>`;
+    });
+
+    // arrivals (group: in)
+    const arrX = [190, 470, 750];
+    s += `<g class="pm-g pm-g-in">`;
+    arrivals.forEach((a, i) => {
+      const x = arrX[i];
+      s += `<path class="pm-route" d="M${x} 76 V100"/>
+        <g class="pm-hit" data-tip="in:${i}" tabindex="0" aria-label="سفينة قادمة خلال ${etaTxt(a.eta)}">
+          <rect x="${x - 46}" y="16" width="92" height="62" rx="8" fill="transparent"/>
+          <use href="#pmShip" class="pm-shipa" x="${x - 36}" y="20" width="72" height="26"/>
+          <rect class="pm-tag" x="${x - 40}" y="52" width="80" height="20" rx="10"/>
+          <text x="${x}" y="66" text-anchor="middle" font-size="12">خلال ${etaTxt(a.eta)}</text>
+        </g>`;
+    });
+    s += `<g class="pm-hit" data-tip="in:more" tabindex="0" aria-label="${P.arrivals.length} سفينة قادمة خلال 24 ساعة">
+        <rect class="pm-tag" x="925" y="34" width="70" height="28" rx="14"/>
+        <text x="960" y="53" text-anchor="middle" font-size="12.5" class="mono" style="direction:ltr;unicode-bidi:bidi-override">+${P.arrivals.length - 3}</text>
+      </g></g>`;
+
+    // waiting zone (group: wait)
+    s += `<g class="pm-g pm-g-wait">
+      <g class="pm-hit" data-tip="wait:zone" tabindex="0" aria-label="منطقة الانتظار: 5 سفن">
+        <rect class="pm-anch" x="130" y="100" width="700" height="100" rx="50"/>
+      </g>
+      <text x="480" y="119" text-anchor="middle" class="dim" font-size="12">منطقة الانتظار</text>`;
+    waiting.forEach((v, i) => {
+      const x = 250 + i * 115;
+      s += `<g class="pm-hit" data-tip="wait:${i}" tabindex="0" aria-label="سفينة منتظرة منذ ${H(v.waited)}">
+          <rect x="${x - 46}" y="126" width="92" height="66" rx="8" fill="transparent"/>
+          <use href="#pmShip" class="pm-shipw" x="${x - 42}" y="128" width="84" height="30"/>
+          <text x="${x}" y="178" text-anchor="middle" class="mono amb" font-size="12">${H(v.waited)}</text>
+        </g>`;
+    });
+    s += `</g>`;
+
+    // berths (group: berth)
+    s += `<g class="pm-g pm-g-berth">`;
+    berths.forEach((b, i) => {
+      const x = bx(i), cx = x + 65;
+      if (b.hot) s += `<rect class="pm-pulse" x="${x - 4}" y="218" width="138" height="92" rx="11"/>`;
+      s += `<g class="pm-hit" data-tip="berth:${i}" tabindex="0" aria-label="الرصيف ${b.id}: ${b.busy ? 'مشغول' : 'متاح'}">
+        <rect class="pm-bx ${b.busy ? (b.hot ? 'hot' : 'busy') : 'free'}" x="${x}" y="222" width="130" height="84" rx="8"/>
+        <text x="${cx}" y="240" text-anchor="middle" class="mono" font-size="12.5">${b.id}</text>`;
+      if (b.busy) {
+        const fw = Math.round(102 * b.pct / 100);
+        s += `<use href="#pmShip" class="pm-shipb" x="${cx - 48}" y="246" width="96" height="34"/>
+          <rect class="pm-track" x="${x + 14}" y="291" width="102" height="4" rx="2"/>
+          <rect class="pm-fill ${b.hot ? 'hot' : ''}" x="${x + 14 + 102 - fw}" y="291" width="${fw}" height="4" rx="2"/>`;
+      } else {
+        s += `<text x="${cx}" y="268" text-anchor="middle" class="tl" font-size="13">متاح</text>
+          <text x="${cx}" y="287" text-anchor="middle" class="dim" font-size="11">${b.short}</text>`;
+      }
+      s += `</g>`;
+    });
+    s += `</g>`;
+
+    // quay + cranes (group: unload)
+    s += `<g class="pm-g pm-g-unload"><g class="pm-hit" data-tip="quay" tabindex="0" aria-label="التفريغ والتحميل">
+        <rect class="pm-quay" x="110" y="310" width="880" height="18" rx="4"/>`;
+    berths.forEach((b, i) => { if (b.busy) s += `<use href="#pmCrane" class="pm-crane ${b.hot ? 'hot' : ''}" x="${bx(i) + 51}" y="298" width="28" height="34"/>`; });
+    s += `</g></g>`;
+
+    // yard (group: yard)
+    s += `<g class="pm-g pm-g-yard">`;
+    yard.forEach((z, i) => {
+      const x = 115 + i * 300, y = 352, w = 270;
+      const on = Math.round(z.pct / 100 * 48);
+      s += `<g class="pm-hit" data-tip="yard:${i}" tabindex="0" aria-label="الساحة ${z.n}: ${z.pct}%">
+        <rect class="pm-yb ${z.lvl === 'ok' ? '' : z.lvl}" x="${x}" y="${y}" width="${w}" height="118" rx="9"/>
+        <text x="${x + w - 14}" y="${y + 23}" text-anchor="start" font-size="13" font-weight="700">${z.lvl === 'bad' ? '⚠ ' : ''}الساحة ${z.n}</text>
+        <text x="${x + 14}" y="${y + 23}" text-anchor="end" class="mono ${z.lvl === 'ok' ? 'tl' : z.lvl === 'warn' ? 'amb' : 'rd'}" font-size="13">${z.pct}%</text>`;
+      for (let c = 0; c < 12; c++) for (let r = 0; r < 4; r++) {
+        const cx = x + w - 12 - 15 - c * 21, cy = y + 40 + r * 17;
+        s += `<rect class="pm-cell ${c * 4 + r < on ? 'on ' + (z.lvl === 'ok' ? '' : z.lvl) : ''}" x="${cx}" y="${cy}" width="15" height="11" rx="2"/>`;
+      }
+      s += `</g>`;
+    });
+    s += `</g>`;
+
+    // gate (group: out)
+    s += `<g class="pm-g pm-g-out"><g class="pm-hit" data-tip="out" tabindex="0" aria-label="خروج الشحنات">
+        <rect class="pm-tag" x="390" y="486" width="320" height="40" rx="10"/>
+        <use href="#pmTruck" class="pm-shipa" x="404" y="495" width="44" height="22"/>
+        <use href="#pmTruck" class="pm-shipa" style="opacity:.55" x="454" y="495" width="44" height="22"/>
+        <text x="575" y="511" text-anchor="middle" class="mono" font-size="12.5">9 شحنات / 6 س</text>
+        <text x="662" y="511" text-anchor="middle" font-size="12.5" class="dim">بوابة الخروج</text>
+      </g></g>`;
+
+    svg.innerHTML = s;
+
+    // ---------- interaction ----------
+    let current = null;
+    const flowOf = { in:'in', wait:'wait', berth:'berth', quay:'unload', yard:'yard', out:'out' };
+    const nodes = () => document.querySelectorAll('.flownode');
+    function link(key) {
+      const f = flowOf[key.split(':')[0]];
+      nodes().forEach(n => n.classList.toggle('linked', n.dataset.key === f));
+    }
+    function place(el, ev) {
+      const cr = card.getBoundingClientRect();
+      const tw = tipEl.offsetWidth, th = tipEl.offsetHeight;
+      let x, y;
+      if (ev && ev.pointerType === 'mouse') {
+        x = ev.clientX - cr.left + 16; y = ev.clientY - cr.top + 18;
+        if (y + th > cr.height - 8) y = ev.clientY - cr.top - th - 14;
+      } else {
+        const r = el.getBoundingClientRect();
+        x = r.left - cr.left + r.width / 2 - tw / 2; y = r.bottom - cr.top + 10;
+        if (y + th > cr.height - 8) y = r.top - cr.top - th - 10;
+      }
+      x = Math.max(8, Math.min(x, cr.width - tw - 8));
+      y = Math.max(8, y);
+      tipEl.style.left = x + 'px'; tipEl.style.top = y + 'px';
+    }
+    function showTip(el, ev) {
+      const key = el.dataset.tip;
+      if (current !== el) { tipEl.innerHTML = renderTip(tips[key]); current = el; link(key); }
+      tipEl.classList.add('show');
+      place(el, ev);
+    }
+    function hideTip() {
+      current = null; tipEl.classList.remove('show');
+      nodes().forEach(n => n.classList.remove('linked'));
+    }
+    svg.addEventListener('pointermove', e => {
+      if (e.pointerType !== 'mouse') return;
+      const el = e.target.closest('[data-tip]');
+      if (el) showTip(el, e); else hideTip();
+    });
+    svg.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') hideTip(); });
+    svg.addEventListener('pointerdown', e => {
+      if (e.pointerType === 'mouse') return;
+      const el = e.target.closest('[data-tip]');
+      if (el) showTip(el, e); else hideTip();
+    });
+    svg.addEventListener('focusin', e => { const el = e.target.closest('[data-tip]'); if (el) showTip(el, null); });
+    svg.addEventListener('focusout', hideTip);
+    document.addEventListener('pointerdown', e => { if (!card.contains(e.target)) hideTip(); });
+
+    // flow cards <-> map
+    function focusGroup(key) {
+      svg.classList.add('has-focus');
+      svg.querySelectorAll('.pm-g').forEach(g => g.classList.toggle('on', g.classList.contains('pm-g-' + key)));
+    }
+    function clearFocus() { svg.classList.remove('has-focus'); svg.querySelectorAll('.pm-g').forEach(g => g.classList.remove('on')); }
+    nodes().forEach(n => {
+      n.tabIndex = 0; n.setAttribute('role', 'button');
+      n.addEventListener('mouseenter', () => focusGroup(n.dataset.key));
+      n.addEventListener('mouseleave', clearFocus);
+      n.addEventListener('focus', () => focusGroup(n.dataset.key));
+      n.addEventListener('blur', clearFocus);
+      n.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); n.click(); } });
+    });
+  })();
+
+  const tlData = [
+    { t:'الآن', s:'طبيعي', risk:12, color:'#3ED0B6' },
+    { t:'+1 ساعة', s:'طبيعي', risk:18, color:'#3ED0B6' },
+    { t:'+2 ساعة', s:'ضغط متزايد', risk:42, color:'#F3B657' },
+    { t:'+3 ساعات', s:'تكدس محتمل', risk:78, color:'#F6837C', detail:{ prob:'78%', conf:'مرتفع', area:'منطقة الانتظار / الرصيف B4' } },
+    { t:'+4 ساعات', s:'تكدس مستمر', risk:70, color:'#F6837C', detail:{ prob:'70%', conf:'متوسط', area:'الرصيف B4' } },
+    { t:'+6 ساعات', s:'تحسن تدريجي', risk:38, color:'#F3B657' },
+  ];
+
+  const tlSvg = document.getElementById('tlineSvg');
+  const W=1000,H=70, n=tlData.length;
+  const xAt = i => (i/(n-1)) * (W-60) + 30;
+  const yAt = r => H - 10 - (r/100)*(H-24);
+  let path = 'M ' + tlData.map((d,i)=> `${xAt(i)} ${yAt(d.risk)}`).join(' L ');
+  let gradStops = tlData.map((d,i) => `<stop offset="${(i/(n-1))*100}%" stop-color="${d.color}"/>`).join('');
+  tlSvg.innerHTML = `
+    <defs><linearGradient id="tlgrad" x1="0" y1="0" x2="1" y2="0">${gradStops}</linearGradient></defs>
+    <path d="${path}" fill="none" stroke="url(#tlgrad)" stroke-width="2"/>
+    ${tlData.map((d,i)=> `<circle cx="${xAt(i)}" cy="${yAt(d.risk)}" r="5" fill="${d.color}" stroke="#17304D" stroke-width="2" data-i="${i}" class="tlnode" style="cursor:pointer"/>`).join('')}
+  `;
+  document.getElementById('tlLabels').innerHTML = tlData.map(d => `<div><div class="tt">${d.t}</div><div class="ts">${d.s}</div></div>`).join('');
+
+  const tooltip = document.getElementById('tlTooltip');
+  document.querySelectorAll('.tlnode').forEach(node => {
+    const d = tlData[parseInt(node.dataset.i)];
+    if (!d.detail) return;
+    node.addEventListener('mouseenter', (e) => {
+      const rect = node.getBoundingClientRect();
+      const wrapRect = node.closest('.tline').getBoundingClientRect();
+      tooltip.style.right = (wrapRect.right - rect.right - 80) + 'px';
+      tooltip.innerHTML = `
+        <div class="tt-row"><span>احتمال التكدس</span><b>${d.detail.prob}</b></div>
+        <div class="tt-row"><span>مستوى الثقة</span><b>${d.detail.conf}</b></div>
+        <div class="tt-row"><span>المنطقة المتأثرة</span><b>${d.detail.area}</b></div>`;
+      tooltip.style.display = 'block';
+    });
+    node.addEventListener('mouseleave', () => tooltip.style.display = 'none');
+  });
+
+  const factorData = [
+    { name:'ارتفاع عدد السفن المنتظرة', cur:window.PORT.waiting.length, prev:2, trend:'up', weight:0.85, hist:[2,3,4,4,window.PORT.waiting.length] },
+    { name:'زيادة تدفق البضائع', cur:'+18%', prev:'', trend:'up', weight:0.7, hist:[60,65,70,75,82] },
+    { name:'انخفاض معدل التخليص', cur:window.PORT.quay.ratePct + '%', prev:'', trend:'down', weight:0.55, hist:[90,85,80,75,window.PORT.quay.ratePct] },
+    { name:'ارتفاع إشغال الساحة', cur:'72%', prev:'', trend:'up', weight:0.4, hist:[55,60,65,70,72] },
+    { name:'انخفاض سرعة حركة السفن', cur:'', prev:'', trend:'down', weight:0.3, hist:[100,94,89,85,80] },
+  ];
+  const hiddenFactors = [
+    { name:'تغيّر أولوية الشحنات ذات الطابع الخاص', cur:'', prev:'', trend:'up', weight:0.22, hist:[4,4,5,6,7] },
+    { name:'تأخر بسيط في وصول طاقم النوبة', cur:'', prev:'', trend:'down', weight:0.15, hist:[10,9,8,8,7] },
+    { name:`توقع رياح تخفض كفاءة الأوناش بعد ${window.PORT.weather.windows[0].start} ساعات`, cur:'', prev:'', trend:'up', weight:0.2, hist:[24,27,31,35,38] },
+  ];
+
+  function renderFactors() {
+    const list = document.getElementById('factorsList');
+    const rowHtml = (f, extra) => `
+      <div class="factor ${extra || ''}">
+        <div class="factor-top">
+          <div class="factor-name">${f.trend==='up'?'↑':'↓'} ${f.name}</div>
+          <div class="factor-vals">${f.cur ? (f.prev ? `${f.prev} → <b>${f.cur}</b>` : `<b>${f.cur}</b>`) : ''}</div>
+          <div class="factor-bar-wrap"><div class="factor-bar" style="width:${f.weight*100}%"></div></div>
+        </div>
+        <div class="factor-detail">الاتجاه خلال آخر 5 قراءات${spark(f.hist, f.trend==='up' ? '#F6837C' : '#3ED0B6')}</div>
+      </div>`;
+    list.innerHTML = factorData.map(f => rowHtml(f)).join('') +
+      hiddenFactors.map(f => rowHtml(f, 'hidden-factor')).join('');
+
+    list.querySelectorAll('.factor').forEach(row => {
+      row.addEventListener('click', () => row.classList.toggle('open'));
+    });
+  }
+  renderFactors();
+
+  document.getElementById('showAllBtn').addEventListener('click', function() {
+    const hidden = document.querySelectorAll('.hidden-factor');
+    const willShow = !hidden[0].classList.contains('show');
+    hidden.forEach(h => h.classList.toggle('show', willShow));
+    this.textContent = willShow ? 'إخفاء العوامل الإضافية' : 'عرض جميع العوامل';
+  });
+
+  // ---- التنبيه: أرقام من التوأم الرقمي على حالة الميناء الحالية ----
+  (function bindAlert() {
+    const P = window.PORT, A = window.TwinEngine.analyze(P), pr = A.plans[A.best];
+    const clock = h => {
+      const d = new Date(Date.now() + h * 3600e3);
+      const mins = Math.round((d.getHours() * 60 + d.getMinutes()) / 30) * 30;
+      return String(Math.floor(mins / 60) % 24).padStart(2, '0') + ':' + String(mins % 60).padStart(2, '0');
+    };
+    document.getElementById('alBefore').textContent = A.baseline.avgWait.toFixed(1) + 'h';
+    document.getElementById('alAfter').textContent = pr.result.avgWait.toFixed(1) + 'h';
+    document.getElementById('alImprove').textContent = 'تحسّن متوقع: ' + pr.deltaAvgMin + ' دقيقة';
+    document.getElementById('alReco').textContent = A.info[A.best].alert;
+    document.getElementById('alWind').textContent = P.weather.windows[0].start;
+    document.getElementById('alTime').textContent = clock(3);
+    document.getElementById('dbWindow').textContent = clock(3) + ' – ' + clock(5);
+  })();
+
+  // ---- alert actions ----
+  document.getElementById('adoptBtn').addEventListener('click', () => {
+    document.getElementById('alertButtons').innerHTML = `<div class="adopted-msg">✓ تم اعتماد التوصية — سيتم تطبيقها على خطة التشغيل</div>`;
+    pushNotif('info', 'تم اعتماد توصية تخفيف التكدس عند الرصيف B4');
+  });
+  document.getElementById('dismissBtn').addEventListener('click', () => {
+    document.getElementById('alertBox').classList.add('dismissed');
+    document.getElementById('noAlert').style.display = 'block';
+    pushNotif('watch', 'تم تجاهل تنبيه التكدس المتوقع عند الرصيف B4');
+  });
+
+  // ---- notification center ----
+  const notifData = [
+    { type:'warn', text:'تحذير: تكدس محتمل خلال 3 ساعات', target:'sec4' },
+    { type:'watch', text:'مراقبة: ارتفاع تدريجي في السفن المنتظرة', target:'sec1' },
+    { type:'info', text:'معلومة: تحسن معدل التخليص خلال الساعة الماضية', target:'sec3' },
+  ];
+  function renderBell() {
+    const panel = document.getElementById('bellPanel');
+    panel.innerHTML = notifData.map(n => `<div class="notif type-${n.type}" data-target="${n.target}">
+      <div class="ntype">${n.type==='warn'?'تحذير':n.type==='watch'?'مراقبة':'معلومة'}</div>
+      <div class="ntext">${n.text}</div></div>`).join('');
+    document.getElementById('bellCount').textContent = notifData.length;
+    panel.querySelectorAll('.notif').forEach(el => {
+      el.addEventListener('click', () => {
+        const target = document.getElementById(el.dataset.target);
+        target.scrollIntoView({ behavior:'smooth', block:'center' });
+        target.classList.add('hl-flash');
+        setTimeout(()=> target.classList.remove('hl-flash'), 1400);
+        document.getElementById('bellPanel').classList.remove('open');
+      });
+    });
+  }
+  function pushNotif(type, text) { notifData.unshift({type, text, target:'sec4'}); renderBell(); }
+  renderBell();
+  document.getElementById('bellBtn').addEventListener('click', () => document.getElementById('bellPanel').classList.toggle('open'));
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.bellwrap')) document.getElementById('bellPanel').classList.remove('open');
+  });
+
+  // ---- live clock + update ticker ----
+  function tickClock() {
+    const now = new Date();
+    document.getElementById('clockNow').textContent = now.toLocaleTimeString('ar-SA', { hour:'2-digit', minute:'2-digit' });
+  }
+  tickClock(); setInterval(tickClock, 1000);
+
+  let secs = 3;
+  setInterval(() => {
+    secs += 1;
+    document.getElementById('lastUpdate').textContent = `آخر تحديث منذ ${secs} ثوانٍ`;
+    if (secs > 30) secs = 0;
+  }, 1000);
+})();
+</script>
+
+<script>
+(function () {
+  // ===== أداء مرسى (أرقام تجريبية — تُستبدل ببيانات فعلية لاحقًا) =====
+  const PERF = {
+    alerts:{ total:23, correct:20 }, lead:2.8, recos:{ total:21, adopted:15 }, gain:{ expected:16, actual:14 },
+    predicted:[2.8, 3.1, 2.6, 3.4, 3.0, 2.7, 3.2],   // من الأقدم إلى اليوم
+    actual:   [2.9, 3.3, 2.5, 3.6, 2.8, 2.7, 3.5],
+  };
+  const minAr = n => n === 1 ? 'دقيقة' : n === 2 ? 'دقيقتان' : n <= 10 ? n + ' دقائق' : n + ' دقيقة';
+
+  const acc = Math.round(PERF.alerts.correct / PERF.alerts.total * 100);
+  const adoptPct = Math.round(PERF.recos.adopted / PERF.recos.total * 100);
+  const kpis = [
+    { l:'دقة التنبؤ بالتكدس', v:acc + '%', u:'', s:PERF.alerts.correct + ' من ' + PERF.alerts.total + ' تنبيهًا تحقق فعلًا' },
+    { l:'الإنذار المبكر', v:PERF.lead, u:'ساعة', s:'متوسط الوقت بين التنبيه والتكدس' },
+    { l:'التوصيات المعتمدة', v:PERF.recos.adopted + ' من ' + PERF.recos.total, u:'', s:adoptPct + '% من توصيات مرسى تم اعتمادها' },
+    { l:'أثر التوصيات المعتمدة', v:PERF.gain.actual, u:'دقيقة', s:'أقل انتظارًا للسفينة، مقابل ' + PERF.gain.expected + ' دقيقة متوقعة' },
+  ];
+  document.getElementById('pfGrid').innerHTML = kpis.map(k =>
+    `<div class="pf-kpi"><div class="l">${k.l}</div><div class="v">${k.v}${k.u ? `<span class="u">${k.u}</span>` : ''}</div><div class="s">${k.s}</div></div>`).join('');
+
+  // ---- مخطط المتوقع مقابل الفعلي (الأقدم على اليمين) ----
+  const W = 1200, H = 230, L = 30, R = W - 76, T = 16, B = H - 38, n = PERF.predicted.length;
+  const xAt = i => R - i * (R - L) / (n - 1);
+  const yAt = v => B - (v - 2) / 2 * (B - T);
+  let s = '';
+  [2, 2.5, 3, 3.5, 4].forEach(g => {
+    s += `<line x1="${L}" x2="${R}" y1="${yAt(g)}" y2="${yAt(g)}" stroke="var(--line)" stroke-width="1" opacity="0.6"/>
+          <text x="${R + 38}" y="${yAt(g) + 4}" text-anchor="middle">${g.toFixed(1)}</text>`;
+  });
+  const path = arr => 'M ' + arr.map((v, i) => xAt(i) + ' ' + yAt(v)).join(' L ');
+  s += `<path d="${path(PERF.predicted)}" fill="none" stroke="var(--sky)" stroke-width="2" stroke-dasharray="6 5"/>
+        <path d="${path(PERF.actual)}" fill="none" stroke="var(--teal)" stroke-width="2.5"/>`;
+  PERF.predicted.forEach((v, i) => s += `<circle cx="${xAt(i)}" cy="${yAt(v)}" r="4" fill="var(--panel)" stroke="var(--sky)" stroke-width="2"><title>المتوقع: ${v.toFixed(1)} ساعة</title></circle>`);
+  PERF.actual.forEach((v, i) => s += `<circle cx="${xAt(i)}" cy="${yAt(v)}" r="4.5" fill="var(--teal)"><title>الفعلي: ${v.toFixed(1)} ساعة</title></circle>`);
+  for (let i = 0; i < n; i++) {
+    const d = new Date(Date.now() - (n - 1 - i) * 864e5);
+    s += `<text x="${xAt(i)}" y="${H - 12}" text-anchor="middle">${d.toLocaleDateString('ar-SA', { weekday:'short' })}</text>`;
+  }
+  document.getElementById('pfSvg').innerHTML = s;
+  const err = Math.round(PERF.predicted.reduce((a, p, i) => a + Math.abs(p - PERF.actual[i]), 0) / n * 60);
+  document.getElementById('pfCap').textContent = 'متوسط الفرق بين المتوقع والفعلي: ' + minAr(err);
+
+  // ===== ملاحظات المستخدم =====
+  // للاستقبال الفعلي: ضع رابط خدمة الاستقبال هنا (POST بصيغة JSON). بدونه تُحفظ الملاحظة في المتصفح فقط.
+  const FEEDBACK_ENDPOINT = '';
+  const starSvg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.1 6.9 7.5.7-5.7 5 1.7 7.4L12 18.1 5.4 22l1.7-7.4-5.7-5 7.5-.7z"/></svg>';
+  const starsEl = document.getElementById('fbStars');
+  const labels = ['ضعيف', 'مقبول', 'جيد', 'جيد جدًا', 'ممتاز'];
+  starsEl.innerHTML = labels.map((t, i) => `<button type="button" class="fb-star" role="radio" aria-checked="false" aria-label="${i + 1} من 5 — ${t}" title="${t}">${starSvg}</button>`).join('');
+  const stars = [...starsEl.children], msg = document.getElementById('fbMsg');
+  let rating = 0, useful = null;
+  const paint = k => stars.forEach((b, i) => b.classList.toggle('on', i < k));
+  stars.forEach((b, i) => {
+    b.addEventListener('click', () => { rating = i + 1; paint(rating); stars.forEach((x, j) => x.setAttribute('aria-checked', String(j === i))); msg.textContent = ''; });
+    b.addEventListener('mouseenter', () => paint(i + 1));
+    b.addEventListener('mouseleave', () => paint(rating));
+  });
+  const usefulEl = document.getElementById('fbUseful');
+  usefulEl.addEventListener('click', e => {
+    const b = e.target.closest('.fb-opt'); if (!b) return;
+    useful = b.dataset.v;
+    usefulEl.querySelectorAll('.fb-opt').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', String(x === b)); });
+  });
+  const topicsEl = document.getElementById('fbTopics'), topics = new Set();
+  topicsEl.addEventListener('click', e => {
+    const b = e.target.closest('.fb-opt'); if (!b) return;
+    const on = !topics.has(b.dataset.v);
+    on ? topics.add(b.dataset.v) : topics.delete(b.dataset.v);
+    b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
+  });
+
+  document.getElementById('fbSend').addEventListener('click', () => {
+    if (!rating) { msg.textContent = 'اختر تقييمًا أولًا.'; starsEl.firstElementChild.focus(); return; }
+    let rec = null;
+    try { rec = window.TwinEngine.analyze(window.PORT).best; } catch (e) {}
+    const payload = { rating, useful, topics:[...topics], comment:document.getElementById('fbText').value.trim(), recommendation:rec, at:new Date().toISOString() };
+    try {
+      const all = JSON.parse(localStorage.getItem('marsa_feedback') || '[]'); all.push(payload);
+      localStorage.setItem('marsa_feedback', JSON.stringify(all));
+    } catch (e) {}
+    if (FEEDBACK_ENDPOINT) { try { fetch(FEEDBACK_ENDPOINT, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(payload) }); } catch (e) {} }
+    document.getElementById('fbForm').hidden = true;
+    document.getElementById('fbThanks').hidden = false;
+  });
+  document.getElementById('fbAgain').addEventListener('click', () => {
+    rating = 0; useful = null; topics.clear(); paint(0);
+    stars.forEach(x => x.setAttribute('aria-checked', 'false'));
+    usefulEl.querySelectorAll('.fb-opt').forEach(x => { x.classList.remove('on'); x.setAttribute('aria-checked', 'false'); });
+    topicsEl.querySelectorAll('.fb-opt').forEach(x => { x.classList.remove('on'); x.setAttribute('aria-pressed', 'false'); });
+    document.getElementById('fbText').value = ''; msg.textContent = '';
+    document.getElementById('fbForm').hidden = false;
+    document.getElementById('fbThanks').hidden = true;
+  });
+})();
+</script>
+
+<script>
+(function() {
+  const P = window.PORT, A = window.TwinEngine.analyze(P), H = A.hoursAr;
+  const KEYS = ['priority', 'cranes', 'openB6', 'reschedule'];
+  const TW = { cur:null, flags:{}, end:1, head:0, playing:false, rate:1, last:null, built:false };
+  const autoOK = () => !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const shipsAr = n => n === 1 ? 'سفينة' : n === 2 ? 'سفينتان' : n <= 10 ? n + ' سفن' : n + ' سفينة';
+  const svg = document.getElementById('twSvg'), scrub = document.getElementById('twScrub'), playBtn = document.getElementById('twPlay');
+
+  // ---------- بطاقات الاقتراحات ----------
+  function buildCards() {
+    const maxGain = Math.max(1, ...KEYS.map(k => A.plans[k].deltaAvgMin));
+    document.getElementById('twCards').innerHTML = KEYS.map(k => {
+      const p = A.plans[k], g = p.deltaAvgMin, i = A.info[k];
+      return `<button type="button" class="tw-card" data-plan="${k}">
+        <div class="tw-tagrow">${k === A.best ? '<span class="tw-badge">اختيار الوكيل</span>' : ''}</div>
+        <div class="tw-ct">${i.title}</div>
+        <div class="tw-cl">${i.line}</div>
+        <div class="tw-gain">${g > 0 ? `<b>${g}</b> دقيقة أقل في متوسط الانتظار` : 'بدون تحسّن'}</div>
+        <div class="tw-bar"><i style="width:${Math.max(0, g) / maxGain * 100}%"></i></div>
+        <div class="tw-side">${p.worseCount > 0 ? `تتأخر ${shipsAr(p.worseCount)}` : ''}</div>
+      </button>`;
+    }).join('');
+    document.querySelectorAll('#twCards .tw-card').forEach(b => b.addEventListener('click', () => select(b.dataset.plan, true)));
+  }
+
+  const FLAGS = { priority:{ priority:true }, cranes:{ crane:true }, openB6:{ openB6:true }, reschedule:{ delay:A.delay } };
+  function setSim(result, title, flags, isBest, autoplay) {
+    TW.cur = result; TW.flags = flags;
+    const last = Math.max(...result.vessels.map(v => v.assignTime));
+    TW.end = last + 1.5; TW.head = 0; TW.playing = false; TW.last = null;
+    document.getElementById('twTitle').textContent = title;
+    document.getElementById('twBest').style.display = isBest ? 'inline-block' : 'none';
+    setRate(); frame(0);
+    playBtn.textContent = '▶';
+    if (autoplay) play();
+  }
+  function select(key, autoplay) {
+    document.querySelectorAll('#twCards .tw-card').forEach(b => b.classList.toggle('sel', b.dataset.plan === key));
+    setSim(A.plans[key].result, A.info[key].title, FLAGS[key], key === A.best, autoplay);
+  }
+
+  function setRate() { TW.rate = parseFloat(document.getElementById('twSpeed').value) * TW.end / 22; }
+
+  // ---------- الرسم ----------
+  const fmtIn = d => d < 1 ? Math.round(d * 60) + ' د' : (Math.round(d * 10) / 10) + ' س';
+  function frame(t) {
+    const r = TW.cur, F = TW.flags || {};
+    let s = '';
+
+    // القادمة
+    const up = r.vessels.filter(v => v.arrival > t).sort((a, b) => a.arrival - b.arrival).slice(0, 3);
+    s += `<text x="985" y="30" text-anchor="start" class="dim" font-size="14">القادمة</text>`;
+    up.forEach((v, k) => {
+      const x = [700, 470, 240][k];
+      s += `<use href="#pmShip" class="pm-shipa" x="${x - 38}" y="12" width="76" height="27"/>
+        <rect class="pm-tag" x="${x - 48}" y="44" width="96" height="22" rx="11"/>
+        <text x="${x}" y="60" text-anchor="middle" font-size="13.5">خلال ${fmtIn(v.arrival - t)}</text>`;
+      if (F.delay && v.id === 'a' + A.bigIdx) s += `<text x="${x}" y="84" text-anchor="middle" class="amb" font-size="13">مؤجّلة ${H(F.delay)}</text>`;
+    });
+
+    // منطقة الانتظار (بترتيب الدخول للرصيف)
+    const wq = r.vessels.filter(v => v.arrival <= t && (v.assignTime === null || v.assignTime > t)).sort((a, b) => a.assignTime - b.assignTime);
+    s += `<rect class="pm-anch" x="16" y="96" width="968" height="118" rx="26"/>
+      <text x="972" y="120" text-anchor="start" class="dim" font-size="14">بالانتظار (${wq.length})${F.priority ? ' — الأقصر خدمة أولًا' : ''}</text>`;
+    wq.slice(0, 7).forEach((v, k) => {
+      const x = 895 - k * 118;
+      s += `<g><title>وقت الخدمة ${v.service} ساعات</title>
+        <use href="#pmShip" class="pm-shipw" x="${x - 39}" y="130" width="78" height="28"/>
+        <text x="${x}" y="182" text-anchor="middle" class="mono amb" font-size="14">${(t - v.arrival).toFixed(1)} س</text>
+        ${k === 0 ? `<text x="${x}" y="203" text-anchor="middle" class="tl" font-size="12.5">التالية</text>` : ''}</g>`;
+    });
+    if (wq.length > 7) s += `<text x="70" y="160" text-anchor="middle" class="mono dim" font-size="15">+${wq.length - 7}</text>`;
+
+    // الأرصفة
+    let busyN = 0;
+    r.berthIntervals.forEach((ivs, i) => {
+      const x = 20 + i * 162, cx = x + 75, iv = ivs.find(z => z.start <= t && t < z.end), v = iv ? iv.vessel : null, b = P.berths[i];
+      s += `<rect class="pm-bx ${v ? 'busy' : 'free'}" x="${x}" y="232" width="150" height="88" rx="9"/>
+        <text x="${x + 138}" y="254" text-anchor="start" class="mono" font-size="15">${r.labels[i]}</text>`;
+      if (v) {
+        busyN++;
+        const p0 = v.initial && b ? b.pct / 100 : 0, prog = Math.min(1, p0 + (1 - p0) * (t - iv.start) / Math.max(0.01, iv.end - iv.start));
+        s += `<text x="${x + 12}" y="254" text-anchor="end" class="mono tl" font-size="13">${(iv.end - t).toFixed(1)} س</text>
+          <use href="#pmShip" class="pm-shipb" x="${cx - 42}" y="260" width="84" height="30"/>
+          <rect class="pm-track" x="${x + 14}" y="298" width="122" height="5" rx="2.5"/>
+          <rect class="pm-fill" x="${x + 14 + 122 - 122 * prog}" y="298" width="${122 * prog}" height="5" rx="2.5"/>`;
+        if (F.crane && v.initial && i === A.b4) s += `<text x="${cx}" y="315" text-anchor="middle" class="tl" font-size="13">ونش إضافي</text>`;
+      } else {
+        const ready = b && b.readyIn && t < b.readyIn;
+        s += `<text x="${cx}" y="284" text-anchor="middle" class="tl" font-size="16">${ready ? 'قيد التجهيز' : 'متاح'}</text>`;
+        if (!ready && b && !b.busy && b.accepts && b.accepts[0] === 'general' && !F.openB6) s += `<text x="${cx}" y="306" text-anchor="middle" class="dim" font-size="13">حمولة عامة</text>`;
+      }
+      if (F.openB6 && i === A.b6) s += `<text x="${cx}" y="${v ? 315 : 306}" text-anchor="middle" class="tl" font-size="13">مفتوح للحاويات</text>`;
+    });
+    svg.innerHTML = s;
+
+    // الأرقام والطقس
+    document.getElementById('twT').textContent = t.toFixed(1) + ' س';
+    document.getElementById('twQ').textContent = wq.length;
+    document.getElementById('twB').textContent = busyN + ' / ' + P.berths.length;
+    const w = P.weather.windows[0], wx = document.getElementById('twWx');
+    const inWx = t >= w.start && t < w.end;
+    wx.classList.toggle('on', inWx);
+    wx.style.display = t >= w.end ? 'none' : '';
+    wx.textContent = inWx ? 'رياح الآن — كفاءة الأوناش أقل بنحو ' + Math.round(w.derate * 100) + '%' : 'رياح بعد ' + (w.start - t).toFixed(1) + ' س';
+    scrub.value = Math.round(t / TW.end * 1000);
+  }
+
+  // ---------- التشغيل ----------
+  function tick(ts) {
+    if (!TW.playing) return;
+    if (TW.last === null) TW.last = ts;
+    TW.head += (ts - TW.last) / 1000 * TW.rate; TW.last = ts;
+    if (TW.head >= TW.end) { TW.head = TW.end; TW.playing = false; playBtn.textContent = '▶'; }
+    frame(TW.head);
+    if (TW.playing) requestAnimationFrame(tick);
+  }
+  function play() {
+    if (TW.head >= TW.end) TW.head = 0;
+    TW.playing = true; TW.last = null; playBtn.textContent = '❚❚';
+    requestAnimationFrame(tick);
+  }
+  playBtn.addEventListener('click', () => { if (TW.playing) { TW.playing = false; playBtn.textContent = '▶'; } else play(); });
+  scrub.addEventListener('input', e => { TW.playing = false; playBtn.textContent = '▶'; TW.head = e.target.value / 1000 * TW.end; frame(TW.head); });
+  document.getElementById('twSpeed').addEventListener('change', setRate);
+
+  // ---------- الفتح ----------
+  window.TwinUI = { open() {
+    if (!TW.built) { TW.built = true; buildCards(); }
+    select(A.best, autoOK());           // يبدأ بمحاكاة توصية الوكيل (نفس توصية اللوحة)
+  } };
+})();
+</script>
+
+<script>
+(function() {
+  const dash = document.getElementById('dashView');
+  const cv = document.getElementById('consoleView');
+  function show(which) {
+    const toConsole = which === 'console';
+    dash.hidden = toConsole; cv.hidden = !toConsole;
+    window.scrollTo(0, 0);
+  }
+  document.getElementById('simBtn').addEventListener('click', () => { show('console'); if (window.TwinUI) window.TwinUI.open(); });
+  document.getElementById('cvBack').addEventListener('click', () => show('dash'));
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !cv.hidden) show('dash'); });
+})();
+</script>
+<script>
+
+(function() {
+  const ruleHints = {
+    fcfs: "الأساس القياسي — ترتيب الوصول يقرر.",
+    shortest: "يُفرّغ الطابور بسرعة، لكن السفن الكبيرة قد تنتظر طويلاً.",
+    longest: "يعالج السفن الكبيرة أولاً — غالبًا يزيد الوضع سوءًا.",
+    reverse: "أحدث السفن تتخطى الطابور. غير عادل بشكل متعمد، مفيد لاختبار الضغط.",
+    random: "بدون أي منطق إطلاقًا — فحص سلامة لما يفعله التوأم مع توصية سيئة."
+  };
+  document.getElementById('rule').addEventListener('change', (e) => {
+    document.getElementById('ruleHint').textContent = ruleHints[e.target.value];
+  });
+
+  const presets = {
+    presetBaseline: { berths:3, vessels:20, gapMin:1, gapMax:4, svcMin:3, svcMax:10, rule:'fcfs' },
+    presetSurge:    { berths:3, vessels:40, gapMin:0, gapMax:1, svcMin:5, svcMax:14, rule:'fcfs' },
+    presetStarve:   { berths:0, vessels:10, gapMin:1, gapMax:3, svcMin:3, svcMax:8,  rule:'fcfs' },
+    presetChaos:    { berths:2, vessels:25, gapMin:1, gapMax:3, svcMin:2, svcMax:12, rule:'random' },
+  };
+  Object.keys(presets).forEach(id => {
+    document.getElementById(id).addEventListener('click', () => {
+      const p = presets[id];
+      document.getElementById('berths').value = p.berths;
+      document.getElementById('vessels').value = p.vessels;
+      document.getElementById('gapMin').value = p.gapMin;
+      document.getElementById('gapMax').value = p.gapMax;
+      document.getElementById('svcMin').value = p.svcMin;
+      document.getElementById('svcMax').value = p.svcMax;
+      document.getElementById('rule').value = p.rule;
+      document.getElementById('ruleHint').textContent = ruleHints[p.rule];
+    });
+  });
+
+  const { rand, buildVessels, runEngine } = window.TwinEngine;
+
+  // ---- rendering / playback ----
+  let result = null, numBerths = 3;
+  let playing = false, playHead = 0, rate = 1, lastTs = null;
+
+  const stage = document.getElementById('stageContent');
+  const transport = document.getElementById('transport');
+  const kpisEl = document.getElementById('kpis');
+  const banner = document.getElementById('banner');
+  const scrub = document.getElementById('scrub');
+  const clockVal = document.getElementById('clockVal');
+  const statusVal = document.getElementById('statusVal');
+
+  function stateAt(t) {
+    const berths = [];
+    for (let i = 0; i < numBerths; i++) {
+      const iv = result.berthIntervals[i].find(x => x.start <= t && t < x.end);
+      berths.push(iv ? iv.vessel : null);
+    }
+    const waitingNow = result.vessels.filter(v => v.arrival <= t && (v.assignTime === null || v.assignTime > t));
+    return { berths, waitingNow };
+  }
+
+  function renderFrame(t) {
+    clockVal.textContent = t.toFixed(1);
+    const { berths, waitingNow } = stateAt(t);
+
+    let html = '<div class="berth-row">';
+    if (numBerths === 0) {
+      html += '<div class="empty" style="flex:1;">لا توجد أرصفة مُعرّفة — لا يمكن خدمة أي سفينة أبدًا.</div>';
+    }
+    for (let i = 0; i < numBerths; i++) {
+      const v = berths[i];
+      html += `<div class="berth ${v ? 'occ' : ''}"><span class="label">ر${i+1}</span>`;
+      if (v) html += `<div class="vessel" title="سفينة ${v.id}"></div><span class="svc">${(v.departTime - t).toFixed(1)}س متبقية</span>`;
+      html += `</div>`;
+    }
+    html += '</div>';
+    html += `<div class="queue-label">بالانتظار (${waitingNow.length})</div>`;
+    html += '<div class="queue">';
+    waitingNow.slice(0, 40).forEach(v => {
+      html += `<div class="chip" title="انتظرت ${(t - v.arrival).toFixed(1)}س">${(t - v.arrival).toFixed(0)}</div>`;
+    });
+    html += '</div>';
+    stage.innerHTML = html;
+
+    if (numBerths === 0 && result.vessels.some(v => v.arrival <= t)) {
+      banner.textContent = 'جمود تام: لا توجد أرصفة متاحة. كل سفينة تنتظر إلى الأبد.';
+      banner.classList.add('show');
+    } else if (waitingNow.length >= 12) {
+      banner.textContent = `تكدس متصاعد: ${waitingNow.length} سفينة تنتظر في آن واحد.`;
+      banner.classList.add('show');
+    } else {
+      banner.classList.remove('show');
+    }
+
+    scrub.value = Math.round((t / result.makespan) * 1000) || 0;
+    statusVal.textContent = playing ? 'قيد التشغيل' : (t >= result.makespan ? 'انتهى' : 'متوقف مؤقتًا');
+  }
+
+  function renderKpis() {
+    const fmt = (x) => x === null ? '—' : x.toFixed(1);
+    kpisEl.style.display = 'grid';
+    kpisEl.innerHTML = `
+      <div class="kpi"><div class="v">${fmt(result.avgWait)}س</div><div class="l">متوسط الانتظار</div></div>
+      <div class="kpi"><div class="v">${fmt(result.maxWait)}س</div><div class="l">أقصى انتظار</div></div>
+      <div class="kpi"><div class="v">${result.served}/${result.total}</div><div class="l">السفن المخدومة</div></div>
+      <div class="kpi"><div class="v">${fmt(result.utilization)}%</div><div class="l">استغلال الأرصفة</div></div>
+    `;
+  }
+
+  function tick(ts) {
+    if (!playing) return;
+    if (lastTs === null) lastTs = ts;
+    const dtSec = (ts - lastTs) / 1000;
+    lastTs = ts;
+    playHead += dtSec * rate;
+    if (playHead >= result.makespan) {
+      playHead = result.makespan;
+      playing = false;
+      document.getElementById('playBtn').textContent = '▶';
+    }
+    renderFrame(playHead);
+    if (playing) requestAnimationFrame(tick);
+  }
+
+  document.getElementById('runBtn').addEventListener('click', () => {
+    numBerths = Math.max(0, parseInt(document.getElementById('berths').value) || 0);
+    const n = Math.max(1, parseInt(document.getElementById('vessels').value) || 1);
+    const gapMin = parseFloat(document.getElementById('gapMin').value) || 0;
+    const gapMax = Math.max(gapMin, parseFloat(document.getElementById('gapMax').value) || gapMin);
+    const svcMin = parseFloat(document.getElementById('svcMin').value) || 0;
+    const svcMax = Math.max(svcMin, parseFloat(document.getElementById('svcMax').value) || svcMin);
+    const rule = document.getElementById('rule').value;
+
+    const vessels = buildVessels(n, gapMin, gapMax, svcMin, svcMax);
+    result = runEngine(numBerths, vessels, rule);
+
+    playHead = 0; playing = false; lastTs = null;
+    // sim-hour rate so a full run plays back in roughly 22 seconds at 1x
+    rate = result.makespan > 0 ? Math.max(result.makespan / 22, 0.2) : 1;
+    rate = parseFloat(document.getElementById('speedSel').value) * (result.makespan > 0 ? result.makespan / 22 : 1);
+
+    transport.style.display = 'flex';
+    document.getElementById('playBtn').textContent = '▶';
+    renderFrame(0);
+    renderKpis();
+  });
+
+  document.getElementById('playBtn').addEventListener('click', () => {
+    if (!result) return;
+    playing = !playing;
+    document.getElementById('playBtn').textContent = playing ? '❚❚' : '▶';
+    if (playing) {
+      if (playHead >= result.makespan) playHead = 0;
+      lastTs = null;
+      requestAnimationFrame(tick);
+    }
+  });
+
+  document.getElementById('speedSel').addEventListener('change', (e) => {
+    const base = result && result.makespan > 0 ? result.makespan / 22 : 1;
+    rate = parseFloat(e.target.value) * base;
+  });
+
+  scrub.addEventListener('input', (e) => {
+    if (!result) return;
+    playing = false;
+    document.getElementById('playBtn').textContent = '▶';
+    playHead = (parseFloat(e.target.value) / 1000) * result.makespan;
+    renderFrame(playHead);
+  });
+
+
+})();
+</script>
+<!-- ============================================================
+     MARSA LIVE ADAPTER — connects this dashboard to the Marsa API
+     POST {API_BASE}/api/decision-support/analyze  {timestamp_utc}
+     Everything below only OVERWRITES text/values already rendered by
+     the demo scripts above; the demo remains the fallback when the API
+     is offline. Sections touched: top bar, ١ flow row, ٢ timeline,
+     ٣ factors, ٤ alert/recommendation, twin console cards.
+     ============================================================ -->
+<style>
+  #marsaLive{position:fixed;top:12px;left:12px;z-index:9999;background:#0f2238;border:1px solid #2a4f7a;border-radius:12px;
+    padding:10px 12px;display:flex;gap:8px;align-items:center;font-family:Tajawal,system-ui,sans-serif;color:#dbe7f5;
+    box-shadow:0 6px 24px rgba(0,0,0,.35);direction:rtl;flex-wrap:wrap;max-width:min(96vw,760px)}
+  #marsaLive select,#marsaLive input{background:#17304d;color:#fff;border:1px solid #2a4f7a;border-radius:8px;padding:6px 8px;font-family:inherit}
+  #marsaLive button{background:#3ED0B6;color:#062033;border:0;border-radius:8px;padding:7px 12px;font-weight:700;cursor:pointer;font-family:inherit}
+  #marsaLive .st{font-size:12px;opacity:.85}
+  #marsaLive .st.ok{color:#3ED0B6}#marsaLive .st.err{color:#F6837C}
+  .live-tag{display:inline-block;font-size:11px;background:#1c4d3f;color:#8ff0d8;border-radius:6px;padding:2px 6px;margin-inline-start:6px}
+</style>
+<div id="marsaLive">
+  <b>اختر اللحظة الحالية</b>
+  <select id="mlPreset">
+    <option value="2025-07-10T19:00:00Z">10 يوليو 19:00 — ذروة (19 سفينة منتظرة)</option>
+    <option value="2025-07-07T22:00:00Z">7 يوليو 22:00 — أرصفة شبه ممتلئة</option>
+    <option value="2025-01-13T18:00:00Z">13 يناير 18:00 — حدث نشط</option>
+    <option value="2025-01-05T10:00:00Z">5 يناير 10:00 — طقس مرتفع</option>
+    <option value="2025-05-14T06:00:00Z">14 مايو 06:00 — هادئ</option>
+    <option value="2025-11-02T08:00:00Z">2 نوفمبر 08:00 — طقس مفقود</option>
+  </select>
+  <input id="mlCustom" placeholder="أو UTC مثل 2025-08-15T14:00:00Z" size="26">
+  <button id="mlLoad">تحميل</button>
+  <span class="st" id="mlStatus">لم يتم الاتصال بعد</span>
+</div>
+<script>
+(function () {
+  const API_BASE = (window.MARSA_API_BASE || 'http://127.0.0.1:8000');
+  const $ = id => document.getElementById(id);
+  const st = (msg, cls) => { const e = $('mlStatus'); e.textContent = msg; e.className = 'st ' + (cls || ''); };
+  const num = (v, d = 0) => (v === null || v === undefined || isNaN(v)) ? '—' : Number(v).toLocaleString('en-US', { maximumFractionDigits: d });
+  const AR = { HIGH: 'مرتفع', MEDIUM: 'متوسط', LOW: 'منخفض', ELEVATED: 'مرتفع', CONGESTED: 'مزدحم', NORMAL: 'طبيعي', MODERATE: 'متوسط', CRITICAL: 'حرج',
+               low: 'منخفض', moderate: 'متوسط', elevated: 'مرتفع', severe: 'شديد', unknown: 'غير معروف' };
+  const ar = v => AR[v] || v || '—';
+  const CAND_AR = { baseline: 'بدون تدخل (الأول فالأول)', shortest_first: 'أولوية أقصر خدمة', extra_berth: 'فتح رصيف إضافي',
+                    virtual_arrival: 'إبطاء السفن القادمة (وصول افتراضي)', gate_extension: 'تمديد ساعات البوابة / زيادة التخليص',
+                    crane_boost: 'إضافة طاقم أوناش', combined: 'أقصر خدمة + تمديد البوابة' };
+  const candAr = r => r.title_ar || CAND_AR[r.candidate_id] || r.title || r.candidate_id;
+  const kpi = (r, k) => (r.kpis && r.kpis[k]) ? r.kpis[k].mean : null;
+
+  async function analyze(ts) {
+    const res = await fetch(API_BASE + '/api/decision-support/analyze', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ timestamp_utc: ts }) });
+    if (!res.ok) { const t = await res.text(); throw new Error(res.status + ' ' + t.slice(0, 160)); }
+    return res.json();
+  }
+
+  function setFlow(key, val, sub, color) {
+    const node = document.querySelector(`.flownode[data-key="${key}"]`); if (!node) return;
+    const v = node.querySelector('.fval'), s = node.querySelector('.fsub');
+    if (v) { v.textContent = val; v.className = 'fval ' + (color || ''); }
+    if (s && sub) s.textContent = sub;
+  }
+
+  function renderTimeline(ml, m) {
+    const score = ml.status === 'success' ? Math.round(ml.congestion_score * 100) : null;
+    const nowRisk = m.maritime_status === 'CONGESTED' ? 70 : m.maritime_status === 'ELEVATED' ? 45 : 15;
+    const col = r => r >= 60 ? '#F6837C' : r >= 35 ? '#F3B657' : '#3ED0B6';
+    const lab = r => r >= 60 ? 'تكدس محتمل' : r >= 35 ? 'ضغط متزايد' : 'طبيعي';
+    const pts = [{ t: 'الآن', risk: nowRisk }];
+    if (score !== null) {
+      pts.push({ t: '+3 ساعات', risk: Math.round((nowRisk + score) / 2) });
+      pts.push({ t: '+6 ساعات (النموذج)', risk: score });
+    } else pts.push({ t: '+6 ساعات', risk: null });
+    const svg = $('tlineSvg'), W = 1000, H = 70, n = pts.length;
+    const xAt = i => (i / (n - 1)) * (W - 60) + 30, yAt = r => H - 10 - ((r || 0) / 100) * (H - 24);
+    svg.innerHTML = `<path d="M ${pts.map((p, i) => `${xAt(i)} ${yAt(p.risk)}`).join(' L ')}" fill="none" stroke="#3ED0B6" stroke-width="2"/>` +
+      pts.map((p, i) => `<circle cx="${xAt(i)}" cy="${yAt(p.risk)}" r="5" fill="${col(p.risk || 0)}" stroke="#17304D" stroke-width="2"/>`).join('');
+    $('tlLabels').innerHTML = pts.map(p => `<div><div class="tt">${p.t}</div><div class="ts" style="color:${col(p.risk || 0)}">${p.risk === null ? 'غير متاح' : lab(p.risk) + ' · ' + p.risk + '%'}</div></div>`).join('');
+    const w = $('dbWindow'); if (w && ml.target_timestamp_utc) w.textContent = 'حتى ' + new Date(ml.target_timestamp_utc).toISOString().slice(11, 16) + ' UTC';
+    const d = document.querySelector('.dstats div:last-child b'); if (d) d.textContent = score === null ? '—' : ar(ml.classification) + ' (' + score + '%)';
+  }
+
+  function renderFactors(o) {
+    const m = o.domain_agents.maritime, c = o.domain_agents.cargo, e = o.domain_agents.events_weather;
+    const rows = [
+      { name: 'السفن المنتظرة', cur: num(m.evidence.waiting_vessels) + ' من ' + num(m.evidence.vessels), w: Math.min(1, m.evidence.waiting_ratio / 0.4), up: m.evidence.waiting_ratio >= 0.263 },
+      { name: 'أرصفة الحاويات المشغولة', cur: num(o.port_state.pola_berthed_cargo_vessels) + ' / 23', w: (o.port_state.pola_berthed_cargo_vessels || 0) / 23, up: (o.port_state.pola_berthed_cargo_vessels || 0) / 23 >= 0.7 },
+      { name: 'إشغال الساحة', cur: num(c.evidence.yard_occupancy_percent, 1) + '%', w: (c.evidence.yard_occupancy_percent || 0) / 100, up: c.evidence.yard_occupancy_percent >= 80 },
+      { name: 'توازن الحاويات داخل/خارج', cur: num(c.evidence.cargo_flow_ratio, 2), w: Math.min(1, (c.evidence.cargo_flow_ratio || 0) / 1.5), up: c.evidence.cargo_flow_ratio > 1.1 },
+      { name: 'انتظار الشاحنات عند البوابة', cur: num(c.evidence.truck_waiting_time_minutes, 0) + ' د', w: Math.min(1, (c.evidence.truck_waiting_time_minutes || 0) / 90), up: c.evidence.truck_waiting_time_minutes >= 45 },
+      { name: 'الطقس (رياح/موج)', cur: ar(e.weather_assessment.level), w: { low: .15, moderate: .5, elevated: .8, severe: 1 }[e.weather_assessment.level] || .1, up: ['elevated', 'severe'].includes(e.weather_assessment.level) },
+      { name: 'حدث خارجي', cur: e.external_event_assessment && e.external_event_assessment.active ? (e.external_event_assessment.type + ' / ' + ar(e.external_event_assessment.severity)) : 'لا يوجد', w: e.external_event_assessment && e.external_event_assessment.active ? .7 : .05, up: !!(e.external_event_assessment && e.external_event_assessment.active) },
+    ];
+    $('factorsList').innerHTML = rows.map(f => `
+      <div class="factor"><div class="factor-top">
+        <div class="factor-name">${f.up ? '↑' : '↓'} ${f.name}</div>
+        <div class="factor-vals"><b>${f.cur}</b></div>
+        <div class="factor-bar-wrap"><div class="factor-bar" style="width:${Math.round(f.w * 100)}%"></div></div>
+      </div></div>`).join('');
+    const b = $('showAllBtn'); if (b) b.style.display = 'none';
+  }
+
+  function renderAlert(o) {
+    const res = o.digital_twin.results || [], base = res.find(r => r.candidate_id === 'baseline') || res[0];
+    const bestId = o.decision_support.recommended_candidate || o.decision_support.highest_ranked_candidate, best = res.find(r => r.candidate_id === bestId) || res[0];
+    const ml = o.ml_forecast, m = o.domain_agents.maritime, c = o.domain_agents.cargo;
+    const risky = ml.status === 'success' ? ml.classification !== 'LOW' : (m.maritime_status !== 'NORMAL' || c.cargo_status !== 'NORMAL');
+    const box = $('alertBox'), none = $('noAlert');
+    if (!risky) { box.style.display = 'none'; none.style.display = ''; return; }
+    box.style.display = ''; none.style.display = 'none';
+    const meta = box.querySelectorAll('.ameta b');
+    if (meta[0]) meta[0].textContent = ml.status === 'success' ? '6 ساعات' : '—';
+    if (meta[1]) meta[1].textContent = (m.maritime_status !== 'NORMAL' && c.cargo_status !== 'NORMAL') ? 'الأرصفة والساحة' : m.maritime_status !== 'NORMAL' ? 'منطقة الانتظار / الأرصفة' : 'الساحة / البوابة';
+    const reason = box.querySelector('.areason');
+    if (reason) reason.innerHTML = `${num(m.evidence.waiting_vessels)} سفينة منتظرة و${num(o.port_state.pola_berthed_cargo_vessels)} من 23 رصيفًا مشغولة، إشغال الساحة ${num(c.evidence.yard_occupancy_percent, 0)}%. ` +
+      (ml.status === 'success' ? `النموذج يتوقع خطر تكدس <b>${ar(ml.classification)}</b> (${Math.round(ml.congestion_score * 100)}%) خلال 6 ساعات.` : 'توقع النموذج غير متاح لهذه الساعة.');
+    if (best && base) {
+      $('alReco').textContent = candAr(best);
+      $('alBefore').textContent = num(kpi(base, 'avg_wait_hours'), 1) + 'h';
+      $('alAfter').textContent = num(kpi(best, 'avg_wait_hours'), 1) + 'h';
+      const dm = Math.round(((kpi(base, 'avg_wait_hours') || 0) - (kpi(best, 'avg_wait_hours') || 0)) * 60);
+      $('alImprove').textContent = bestId === 'baseline' ? 'لا يوجد خيار يحسّن الوضع بشكل ملموس' : `تحسّن متوقع: ${dm} دقيقة في متوسط الانتظار (محاكاة ${best.runs} مرة)`;
+    }
+    // نص التوصية كما كتبه وكيل الاستراتيجية (حتمي أو بصياغة Gemini)
+    const rt = box.querySelector('.recotext'); if (rt) rt.innerHTML = `<span id="alReco">${$('alReco').textContent}</span><br><span style="opacity:.92">${o.decision_support.summary}</span>`;
+    const rl = box.querySelector('.recolabel'); if (rl) rl.textContent = 'توصية وكيل الاستراتيجية' + (o.decision_support.reasoning_mode === 'llm_assisted' ? ' (صياغة بمساعدة LLM)' : '');
+    const cap = box.querySelector('.metric-cap'); if (cap) cap.textContent = 'المقياس: متوسط انتظار السفن على الرصيف خلال 24 ساعة، من التوأم الرقمي (بدون تدخل مقابل أفضل خيار).';
+    const ab = $('alertButtons'); if (ab) ab.innerHTML = '<div class="adopted-msg">القرار النهائي بيد مشغّل الميناء — مرسى لا ينفذ أي إجراء تلقائيًا.</div>';
+  }
+
+  function renderTwinCards(o) {
+    const el = $('twCards'); if (!el) return;
+    const res = (o.digital_twin.results || []).slice().sort((a, b) => a.rank - b.rank);
+    const bestId = o.decision_support.recommended_candidate || o.decision_support.highest_ranked_candidate;
+    el.innerHTML = res.map(r => `
+      <div class="tw-card ${r.candidate_id === bestId ? 'best' : ''}" style="border:1px solid ${r.candidate_id === bestId ? '#3ED0B6' : '#2a4f7a'};border-radius:12px;padding:10px 12px;margin:6px 0">
+        <div style="display:flex;justify-content:space-between;gap:8px"><b>#${r.rank} ${candAr(r)}</b><span class="live-tag">score ${num(r.score, 3)}</span></div>
+        <div style="font-size:13px;opacity:.9;margin-top:4px">متوسط الانتظار ${num(kpi(r, 'avg_wait_hours'), 2)} س · أقصى انتظار ${num(kpi(r, 'max_wait_hours'), 1)} س · سفن متأخرة ${num(kpi(r, 'delayed_vessels'), 1)} · ذروة الساحة ${num((kpi(r, 'yard_peak_occupancy') || 0) * 100, 0)}%</div>
+        <div style="font-size:12px;opacity:.7;margin-top:2px">${r.runs} تشغيلة Monte-Carlo · ${r.rationale_ar || r.rationale || ''}</div>
+      </div>`).join('');
+    const t = $('twTitle'); if (t) t.textContent = 'نتائج التوأم الرقمي — ' + o.authoritative_timestamp;
+    const b = $('twBest'); if (b) b.style.display = '';
+  }
+
+  function render(o) {
+    const s = o.port_state, m = o.domain_agents.maritime, c = o.domain_agents.cargo, e = o.domain_agents.events_weather;
+    setFlow('in', num(s.approaching_vessel_count), 'سفينة تقترب الآن');
+    setFlow('wait', num(s.waiting_vessel_count), 'سفينة بانتظار الرصيف', s.waiting_vessel_count >= 17 ? 'red' : m.maritime_status !== 'NORMAL' ? 'amber' : '');
+    setFlow('berth', num(s.pola_berthed_cargo_vessels) + ' / 23', 'رصيف حاويات مشغول', s.pola_berthed_cargo_vessels >= 18 ? 'amber' : '');
+    setFlow('unload', ar(c.cargo_status), 'حالة التفريغ والمناولة', c.cargo_status === 'CRITICAL' ? 'red' : c.cargo_status === 'ELEVATED' ? 'amber' : '');
+    setFlow('yard', num(s.yard_occupancy_percent, 0) + '%', 'إشغال الساحة', s.yard_occupancy_percent >= 85 ? 'red' : s.yard_occupancy_percent >= 75 ? 'amber' : '');
+    setFlow('out', num(s.gate_throughput), 'حركة بوابة آخر ساعة');
+    renderTimeline(o.ml_forecast, m);
+    renderFactors(o);
+    renderAlert(o);
+    renderTwinCards(o);
+    const lu = $('lastUpdate'); if (lu) lu.textContent = 'حالة الميناء: ' + o.authoritative_timestamp + ' (إعادة تشغيل تاريخية)';
+    const conn = document.querySelector('.conn span:last-child'); if (conn) conn.textContent = 'متصل بـ Marsa API';
+  }
+
+  async function load() {
+    const ts = ($('mlCustom').value || $('mlPreset').value).trim();
+    st('جارٍ الاتصال بـ ' + API_BASE + ' …');
+    try {
+      const o = await analyze(ts); window.MARSA_LAST = o; render(o);
+      st(`✓ ${ts} · النموذج: ${o.ml_forecast.status === 'success' ? ar(o.ml_forecast.classification) : 'غير متاح'} · الوكلاء: ${o.decision_support.reasoning_mode}`, 'ok');
+    } catch (err) {
+      st('✗ تعذر الاتصال بالـ API (' + err.message + ') — تأكد أن uvicorn يعمل على 8000 وأن CORS مفعّل.', 'err');
+    }
+  }
+  $('mlLoad').addEventListener('click', load);
+  $('mlPreset').addEventListener('change', () => { $('mlCustom').value = ''; load(); });
+  setTimeout(load, 600);   // auto-load the default hour after the demo scripts have rendered
+})();
+</script>
+
+</body>
+</html>
