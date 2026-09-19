@@ -1,0 +1,86 @@
+{
+  "validation_reliability": [
+    {
+      "mean_predicted_probability": 0.0016141632978666535,
+      "fraction_positive": 0.0
+    },
+    {
+      "mean_predicted_probability": 0.005215272130895286,
+      "fraction_positive": 0.002304147465437788
+    },
+    {
+      "mean_predicted_probability": 0.011669042037396524,
+      "fraction_positive": 0.0069124423963133645
+    },
+    {
+      "mean_predicted_probability": 0.024008114809333455,
+      "fraction_positive": 0.002304147465437788
+    },
+    {
+      "mean_predicted_probability": 0.05697694270601196,
+      "fraction_positive": 0.05069124423963134
+    },
+    {
+      "mean_predicted_probability": 0.1338218130154092,
+      "fraction_positive": 0.10161662817551963
+    },
+    {
+      "mean_predicted_probability": 0.28082666552973234,
+      "fraction_positive": 0.1728110599078341
+    },
+    {
+      "mean_predicted_probability": 0.5337942127258547,
+      "fraction_positive": 0.23271889400921658
+    },
+    {
+      "mean_predicted_probability": 0.8070786228652373,
+      "fraction_positive": 0.4861751152073733
+    },
+    {
+      "mean_predicted_probability": 0.9736782026730375,
+      "fraction_positive": 0.8548387096774194
+    }
+  ],
+  "test_reliability": [
+    {
+      "mean_predicted_probability": 0.0008352535418515768,
+      "fraction_positive": 0.0
+    },
+    {
+      "mean_predicted_probability": 0.0016615931362170598,
+      "fraction_positive": 0.0
+    },
+    {
+      "mean_predicted_probability": 0.002924295443634706,
+      "fraction_positive": 0.0
+    },
+    {
+      "mean_predicted_probability": 0.005072676775784328,
+      "fraction_positive": 0.0022988505747126436
+    },
+    {
+      "mean_predicted_probability": 0.009103651852186383,
+      "fraction_positive": 0.0022988505747126436
+    },
+    {
+      "mean_predicted_probability": 0.016883285518752813,
+      "fraction_positive": 0.0
+    },
+    {
+      "mean_predicted_probability": 0.041578927619018775,
+      "fraction_positive": 0.009195402298850575
+    },
+    {
+      "mean_predicted_probability": 0.13102961881407377,
+      "fraction_positive": 0.05057471264367816
+    },
+    {
+      "mean_predicted_probability": 0.4477818372948416,
+      "fraction_positive": 0.19080459770114944
+    },
+    {
+      "mean_predicted_probability": 0.9005220506383085,
+      "fraction_positive": 0.7126436781609196
+    }
+  ]
+}

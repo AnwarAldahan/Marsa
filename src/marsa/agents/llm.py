@@ -1,17 +1,20 @@
-"""HERE: LLM PROVIDER (Gemini / Claude) - narrative only, never numbers.
-Optional LLM provider hook. The MVP runs fully deterministically without it.
+"""Vendor-neutral interface for optional structured LLM generation."""
 
-To plug in a provider, implement `complete(prompt: str) -> str` and pass it to StrategyAgent.
-Never let the LLM change numbers: it only writes the human-readable narrative.
-"""
 from __future__ import annotations
-from typing import Protocol
+
+from typing import Any, Protocol
+
+from pydantic import BaseModel
 
 
-class LLMProvider(Protocol):
-    def complete(self, prompt: str) -> str: ...
+class StructuredLLMProvider(Protocol):
+    """Provider boundary; implementations own credentials, transport, and model selection."""
 
-
-class NoLLM:
-    def complete(self, prompt: str) -> str:
-        return ""
+    def generate_structured(
+        self,
+        *,
+        system_prompt: str,
+        payload: dict[str, Any],
+        response_model: type[BaseModel],
+    ) -> BaseModel | dict[str, Any] | str:
+        ...

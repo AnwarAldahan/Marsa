@@ -1,0 +1,70 @@
+[
+  {
+    "feature": "vessels_waiting",
+    "mean_abs_shap": 1.6693100929260254
+  },
+  {
+    "feature": "vessels_in_area",
+    "mean_abs_shap": 1.094620704650879
+  },
+  {
+    "feature": "tanker_vessels_in_area",
+    "mean_abs_shap": 0.5505275130271912
+  },
+  {
+    "feature": "day_of_week",
+    "mean_abs_shap": 0.22604675590991974
+  },
+  {
+    "feature": "hour_cos",
+    "mean_abs_shap": 0.20696161687374115
+  },
+  {
+    "feature": "waiting_ratio",
+    "mean_abs_shap": 0.1718575358390808
+  },
+  {
+    "feature": "avg_sog",
+    "mean_abs_shap": 0.1538991779088974
+  },
+  {
+    "feature": "cargo_vessels_in_area",
+    "mean_abs_shap": 0.1281643658876419
+  },
+  {
+    "feature": "ship_density",
+    "mean_abs_shap": 0.12656942009925842
+  },
+  {
+    "feature": "wave_height",
+    "mean_abs_shap": 0.12611603736877441
+  },
+  {
+    "feature": "avg_port_speed",
+    "mean_abs_shap": 0.10711301863193512
+  },
+  {
+    "feature": "wind_speed_10m",
+    "mean_abs_shap": 0.06916459649801254
+  },
+  {
+    "feature": "month",
+    "mean_abs_shap": 0.0407399907708168
+  },
+  {
+    "feature": "hour_sin",
+    "mean_abs_shap": 0.033859554678201675
+  },
+  {
+    "feature": "weather_code",
+    "mean_abs_shap": 0.033222973346710205
+  },
+  {
+    "feature": "port_throughput_lag1",
+    "mean_abs_shap": 0.015536108054220676
+  },
+  {
+    "feature": "median_sog",
+    "mean_abs_shap": 0.0021671748254448175
+  }
+]

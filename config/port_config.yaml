@@ -69,3 +69,10 @@ twin:
 
 scoring:                         # composite score, lower is better (docs/LIMITATIONS.md)
   weights: {avg_wait_hours: 0.4, max_wait_hours: 0.2, delayed_vessels: 0.25, yard_peak_occupancy: 0.15}
+
+ml_contract:
+  target: "c1_congestion_next_6h"
+  horizon_hours: 6
+  window: "(t, t + 6h]"
+  artifact: "artifacts/models/marsa_xgboost_c1.joblib"
+  runtime_status: "ml_unavailable"  # exact trained feature parity is not present in the target runtime table

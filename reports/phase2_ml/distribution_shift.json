@@ -1,0 +1,37 @@
+[
+  {
+    "feature": "vessels_waiting",
+    "train_mean": 12.487722085800954,
+    "test_mean": 11.201425615083927,
+    "difference": -1.2862964707170264,
+    "standardized_difference": -0.4007366970643527
+  },
+  {
+    "feature": "ship_density",
+    "train_mean": 46.85454282825365,
+    "test_mean": 44.318234076799264,
+    "difference": -2.536308751454385,
+    "standardized_difference": -0.4102744321405875
+  },
+  {
+    "feature": "avg_port_speed",
+    "train_mean": 1.0659543705905183,
+    "test_mean": 1.0694716357322316,
+    "difference": 0.003517265141713244,
+    "standardized_difference": 0.005461763891151454
+  },
+  {
+    "feature": "vessels_in_area",
+    "train_mean": 46.85454282825365,
+    "test_mean": 44.318234076799264,
+    "difference": -2.536308751454385,
+    "standardized_difference": -0.4102744321405875
+  },
+  {
+    "feature": "waiting_ratio",
+    "train_mean": 0.26563134917758474,
+    "test_mean": 0.251996006800941,
+    "difference": -0.013635342376643766,
+    "standardized_difference": -0.23190693998466244
+  }
+]

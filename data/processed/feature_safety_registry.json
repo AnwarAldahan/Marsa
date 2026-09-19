@@ -1,0 +1,178 @@
+[
+  {
+    "feature": "timestamp",
+    "provenance": "OBSERVED",
+    "available_at_t": true,
+    "leakage_risk": "low",
+    "primary_ml_use": false,
+    "reason": "Ordering/join key, not a model signal."
+  },
+  {
+    "feature": "vessels_in_area",
+    "provenance": "DERIVED",
+    "available_at_t": true,
+    "leakage_risk": "low",
+    "primary_ml_use": true,
+    "reason": "Unique MMSI count by hour."
+  },
+  {
+    "feature": "vessels_waiting",
+    "provenance": "DERIVED",
+    "available_at_t": true,
+    "leakage_risk": "low",
+    "primary_ml_use": true,
+    "reason": "Derived from current waiting-area flag."
+  },
+  {
+    "feature": "waiting_ratio",
+    "provenance": "DERIVED",
+    "available_at_t": true,
+    "leakage_risk": "low",
+    "primary_ml_use": true,
+    "reason": "vessels_waiting / vessels_in_area."
+  },
+  {
+    "feature": "cargo_vessels_in_area",
+    "provenance": "DERIVED",
+    "available_at_t": true,
+    "leakage_risk": "low",
+    "primary_ml_use": true,
+    "reason": "Current vessel type composition."
+  },
+  {
+    "feature": "tanker_vessels_in_area",
+    "provenance": "DERIVED",
+    "available_at_t": true,
+    "leakage_risk": "low",
+    "primary_ml_use": true,
+    "reason": "Current vessel type composition."
+  },
+  {
+    "feature": "avg_sog",
+    "provenance": "DERIVED",
+    "available_at_t": true,
+    "leakage_risk": "low",
+    "primary_ml_use": true,
+    "reason": "Current vessel-hour speed summary."
+  },
+  {
+    "feature": "median_sog",
+    "provenance": "DERIVED",
+    "available_at_t": true,
+    "leakage_risk": "low",
+    "primary_ml_use": true,
+    "reason": "Current vessel-hour speed summary."
+  },
+  {
+    "feature": "ship_density",
+    "provenance": "DERIVED",
+    "available_at_t": true,
+    "leakage_risk": "medium",
+    "primary_ml_use": true,
+    "reason": "Hourly system field; accepted for MVP after Phase 1."
+  },
+  {
+    "feature": "avg_port_speed",
+    "provenance": "DERIVED",
+    "available_at_t": true,
+    "leakage_risk": "low",
+    "primary_ml_use": true,
+    "reason": "Hourly current speed proxy."
+  },
+  {
+    "feature": "port_throughput",
+    "provenance": "DERIVED",
+    "available_at_t": false,
+    "leakage_risk": "medium",
+    "primary_ml_use": false,
+    "reason": "Same-hour construction remains uncertain."
+  },
+  {
+    "feature": "port_throughput_lag1",
+    "provenance": "DERIVED",
+    "available_at_t": true,
+    "leakage_risk": "low",
+    "primary_ml_use": true,
+    "reason": "Uses exact previous hour only; null across gaps."
+  },
+  {
+    "feature": "wind_speed_10m",
+    "provenance": "OBSERVED",
+    "available_at_t": true,
+    "leakage_risk": "low",
+    "primary_ml_use": true,
+    "reason": "Weather field present in raw dataset."
+  },
+  {
+    "feature": "wave_height",
+    "provenance": "OBSERVED",
+    "available_at_t": true,
+    "leakage_risk": "low",
+    "primary_ml_use": true,
+    "reason": "Weather field present in raw dataset."
+  },
+  {
+    "feature": "weather_code",
+    "provenance": "OBSERVED",
+    "available_at_t": true,
+    "leakage_risk": "low",
+    "primary_ml_use": true,
+    "reason": "Weather field present in raw dataset."
+  },
+  {
+    "feature": "hour_sin",
+    "provenance": "DERIVED",
+    "available_at_t": true,
+    "leakage_risk": "low",
+    "primary_ml_use": true,
+    "reason": "Timestamp-derived cyclic feature."
+  },
+  {
+    "feature": "hour_cos",
+    "provenance": "DERIVED",
+    "available_at_t": true,
+    "leakage_risk": "low",
+    "primary_ml_use": true,
+    "reason": "Timestamp-derived cyclic feature."
+  },
+  {
+    "feature": "day_of_week",
+    "provenance": "DERIVED",
+    "available_at_t": true,
+    "leakage_risk": "low",
+    "primary_ml_use": true,
+    "reason": "Timestamp-derived feature."
+  },
+  {
+    "feature": "month",
+    "provenance": "DERIVED",
+    "available_at_t": true,
+    "leakage_risk": "low",
+    "primary_ml_use": true,
+    "reason": "Timestamp-derived feature."
+  },
+  {
+    "feature": "visit_id",
+    "provenance": "OBSERVED",
+    "available_at_t": false,
+    "leakage_risk": "high",
+    "primary_ml_use": false,
+    "reason": "Unreliable as port-call ID; only 50 values."
+  },
+  {
+    "feature": "delay_minutes",
+    "provenance": "OBSERVED",
+    "available_at_t": false,
+    "leakage_risk": "high",
+    "primary_ml_use": false,
+    "reason": "Outcome-like; excluded from primary predictors."
+  },
+  {
+    "feature": "time_in_zone_hours",
+    "provenance": "DERIVED",
+    "available_at_t": null,
+    "leakage_risk": "medium",
+    "primary_ml_use": false,
+    "reason": "Causal construction not proven safe."
+  }
+]

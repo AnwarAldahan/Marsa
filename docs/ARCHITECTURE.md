@@ -1,20 +1,30 @@
-# Architecture and contracts
+# Marsa Final Architecture
 
-**Pipeline** (`src/marsa/pipeline.py`): snapshot → forecast → agents → strategy → twin → score → recommendation.
+```text
+Exact 2025 UTC hour
+  -> authoritative port snapshot
+  -> ML C1 forecast boundary
+  -> Maritime Agent
+  -> Cargo Agent
+  -> Events & Weather Agent
+  -> Strategy Agent
+  -> candidate strategies
+  -> Digital Twin simulations
+  -> deterministic scoring
+  -> decision support
+  -> human decision
+```
 
-**Forecast JSON**: `{timestamp_utc, target, current_value, horizons: {"6h": {predicted, change_vs_now, top_drivers[]}}}`
+The four agents are Maritime, Cargo, Events & Weather, and Strategy. There is no
+Orchestrator Agent. ML is not an agent. The Digital Twin is not an agent.
 
-**Agent JSON** (all three): `{agent, status/level, findings[{metric, value, observation}], possible_bottleneck, provenance[]}`.
-Agents describe; they never recommend. The context agent also returns `twin_multipliers` (crane/gate/arrival).
+Domain agents report evidence and limitations independently. They do not change
+their status in response to an ML forecast. The Strategy Agent preserves conflicting
+signals, generates a small candidate set from supported Digital Twin actions, and
+explains deterministic simulation ranking.
 
-**Candidate** (strategy → twin): `{id, label, actions:[{type, value}]}` with action types
-`queue_policy | add_berths | crane_boost | gate_boost | delay_arrivals | prioritise_vessel`.
+The ML contract is the probability of C1 congestion occurring in `(t, t + 6h]`.
+The Digital Twin independently simulates candidates over the configured horizon,
+currently 24 hours. Simulation output is not an ML forecast.
 
-**Twin result** (twin → strategy): `{candidate_id, runs, kpis:{avg_wait_hours, max_wait_hours, delayed_vessels, vessels_served,
-berth_utilization, yard_peak_occupancy, yard_end_occupancy, queue_end} each {mean,p10,p90}}`.
-The twin never picks a winner.
-
-**Ranking**: `twin/scoring.py` — min-max normalised weighted sum, lower is better, paired Monte Carlo seeds so
-candidates are compared on identical arrival streams.
-
-**Recommendation**: rule "no intervention" if the best candidate's score gain < 0.05; the LLM (optional) only rewrites the narrative.
+See `docs/FINAL_INTEGRATION.md` for complete runtime contracts.

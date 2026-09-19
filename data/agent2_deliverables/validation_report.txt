@@ -1,0 +1,66 @@
+AGENT 2 PORT OPERATIONS 2025 - VALIDATION REPORT
+AIS available hourly timestamps: 8,688
+Missing calendar hours: 72
+Range: 2025-01-01 00:00:00+00:00 to 2025-12-31 23:00:00+00:00
+VALIDATION CHECKS
+rows_8688: PASS
+unique_timestamps_8688: PASS
+sorted: PASS
+utc: PASS
+only_2025: PASS
+exact_AIS_index: PASS
+no_nan: PASS
+inventory_bounds: PASS
+occupancy_bounds: PASS
+nonnegative_flows: PASS
+nonnegative_trucks: PASS
+nonnegative_wait_dwell: PASS
+occupancy_math: PASS
+full_hourly_inventory_conservation: PASS
+observed_gap_integrated_conservation: PASS
+
+MONTHLY CALIBRATION
+ month  official_import_teu  synthetic_import_teu  import_difference_percent  official_export_teu  synthetic_export_teu  export_difference_percent
+     1       483,831.250000        483,831.330000                   0.000017       113,270.750000        113,270.580000                  -0.000150
+     2       413,236.250000        413,236.230000                  -0.000005       109,156.250000        109,156.220000                  -0.000027
+     3       385,530.500000        385,530.520000                   0.000005       122,974.750000        122,974.810000                   0.000049
+     4       439,230.000000        439,229.930000                  -0.000016       128,394.000000        128,393.900000                  -0.000078
+     5       355,950.250000        355,950.160000                  -0.000025       120,196.000000        120,196.040000                   0.000033
+     6       470,449.750000        470,449.810000                   0.000013       126,144.250000        126,144.180000                  -0.000055
+     7       543,727.800000        543,727.810000                   0.000002       121,507.000000        121,506.990000                  -0.000008
+     8       504,514.250000        504,514.200000                  -0.000010       127,378.750000        127,378.990000                   0.000188
+     9       460,043.750000        460,043.690000                  -0.000013       114,693.000000        114,692.990000                  -0.000009
+    10       429,279.750000        429,279.730000                  -0.000005       123,764.250000        123,764.180000                  -0.000057
+    11       406,421.000000        406,420.980000                  -0.000005       113,706.250000        113,706.310000                   0.000053
+    12       424,498.750000        424,498.720000                  -0.000007       108,074.750000        108,074.680000                  -0.000065
+
+SUMMARY STATISTICS
+                  variable       min       max      mean    median     std       p01       p05       p95       p99
+                import_teu   229.920 1,437.780   611.961   595.120 159.498   317.612   381.587   893.285 1,061.729
+                export_teu    76.020   301.220   164.510   162.210  36.568    92.039   108.335   229.519   259.916
+        container_arrivals    49.320   330.110   140.835   137.160  36.829    70.651    86.654   206.846   243.641
+      container_departures    48.320   330.110   140.682   142.085  38.362    61.863    78.500   201.816   226.708
+        containers_in_yard 5,702.830 9,800.000 7,377.384 7,359.500 760.960 5,994.850 6,214.175 8,658.952 9,603.237
+    yard_occupancy_percent    57.030    98.000    73.774    73.595   7.610    59.950    62.144    86.590    96.035
+  average_dwell_time_hours    57.900    90.860    68.279    67.920   4.442    59.526    62.310    76.253    83.247
+            truck_arrivals    20.000   245.000   132.678   133.000  53.808    39.000    50.000   213.000   225.000
+          truck_departures    22.000   245.000   131.203   132.000  53.960    37.870    47.000   212.000   224.000
+truck_waiting_time_minutes     6.000   115.000    18.730    15.890  11.693     7.949     9.714    34.489    70.734
+           gate_throughput    22.000   247.000   132.702   133.000  53.944    39.000    49.000   213.000   225.000
+          cargo_flow_ratio     0.450     2.520     1.033     1.010   0.237     0.590     0.700     1.470     1.710
+
+STATUS DISTRIBUTION
+                   count  percentage
+operations_status                   
+NORMAL              4373       50.33
+MODERATE            3843       44.23
+ELEVATED             385        4.43
+CRITICAL              87        1.00
+
+CORRELATION SANITY CHECKS
+yard_occupancy_vs_dwell: 0.806
+truck_arrivals_vs_gate_throughput: 0.999
+six_hour_accumulation_vs_occupancy_6h_ahead: 0.141
+gate_pressure_vs_truck_waiting: 0.095
+
+Maximum observed-gap integrated conservation error: 5.45696821064e-12

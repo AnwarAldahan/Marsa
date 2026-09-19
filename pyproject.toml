@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "marsa"
+version = "1.0.0"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.110",
+    "httpx>=0.27",
+    "joblib>=1.3",
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "pyarrow>=14.0",
+    "pydantic>=2.6",
+    "python-dotenv>=1.0",
+    "PyYAML>=6.0",
+    "scikit-learn>=1.3",
+    "uvicorn>=0.29",
+    "xgboost>=2.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "scripts", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+ignore = ["E501", "B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/berth_occupancy_from_ais.py" = ["E402", "I001"]
+"scripts/build_v2_dataset.py" = ["E702", "I001"]
+"scripts/train_model.py" = ["E402", "I001"]
+"src/marsa/agents/remote.py" = ["I001"]
+"src/marsa/config.py" = ["I001"]
+"src/marsa/data/features.py" = ["I001"]
+"src/marsa/twin/engine.py" = ["F401", "I001"]
+"src/marsa/twin/state.py" = ["I001"]
+"tests/test_features.py" = ["E402", "I001"]
+"tests/test_twin.py" = ["E401", "E402", "E702", "I001"]
