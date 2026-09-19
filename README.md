@@ -21,12 +21,34 @@ merged hourly dataset (v2)
 ```
 
 ## Quick start
+## Quick start
+
 ```bash
+# 1. clone
+git clone https://github.com/<your-username>/Marsa.git
+cd Marsa
+
+# 2. virtual environment
+python -m venv .venv
+# Windows (PowerShell)
+.venv\Scripts\Activate.ps1
+# macOS / Linux
+source .venv/bin/activate
+
+# 3. dependencies
 pip install -r requirements.txt
-python scripts/train_model.py                       # trains 6 models (ais_only / all × 6h,12h,24h) + baselines
+
+# 4. secrets (only if you use an LLM provider) — never commit this file
+copy .env.example .env      # then put GEMINI_API_KEY=... inside
+
+# 5. run
+python scripts/train_model.py                       # trains the forecasters + baselines
 python scripts/run_pipeline.py 2025-07-10T19:00     # full run for one hour -> outputs/run_20250710T19.json
 python -m pytest tests                              # twin + feature sanity tests
 ```
+
+> Note: the placeholder files (`HERE:` in `src/marsa/agents/*` and `src/marsa/model/*`) must be
+> implemented before `train_model.py` and `run_pipeline.py` will run.
 
 ## Repository layout
 | Path | What |
