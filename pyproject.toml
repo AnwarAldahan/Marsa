@@ -48,4 +48,7 @@ ignore = ["E501", "B008"]
 "src/marsa/twin/engine.py" = ["F401", "I001"]
 "src/marsa/twin/state.py" = ["I001"]
 "tests/test_features.py" = ["E402", "I001"]
+# These model tests intentionally bootstrap the repository root before importing it.
+"tests/test_final_proxy_pipeline.py" = ["E402"]
+"tests/test_prediction_pipeline.py" = ["E402"]
 "tests/test_twin.py" = ["E401", "E402", "E702", "I001"]

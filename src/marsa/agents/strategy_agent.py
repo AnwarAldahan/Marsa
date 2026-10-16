@@ -6,6 +6,9 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
+from marsa.agents.candidate_selection import select_candidates as select_candidates
+from marsa.agents.investigation import annotate_candidates
+from marsa.agents.investigation import run_investigation as run_investigation
 from marsa.agents.llm import StructuredLLMProvider
 from marsa.provenance.types import DataProvenance
 from marsa.twin.engine import simulate_candidate
@@ -64,7 +67,8 @@ def _supports_preventive_cargo_test(forecast: dict, cargo_status: str) -> bool:
 
 
 def generate_candidates(forecast: dict, maritime: dict, cargo: dict,
-                        events_weather: dict, event_impact: dict | None = None) -> list[dict]:
+                        events_weather: dict, event_impact: dict | None = None,
+                        investigation: dict | None = None) -> list[dict]:
     """Generate a small explainable set without forcing cross-domain consensus."""
     candidates = [_candidate(
         "baseline", "No operational change",
@@ -157,7 +161,9 @@ def generate_candidates(forecast: dict, maritime: dict, cargo: dict,
                 {"type": "gate_boost", "value": 1.3},
             ],
         ))
-    return candidates[:4]
+    candidates = candidates[:4]
+    annotate_candidates(candidates, investigation)
+    return candidates
 
 
 def synthesize(forecast: dict, maritime: dict, cargo: dict, events_weather: dict) -> dict:
@@ -191,7 +197,8 @@ def synthesize(forecast: dict, maritime: dict, cargo: dict, events_weather: dict
     }
 
 
-def evaluate(scenario: object, candidates: list[dict], cfg: dict) -> list[dict]:
+def evaluate(scenario: object, candidates: list[dict], cfg: dict,
+             comparison_order: list[str] | None = None) -> list[dict]:
     twin_cfg = cfg["twin"]
     raw_results = []
     for candidate in candidates:
@@ -202,6 +209,10 @@ def evaluate(scenario: object, candidates: list[dict], cfg: dict) -> list[dict]:
         )
         result["provenance"] = DataProvenance.SIMULATED.value
         raw_results.append(result)
+    if comparison_order is not None:
+        # Execution priority must not silently become the scorer's tie breaker.
+        positions = {key: index for index, key in enumerate(comparison_order)}
+        raw_results.sort(key=lambda result: positions[result["candidate_id"]])
     ranked = score_results(raw_results, cfg["scoring"]["weights"])
     by_id = {candidate["candidate_id"]: candidate for candidate in candidates}
     for result in ranked:

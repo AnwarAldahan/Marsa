@@ -20,14 +20,23 @@ Nothing is executed automatically — the port operator takes the final decision
 | 3 | **Agent 1 · Maritime** | Vessel queue, waiting ratio, berth occupancy (x / 23) from AIS | `src/marsa/agents/maritime_agent.py` |
 | 4 | **Agent 2 · Cargo** | Yard occupancy, container flow, dwell, truck/gate pressure | `src/marsa/agents/cargo_agent.py` |
 | 5 | **Agent 3 · Context** | Weather and external events → twin multipliers | `src/marsa/agents/events_weather_agent.py` |
-| 6 | **Strategy agent** | Reads forecast + 3 diagnoses → candidate interventions | `src/marsa/agents/strategy_agent.py` |
+| 6 | **Strategy agent** | Reads forecast + 3 diagnoses; optional bounded historical investigation → candidate interventions | `src/marsa/agents/strategy_agent.py` |
 | 7 | **Digital twin** | Simulates every candidate (vessels → berths → cranes → yard → gate), 30 Monte-Carlo runs each | `src/marsa/twin/` |
 | 8 | **Strategy agent** | Ranks twin results with a documented score, writes the recommendation (Arabic, Gemini-assisted) | `src/marsa/agents/strategy_agent.py` |
 | 9 | **Dashboard / API** | Shows state, forecast, drivers, recommendation | `dashboard/marsa.html` · `src/marsa/api/` |
 
-Design rules: agents describe and diagnose, they never invent numbers; the LLM (Gemini) only rewrites narrative
-and is rejected if it adds numbers or causal claims; every value carries provenance (`OBSERVED`, `DERIVED`,
+Design rules: agents describe and diagnose, they never invent numbers. Gemini can optionally select validated
+historical diagnostics inside Strategy; Python computes the facts and hypotheses. Narrative rewriting
+is rejected if it adds numbers or causal claims; every value carries provenance (`OBSERVED`, `DERIVED`,
 `SYNTHETIC`, `SIMULATED`); the twin never picks a winner — ranking is a deterministic score.
+
+The current prototype configuration enables Strategy investigation. Set `strategy_investigation.enabled: false`
+to retain legacy behavior. See [configuration, tool contracts, and limitations](docs/STRATEGY_INVESTIGATION.md)
+and the [implementation and validation report](reports/STAGE2_DYNAMIC_TOOL_SELECTION_IMPLEMENTATION.md).
+
+An independent [adaptive candidate policy](docs/ADAPTIVE_CANDIDATES.md), also enabled in the prototype configuration, uses complete historical
+evidence to prioritize the existing experiments for simulation. It retains the legacy candidate pool,
+actions and parameters; evaluation priority does not determine simulated ranking or the winner.
 
 ---
 
@@ -63,8 +72,9 @@ If PowerShell refuses to run the script: `Set-ExecutionPolicy -Scope CurrentUser
 pip install -r requirements.txt
 ```
 
-### Step 4 — (optional) enable the LLM narrative
-Without this step Marsa runs fully deterministic (same numbers, plainer text).
+### Step 4 — (optional) configure Gemini
+Without a key, enabled investigation uses the deterministic diagnostic router and the recommendation uses a deterministic summary.
+With a key, the API can use Gemini for diagnostic selection and its existing optional narrative.
 ```powershell
 copy .env.example .env        # macOS/Linux: cp .env.example .env
 ```
@@ -79,7 +89,7 @@ GEMINI_API_KEY=your_key_here
 python -m pytest -q tests
 python -m ruff check src tests scripts
 ```
-Expected: all tests pass (≈ 240) and ruff reports no issues.
+Expected: all tests pass and ruff reports no issues. Automated tests block live HTTP and do not consume Gemini credits.
 
 ### Step 6 — run one decision cycle from the command line
 ```bash

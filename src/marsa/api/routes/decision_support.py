@@ -6,8 +6,8 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from marsa.common.exceptions import DataNotReadyError
 from marsa.api.dependencies import get_strategy_provider
+from marsa.common.exceptions import DataNotReadyError
 from marsa.pipeline import run
 
 router = APIRouter(prefix="/api/decision-support", tags=["decision-support"])
