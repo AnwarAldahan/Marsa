@@ -69,12 +69,12 @@ def test_strategy_accepts_conflicting_signals_without_mutation():
         "events_weather": "low",
     }
     assert {action["type"] for candidate in candidates for action in candidate["actions"]} <= SUPPORTED_ACTIONS
-    # domain pressure alone never creates a twin action; only a twin-measured berth shortage does
-    assert [candidate["candidate_id"] for candidate in candidates] == ["baseline"]
+    # cargo CRITICAL tests the gate; a HIGH label that is not a real model alert adds nothing
+    assert [candidate["candidate_id"] for candidate in candidates] == ["baseline", "gate_max"]
 
 
 def test_twin_ranking_is_deterministic():
-    stress = {"berths_closed": 6, "arrival_surge_pct": 150}
+    stress = {"berths_closed": 6, "arrival_multiplier": 2.5}
     first = run("2025-07-10T19:00:00Z", stress=stress)["deterministic_evaluation"]
     second = run("2025-07-10T19:00:00Z", stress=stress)["deterministic_evaluation"]
     assert first == second
@@ -85,7 +85,7 @@ def test_stress_scenario_reaches_twin_and_api_validates_it():
     with TestClient(app) as client:
         ok = client.post("/api/decision-support/analyze", json={
             "timestamp_utc": "2025-07-10T19:00:00Z",
-            "stress": {"berths_closed": 6, "arrival_surge_pct": 150}})
+            "stress": {"berths_closed": 6, "arrival_multiplier": 2.5}})
         assert ok.status_code == 200
         twin = ok.json()["digital_twin"]
         assert twin["scenario"]["open_berths"] == 17 and twin["scenario"]["stress_applied"]

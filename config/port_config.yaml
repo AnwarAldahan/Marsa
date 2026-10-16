@@ -9,7 +9,7 @@ port:
 
 capacity:
   container_berths: 23
-  container_berths_source: "Sum of the berths listed on the 7 container-terminal pages of portoflosangeles.org. The port's official Facts & Figures card lists 7 container terminals but no berth count, so 23 is an approximate public figure."
+  container_berths_source: "Port of Los Angeles official Port 101 brochure, berths per container terminal: APM 6, TraPac 4, Yusen 3, Fenix 3, Everport 3, WBCT 2, China Shipping 2 (sum 23; the brochure does not print the total)."
 
 model:                           # LEGACY: used only by src/marsa/data/features.py; the final
                                  # XGBoost model is configured in prediction_model/ and ml_contract below.
@@ -37,7 +37,10 @@ model:                           # LEGACY: used only by src/marsa/data/features.
     - is_weekend
 
 twin:
-  horizon_hours: 24              # CHOICE: how far ahead the twin simulates (same day planning window)
+  horizon_hours: 24              # CHOICE (agreed, may change): how far ahead the twin simulates; the
+                                 # interface marks +6 h, the prediction model's horizon
+  similar_vessels_k: 5           # FROM DATA: chosen by scripts/select_similar_k.py (lowest error on
+                                 # 2025 stays using only earlier stays); see data/processed/similar_k_selection.json
   # Everything else the twin needs (vessels, arrival/berth/service times) comes from AIS:
   # data/processed/la_cargo_calls_2023_2025.csv, built by scripts/build_la_cargo_calls.py.
   # The twin is deterministic (no random sampling) and ranks options by total vessel-hours waiting.

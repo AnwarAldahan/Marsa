@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from marsa.api.routes import cargo, decision_support, events_weather, maritime
+from marsa.api.routes import cargo, decision_support, events_weather, maritime, twin
 
 app = FastAPI(
     title="Marsa",
@@ -28,3 +28,4 @@ app.include_router(maritime.router)
 app.include_router(cargo.router)
 app.include_router(events_weather.router)
 app.include_router(decision_support.router)
+app.include_router(twin.router)

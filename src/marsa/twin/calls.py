@@ -15,6 +15,7 @@ from marsa.config import DATA_DIR
 from marsa.twin.engine import Scenario, Vessel
 
 CALLS_PATH = DATA_DIR / "processed" / "la_cargo_calls_2023_2025.csv"
+TIMELINE_PATH = DATA_DIR / "processed" / "merged_port_dataset_2025_v2.csv"
 TIME_COLUMNS = ["arrival", "wait_start", "wait_end", "berth_start", "berth_end"]
 
 
@@ -27,19 +28,42 @@ def load_calls(path=CALLS_PATH) -> pd.DataFrame:
     return calls
 
 
+# The 2025 hours that exist in the AIS file (same timeline as the merged dataset).
+@lru_cache(maxsize=1)
+def ais_hours() -> pd.DatetimeIndex:
+    return pd.DatetimeIndex(pd.to_datetime(pd.read_csv(TIMELINE_PATH, usecols=["hour_key"])["hour_key"], utc=True))
+
+
+# 2025 hours between start and end that are missing from the AIS file, grouped into ranges.
+def missing_ranges(start: pd.Timestamp, end: pd.Timestamp) -> list[tuple[pd.Timestamp, pd.Timestamp]]:
+    lo = max(start.floor("h"), pd.Timestamp("2025-01-01", tz="UTC"))
+    hi = min(end.floor("h"), pd.Timestamp("2025-12-31 23:00", tz="UTC"))
+    if lo > hi:
+        return []
+    missing = pd.date_range(lo, hi, freq="h").difference(ais_hours())
+    ranges: list[tuple[pd.Timestamp, pd.Timestamp]] = []
+    for hour in missing:
+        if ranges and hour - ranges[-1][1] == pd.Timedelta(hours=1):
+            ranges[-1] = (ranges[-1][0], hour)
+        else:
+            ranges.append((hour, hour))
+    return ranges
+
+
 # Hours between two timestamps as a float.
 def _hours(later, earlier) -> float:
     return (later - earlier).total_seconds() / 3600
 
 
 # Build the twin starting state at hour ts: vessels at berth, waiting, and arriving in the horizon.
-# arrival_surge_pct compresses the real arrival schedule (vessels of the next H*(1+s) hours arrive
-# within H hours); it is a user-chosen stress scenario, 0 means the real schedule.
+# arrival_multiplier is a user-chosen stress scenario: x2 means the real vessels of the next 2*H
+# hours all arrive within H hours (twice as many real vessels, each keeps its own service time).
+# x1 is the real schedule; below 1 stretches it (fewer vessels in the horizon).
 def scenario_at(ts: pd.Timestamp, berths: int, horizon_hours: int,
-                berths_closed: int = 0, arrival_surge_pct: float = 0.0,
+                berths_closed: int = 0, arrival_multiplier: float = 1.0,
                 calls: pd.DataFrame | None = None) -> Scenario:
     calls = load_calls() if calls is None else calls
-    surge = 1.0 + arrival_surge_pct / 100.0
+    surge = arrival_multiplier
     window_end = ts + pd.Timedelta(hours=horizon_hours * surge)
 
     at_berth = calls[(calls["berth_start"] <= ts) & (calls["berth_end"] > ts)]
@@ -62,6 +86,6 @@ def scenario_at(ts: pd.Timestamp, berths: int, horizon_hours: int,
     return Scenario(
         berths=berths, berths_closed=berths_closed, horizon_hours=horizon_hours,
         berthed=berthed, vessels=queue + future,
-        arrival_surge_pct=arrival_surge_pct,
+        arrival_multiplier=arrival_multiplier,
         data_end=_hours(calls["arrival"].max(), ts),
     )

@@ -1,10 +1,13 @@
 """Digital Twin tests: replay of real AIS calls, stress scenarios, actions and ranking."""
 import pandas as pd
 import pytest
+from fastapi.testclient import TestClient
 
+from marsa.api.main import app
 from marsa.config import load_config
 from marsa.twin.adapter import build_scenario, validate_stress
 from marsa.twin.calls import load_calls
+from marsa.twin.estimates import estimate_stay
 from marsa.twin.engine import Scenario, Vessel, apply_actions, simulate_candidate
 from marsa.twin.scoring import score_results
 
@@ -88,8 +91,8 @@ def test_unknown_action_and_policy_rejected():
 
 
 @pytest.mark.parametrize("stress", [
-    {"berths_closed": -1}, {"berths_closed": 24}, {"arrival_surge_pct": -5},
-    {"arrival_surge_pct": 500}, {"wind": 50},
+    {"berths_closed": -1}, {"berths_closed": 24}, {"arrival_multiplier": 0},
+    {"arrival_multiplier": -1}, {"arrival_surge_pct": 100}, {"wind": 50},
 ])
 def test_invalid_stress_rejected(stress):
     with pytest.raises(ValueError):
@@ -100,6 +103,83 @@ def test_arrival_surge_brings_more_real_vessels_into_horizon():
     cfg = load_config()
     ts = pd.Timestamp("2025-03-04T10:00:00Z")
     normal, _ = build_scenario(ts, cfg)
-    surged, sources = build_scenario(ts, cfg, {"arrival_surge_pct": 100})
+    surged, sources = build_scenario(ts, cfg, {"arrival_multiplier": 2})
     assert len(surged.vessels) >= len(normal.vessels)
     assert any(s["provenance"] == "USER INPUT" for s in sources)
+
+
+# A large multiplier is allowed: the user is free to test any scenario.
+def test_large_multiplier_is_accepted():
+    assert validate_stress({"arrival_multiplier": 10}, 23)["arrival_multiplier"] == 10
+
+
+# Hours missing from the AIS file inside the horizon are reported, never filled.
+def test_missing_ais_hours_are_reported():
+    _, sources = build_scenario(pd.Timestamp("2025-06-30T20:00:00Z"), load_config())
+    gaps = [s for s in sources if s.get("kind") == "data_gap"]
+    assert gaps and gaps[0]["value"][0][0].startswith("2025-07-01T00:00")
+    _, sources = build_scenario(pd.Timestamp("2025-07-10T19:00:00Z"), load_config())
+    assert not [s for s in sources if s.get("kind") == "data_gap"]
+
+
+# --- /api/twin endpoints and added vessels ---------------------------------------------------
+TS = "2025-07-10T19:00:00Z"
+
+
+def test_simulate_returns_baseline_and_user_decision():
+    with TestClient(app) as client:
+        r = client.post("/api/twin/simulate", json={
+            "timestamp_utc": TS, "stress": {"berths_closed": 6, "arrival_multiplier": 2.5},
+            "actions": [{"type": "add_berths", "value": 1}]})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["baseline"]["candidate_id"] == "baseline"
+    assert body["result"]["candidate_id"] == "user_decision"
+    assert body["result"]["kpis"]["open_berths"] == body["baseline"]["kpis"]["open_berths"] + 1
+    assert body["marker_hours"] == [6]
+    assert "total_wait_vessel_hours" in body["result"]["vs_baseline"]
+
+
+def test_simulate_gate_uses_recorded_maximum():
+    with TestClient(app) as client:
+        body = client.post("/api/twin/simulate", json={
+            "timestamp_utc": TS, "actions": [{"type": "gate_capacity", "value": "max_recorded"}]}).json()
+    assert body["result"]["kpis"]["gate_per_hour"] == body["scenario"]["gate_max_recorded"]
+    assert body["result"]["kpis"]["yard_peak_occupancy_pct"] <= \
+        body["baseline"]["kpis"]["yard_peak_occupancy_pct"]
+
+
+def test_simulate_rejects_unknown_action_and_fields():
+    with TestClient(app) as client:
+        bad_action = client.post("/api/twin/simulate", json={
+            "timestamp_utc": TS, "actions": [{"type": "fly", "value": 1}]})
+        bad_vessel = client.post("/api/twin/simulate", json={
+            "timestamp_utc": TS, "added": [{"arrival_in_hours": 2, "tonnage": 5}]})
+        no_info = client.post("/api/twin/simulate", json={
+            "timestamp_utc": TS, "added": [{"arrival_in_hours": 2}]})
+    assert bad_action.status_code == 422 and bad_vessel.status_code == 422
+    assert no_info.status_code == 422
+
+
+def test_added_vessel_by_length_is_marked_and_sourced():
+    with TestClient(app) as client:
+        body = client.post("/api/twin/simulate", json={
+            "timestamp_utc": TS, "added": [{"arrival_in_hours": 3, "length_m": 300}]}).json()
+    added = [v for v in body["baseline"]["vessels"] if v["source"] == "added"]
+    assert len(added) == 1 and added[0]["estimate"]["method"] == "similar_length"
+    assert any(s.get("kind") == "added" for s in body["sources"])
+    assert body["scenario"]["vessels_added"] == 1
+
+
+def test_known_vessel_uses_own_history_before_the_hour():
+    ts = pd.Timestamp(TS)
+    with TestClient(app) as client:
+        listed = client.get("/api/twin/vessels", params={"timestamp_utc": TS}).json()["vessels"]
+    vid = listed[0]["vessel_id"]
+    est = estimate_stay(ts, 5, vessel_id=vid)
+    assert est["method"] == "own_history"
+    assert est["hours"] == pytest.approx(listed[0]["median_stay_hours"])
+
+
+def test_typed_service_hours_wins():
+    assert estimate_stay(pd.Timestamp(TS), 5, length_m=300, service_hours=12)["method"] == "user_input"

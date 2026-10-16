@@ -25,7 +25,7 @@ from marsa.config import OUTPUTS_DIR, load_config
 from marsa.data.load import load_dataset, parse_exact_utc_hour, snapshot
 from marsa.model.predict import forecast as ml_forecast
 from marsa.model.predict import validate_test_forecast
-from marsa.twin.adapter import build_scenario
+from marsa.twin.adapter import build_scenario, scenario_summary
 from marsa.twin.engine import simulate_candidate
 
 
@@ -34,9 +34,11 @@ def _forecast_risk(forecast: dict) -> str | None:
 
 
 # Run evidence collection, the Digital Twin, strategy generation and ranking for one hour.
-# stress: optional user scenario {"berths_closed": int, "arrival_surge_pct": float}.
+# stress: optional user scenario {"berths_closed": int, "arrival_multiplier": float}.
+# added: optional vessels added by the user [{"arrival_in_hours", "vessel_id"|"length_m"|"service_hours"}].
 def run(timestamp: str, cfg=None, df=None, llm=None, save=False,
-        agents=None, forecast_override: dict | None = None, stress: dict | None = None) -> dict:
+        agents=None, forecast_override: dict | None = None, stress: dict | None = None,
+        added: list[dict] | None = None) -> dict:
     cfg = cfg or load_config()
     frame = df if df is not None else load_dataset()
     ts = parse_exact_utc_hour(timestamp)
@@ -65,10 +67,11 @@ def run(timestamp: str, cfg=None, df=None, llm=None, save=False,
     )).model_dump(mode="json")
 
     domain_results = {"maritime": maritime, "cargo": cargo, "events_weather": events_weather}
-    scenario, sources = build_scenario(ts, cfg, stress)
+    scenario, sources = build_scenario(ts, cfg, stress, added)
     baseline = simulate_candidate(scenario, {"id": "baseline", "actions": []})
     candidates = strategy_agent.generate_candidates(
         forecast, maritime, cargo, events_weather, baseline,
+        gate_available=scenario.yard is not None,
     )
     synthesis = strategy_agent.synthesize(forecast, maritime, cargo, events_weather)
     ranked = strategy_agent.evaluate(scenario, candidates, cfg, baseline=baseline)
@@ -87,23 +90,10 @@ def run(timestamp: str, cfg=None, df=None, llm=None, save=False,
         "strategy_candidates": candidates,
         "strategy_synthesis": synthesis,
         "digital_twin": {
-            "port": "Port of Los Angeles - cargo vessels (AIS types 70-79)",
+            "port": "Port of Los Angeles - cargo vessels (AIS types 70-79) and yard",
+            "marker_hours": [int(cfg["ml_contract"]["horizon_hours"])],
             "simulation_horizon_hours": scenario.horizon_hours,
-            "scenario": {
-                "open_berths": scenario.berths - scenario.berths_closed,
-                "container_berths": scenario.berths,
-                "berths_closed": scenario.berths_closed,
-                "arrival_surge_pct": scenario.arrival_surge_pct,
-                "vessels_at_berth_now": len(scenario.berthed),
-                "vessels_at_berth": [
-                    {"call_id": v.call_id, "mmsi": v.mmsi, "berthed_since_h": round(v.berth_h, 2),
-                     "leaves_in_h": round(v.berth_h + v.service_h, 2)}
-                    for v in scenario.berthed],
-                "vessels_waiting_now": sum(1 for v in scenario.vessels if v.arrival_h <= 0),
-                "vessels_arriving_in_horizon": sum(
-                    1 for v in scenario.vessels if 0 < v.arrival_h <= scenario.horizon_hours),
-                "stress_applied": bool(scenario.berths_closed or scenario.arrival_surge_pct),
-            },
+            "scenario": scenario_summary(scenario),
             "sources": sources,
             "results": ranked,
             "provenance": "SIMULATED",
@@ -115,7 +105,8 @@ def run(timestamp: str, cfg=None, df=None, llm=None, save=False,
             "The ML score is uncalibrated and targets a retrospective operational cargo-congestion proxy.",
             "The finalized Cargo inputs and weather-pressure baseline have retrospective construction limitations.",
             "Cargo state is synthetic/calibrated synthetic, not observed terminal state.",
-            "The Digital Twin covers the sea side only (berths and waiting vessels from AIS); yard and gates are not simulated.",
+            "The Digital Twin simulates berths and waiting vessels from AIS and the yard from the synthetic Cargo agent file; the yard does not change vessel waiting (no data on that effect).",
+            "Stays of vessels in AIS are the recorded ones (replay); vessels added by the user get a stay estimated from earlier stays.",
             "Without a stress scenario the Digital Twin replays the real AIS schedule; stress values are chosen by the user.",
             "No operational action is executed automatically.",
         ],

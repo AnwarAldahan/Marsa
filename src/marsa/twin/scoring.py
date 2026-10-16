@@ -20,7 +20,9 @@ def score_results(results: list[dict]) -> list[dict]:
             item["vs_baseline"] = {
                 k: round(item["kpis"][k] - base["kpis"][k], 2)
                 for k in ("total_wait_vessel_hours", "capacity_wait_vessel_hours",
-                          "vessels_waited", "max_wait_hours", "waiting_end")
+                          "vessels_waited", "max_wait_hours", "waiting_end",
+                          "yard_peak_occupancy_pct", "yard_end_occupancy_pct")
+                if item["kpis"].get(k) is not None and base["kpis"].get(k) is not None
             }
         out.append(item)
     return out

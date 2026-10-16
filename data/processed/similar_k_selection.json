@@ -1,0 +1,41 @@
+{
+  "chosen_k": 5,
+  "results": [
+    {
+      "k": 5,
+      "median_abs_error_h": 10.38,
+      "mean_abs_error_h": 25.21,
+      "stays_tested": 1772
+    },
+    {
+      "k": 10,
+      "median_abs_error_h": 11.0,
+      "mean_abs_error_h": 25.45,
+      "stays_tested": 1772
+    },
+    {
+      "k": 20,
+      "median_abs_error_h": 21.5,
+      "mean_abs_error_h": 30.35,
+      "stays_tested": 1772
+    },
+    {
+      "k": 50,
+      "median_abs_error_h": 29.0,
+      "mean_abs_error_h": 34.84,
+      "stays_tested": 1772
+    },
+    {
+      "k": 100,
+      "median_abs_error_h": 32.0,
+      "mean_abs_error_h": 35.61,
+      "stays_tested": 1772
+    },
+    {
+      "k": 200,
+      "median_abs_error_h": 31.0,
+      "mean_abs_error_h": 35.24,
+      "stays_tested": 1772
+    }
+  ]
+}

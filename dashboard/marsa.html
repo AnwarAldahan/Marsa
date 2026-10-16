@@ -9,10 +9,12 @@
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <!--
   Marsa dashboard. Every number on this page comes from the Marsa API response
-  (POST /api/decision-support/analyze). There is no demo data and no fallback data:
-  if the API is not reachable the page says so and shows nothing else.
+  (POST /api/decision-support/analyze, POST /api/twin/simulate, GET /api/twin/vessels).
+  There is no demo data and no fallback data: if the API is not reachable the page says so
+  and shows nothing else.
   Source badges: AIS = observed vessel data, اصطناعي = synthetic cargo/events,
-  تنبؤ = XGBoost model, محاكاة = Digital Twin, مدخل المستخدم = stress values typed here.
+  تنبؤ = XGBoost model, محاكاة = Digital Twin, مدخل المستخدم = values typed here,
+  تقدير من التاريخ = stay of an added vessel estimated from earlier stays.
 -->
 <style>
 :root {
@@ -92,6 +94,17 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 14px; }
 .sources { margin-top:14px; font-size:12px; color:var(--muted); line-height:1.8; }
 .sources li { margin-bottom:4px; }
 .human { margin-top:12px; font-size:12.5px; color:var(--muted); }
+.b-est { color:var(--violet); border-style:dashed; }
+.try { margin-top:10px; width:100%; }
+.cand.custom { border-color:var(--violet); }
+.addv { margin-top:4px; }
+.addv summary { cursor:pointer; font-size:12.5px; color:var(--muted); }
+.addv-row { display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; margin-top:8px; }
+.addv-row input, .custom-form input, .custom-form select { background:var(--panel-2); color:var(--text); border:1px solid var(--line);
+  border-radius:8px; padding:7px 9px; font-family:var(--mono); font-size:12px; width:120px; direction:ltr; }
+.custom-form { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin-top:10px; }
+.custom-form select { font-family:var(--font); width:190px; direction:rtl; }
+.showing { font-size:12.5px; color:var(--violet); margin-bottom:8px; }
 @media (max-width:720px) { .content { padding:16px; } .ctl input { width:150px; } .scrub input[type=range] { width:160px; } }
 </style>
 </head>
@@ -119,14 +132,21 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 14px; }
         <label class="ctl stress">أرصفة مغلقة <span class="badge b-user">سيناريو</span>
           <input id="inClosed" class="small" type="number" min="0" step="1" value="0">
         </label>
-        <label class="ctl stress">زيادة السفن القادمة % <span class="badge b-user">سيناريو</span>
-          <input id="inSurge" class="small" type="number" min="0" step="10" value="0">
+        <label class="ctl stress">مضاعف السفن القادمة (×1 = الجدول الفعلي) <span class="badge b-user">سيناريو</span>
+          <input id="inSurge" class="small" type="number" min="0.1" step="0.1" value="1">
         </label>
         <label class="ctl">عنوان الخادم
           <input id="inApi" value="http://127.0.0.1:8000">
         </label>
         <button class="b-primary" type="submit">تحليل</button>
       </form>
+      <details class="addv" id="addvBox">
+        <summary>إضافة سفن للتجربة <span class="badge b-user">مدخل المستخدم</span> <span id="addvCount"></span></summary>
+        <div class="note">لكل سفينة: رقمها (IMO أو MMSI) إن كانت معروفة، أو طولها بالمتر، أو مدة إقامتها بالساعات. إن لم تُكتب المدة تُقدَّر من إقامات سابقة قبل الساعة المختارة: من تاريخ نفس السفينة أولًا، وإلا من أقرب السفن طولًا.</div>
+        <div id="addvRows"></div>
+        <button class="b-secondary" type="button" id="addvAdd" style="margin-top:8px">+ سفينة</button>
+        <datalist id="knownVessels"></datalist>
+      </details>
       <div class="status" id="status"></div>
     </div>
   </div>
@@ -141,25 +161,36 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 14px; }
   const AR = { NORMAL:'طبيعي', ELEVATED:'مرتفع', CONGESTED:'مزدحم', MODERATE:'متوسط', CRITICAL:'حرج',
                LOW:'منخفض', MEDIUM:'متوسط', HIGH:'مرتفع', low:'منخفض', moderate:'متوسط', elevated:'مرتفع', severe:'شديد' };
   const TITLES = { baseline:'عدم إجراء تغيير تشغيلي', shortest_first:'الأولوية للسفن ذات مدة الخدمة الأقصر',
-                   extra_berth:'فتح رصيف إضافي مؤقت' };
+                   extra_berth:'فتح رصيف إضافي مؤقت', gate_max:'تشغيل البوابة بأعلى طاقة سجّلها ملف البضائع',
+                   user_decision:'قرارك المخصص' };
+  const TRIGGER_AR = { 'maritime.maritime_status':'حالة الوكيل البحري',
+    'digital_twin.baseline.kpis.capacity_wait_vessel_hours':'انتظار بسبب امتلاء الأرصفة في المحاكاة',
+    'cargo.cargo_status':'حالة وكيل البضائع', 'ml_forecast.alert_active':'تنبيه نموذج التنبؤ',
+    'events_weather.external_event_assessment.active':'حدث خارجي نشط' };
+  const METHOD_AR = e => !e ? '' : e.method === 'user_input' ? 'مدة كتبها المستخدم'
+    : e.method === 'own_history' ? `وسيط ${num(e.based_on)} إقامة سابقة لنفس السفينة`
+    : `وسيط إقامات ${num(e.based_on)} سفن هي الأقرب طولًا إلى ${num(e.length_m)} م`;
   const EVENT_AR = { demand_surge:'زيادة طلب', landside_access_disruption:'تعطل الوصول البري',
                      labor_operational_disruption:'تعطل تشغيلي/عمالي', logistics_disruption:'تعطل لوجستي' };
   const BADGE = { ais:['b-ais','AIS'], syn:['b-syn','اصطناعي'], pred:['b-pred','تنبؤ النموذج'],
-                  sim:['b-sim','محاكاة'], obs:['b-ais','مرصود'], user:['b-user','مدخل المستخدم'], pub:['b-pub','مصدر عام'] };
+                  sim:['b-sim','محاكاة'], obs:['b-ais','مرصود'], est:['b-est','تقدير من التاريخ'], note:['b-pub','ملاحظة'], user:['b-user','مدخل المستخدم'], pub:['b-pub','مصدر عام'] };
   const badge = k => `<span class="badge ${BADGE[k][0]}">${BADGE[k][1]}</span>`;
   const num = (v, d = 0) => (v === null || v === undefined || Number.isNaN(+v)) ? '—'
     : (+v).toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: d });
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
   const hrs = h => h === null || h === undefined ? '—' : `${num(h, Math.abs(h) < 10 && h % 1 ? 1 : 0)} س`;
-  let DATA = null, SEL = null, HOUR = 0;
+  let DATA = null, SEL = null, HOUR = 0, LAST = null, CU = null;
 
   // ---------- API ----------
   async function analyze(ev) {
     if (ev) ev.preventDefault();
     const base = $('inApi').value.replace(/\/+$/, '');
     const body = { timestamp_utc: $('inTs').value.trim() };
-    const closed = +$('inClosed').value || 0, surge = +$('inSurge').value || 0;
-    if (closed || surge) body.stress = { berths_closed: closed, arrival_surge_pct: surge };
+    const closed = +$('inClosed').value || 0, mult = $('inSurge').value === '' ? 1 : +$('inSurge').value;
+    if (closed || mult !== 1) body.stress = { berths_closed: closed, arrival_multiplier: mult };
+    const added = readAdded();
+    if (added === null) return;
+    if (added.length) body.added = added;
     setStatus('جاري التحليل…', '');
     try {
       const res = await fetch(base + '/api/decision-support/analyze', {
@@ -169,19 +200,90 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 14px; }
         const detail = typeof out.detail === 'string' ? out.detail : JSON.stringify(out.detail || out);
         throw new Error(`رفض الخادم الطلب (${res.status}): ${detail}`);
       }
-      DATA = out; SEL = out.digital_twin.results[0].candidate_id; HOUR = 0;
+      DATA = out; SEL = out.digital_twin.results[0].candidate_id; HOUR = 0; CU = null;
+      LAST = { base, body };
       render();
       setStatus('تم التحليل', 'ok');
+      loadKnownVessels(base, body.timestamp_utc);
     } catch (e) {
+      console.error(e);
       DATA = null;
       $('app').innerHTML = '<div class="empty">لا توجد بيانات لعرضها.</div>';
       setStatus(e.message.startsWith('رفض') ? e.message : 'تعذّر الاتصال بالخادم. شغّلي الـ API ثم أعيدي المحاولة.', 'err');
     }
   }
+  // Run the user's own decision on the same hour, stress and added vessels as the last analysis.
+  async function tryCustom() {
+    const actions = [];
+    const policy = $('cuPolicy').value, berths = +$('cuBerths').value || 0, gate = $('cuGate').value;
+    if (policy !== 'fcfs') actions.push({ type: 'queue_policy', value: policy });
+    if (berths) actions.push({ type: 'add_berths', value: berths });
+    if (gate === 'max_recorded') actions.push({ type: 'gate_capacity', value: 'max_recorded' });
+    if (gate === 'number') actions.push({ type: 'gate_capacity', value: +$('cuGateN').value });
+    const body = { ...LAST.body, actions };
+    CU = { cuPolicy: $('cuPolicy').value, cuBerths: $('cuBerths').value, cuGate: gate, cuGateN: $('cuGateN').value };
+    $('cuStatus').textContent = 'جاري المحاكاة…'; $('cuStatus').className = 'status';
+    try {
+      const res = await fetch(LAST.base + '/api/twin/simulate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(`رفض الخادم القرار (${res.status}): ${typeof out.detail === 'string' ? out.detail : JSON.stringify(out.detail || out)}`);
+      DATA.custom = { ...out.result, title: TITLES.user_decision };
+      showOnTop('user_decision');
+    } catch (e) {
+      $('cuStatus').textContent = e.message.startsWith('رفض') ? e.message : 'تعذّر الاتصال بالخادم.';
+      $('cuStatus').className = 'status err';
+    }
+  }
+
+  // Show one decision's result in the map and charts at the top of the page.
+  function showOnTop(id) {
+    SEL = id; HOUR = 0; render();
+    $('twinTop').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ---------- added vessels ----------
+  function addRow(v = {}) {
+    const row = document.createElement('div');
+    row.className = 'addv-row';
+    row.innerHTML = `<label class="ctl">رقم السفينة (IMO/MMSI)<input data-k="vessel_id" list="knownVessels" value="${esc(v.vessel_id || '')}"></label>
+      <label class="ctl">الطول (م)<input data-k="length_m" type="number" min="1" step="1" value="${esc(v.length_m || '')}"></label>
+      <label class="ctl">مدة الإقامة (س)<input data-k="service_hours" type="number" min="0.5" step="0.5" value="${esc(v.service_hours || '')}"></label>
+      <label class="ctl">تصل بعد (س)<input data-k="arrival_in_hours" type="number" min="0" step="1" value="${esc(v.arrival_in_hours ?? 0)}"></label>
+      <button class="b-secondary" type="button">حذف</button>`;
+    row.querySelector('button').addEventListener('click', () => { row.remove(); countAdded(); });
+    $('addvRows').appendChild(row); countAdded();
+  }
+  function countAdded() { const n = $('addvRows').children.length; $('addvCount').textContent = n ? `(${n})` : ''; }
+  // Read the added-vessel rows; returns null (and says why) if a row has nothing to estimate from.
+  function readAdded() {
+    const out = [];
+    for (const row of $('addvRows').children) {
+      const v = {};
+      row.querySelectorAll('input').forEach(i => { if (i.value.trim() !== '') v[i.dataset.k] = i.dataset.k === 'vessel_id' ? i.value.trim() : +i.value; });
+      if (!v.vessel_id && !v.length_m && !v.service_hours) {
+        setStatus('كل سفينة مضافة تحتاج رقمها أو طولها أو مدة إقامتها.', 'err'); return null;
+      }
+      v.arrival_in_hours = v.arrival_in_hours || 0;
+      out.push(v);
+    }
+    return out;
+  }
+  // Fill the vessel-number suggestions with vessels that had stays before the chosen hour.
+  async function loadKnownVessels(base, ts) {
+    try {
+      const res = await fetch(`${base}/api/twin/vessels?timestamp_utc=${encodeURIComponent(ts)}`);
+      if (!res.ok) return;
+      const out = await res.json();
+      $('knownVessels').innerHTML = out.vessels.map(v =>
+        `<option value="${esc(v.vessel_id)}">MMSI ${esc(v.mmsi)} · ${num(v.length_m)} م · ${num(v.stays)} زيارة · وسيط الإقامة ${num(v.median_stay_hours, 1)} س</option>`).join('');
+    } catch (e) { /* suggestions are optional */ }
+  }
+
   function setStatus(t, cls) { const s = $('status'); s.textContent = t; s.className = 'status ' + cls; }
 
   // ---------- helpers on twin results ----------
-  const result = id => DATA.digital_twin.results.find(r => r.candidate_id === id);
+  const result = id => id === 'user_decision' ? DATA.custom : DATA.digital_twin.results.find(r => r.candidate_id === id);
   const baseline = () => result('baseline');
 
   // State of every vessel at hour h of the selected candidate (all from the twin vessel lists).
@@ -192,10 +294,11 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 14px; }
     const waiting = [], coming = [];
     r.vessels.forEach(v => {
       const b = v.berth_h;
-      if (b !== null && b <= h && h < b + v.service_h) berthed.push({ id: v.call_id, mmsi: v.mmsi, kind: 'sim', leaves: b + v.service_h - h });
-      else if (v.arrival_h <= h && (b === null || b > h)) waiting.push({ id: v.call_id, mmsi: v.mmsi, waited: h - v.arrival_h,
+      const who = { id: v.call_id, mmsi: v.mmsi, added: v.source === 'added', est: v.estimate };
+      if (b !== null && b <= h && h < b + v.service_h) berthed.push({ ...who, kind: 'sim', leaves: b + v.service_h - h });
+      else if (v.arrival_h <= h && (b === null || b > h)) waiting.push({ ...who, waited: h - v.arrival_h,
         sched: v.scheduled_berth_h - h, cap: Math.max(0, h - Math.max(v.arrival_h, v.scheduled_berth_h)) });
-      else if (v.arrival_h > h) coming.push({ id: v.call_id, mmsi: v.mmsi, eta: v.arrival_h - h });
+      else if (v.arrival_h > h) coming.push({ ...who, eta: v.arrival_h - h });
     });
     return { berthed, waiting, coming };
   }
@@ -222,10 +325,10 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 14px; }
           <div class="sub">حُددت وجهتها من مسارها في AIS بعد الانتظار</div></div>
         <div class="card"><div class="lbl">سفن شحن قادمة خلال ${num(d.digital_twin.simulation_horizon_hours)} ساعة ${badge('ais')}</div>
           <div class="val">${num(sc.vessels_arriving_in_horizon)}</div>
-          <div class="sub">${sc.arrival_surge_pct ? `مع زيادة ${num(sc.arrival_surge_pct)}% ${badge('user')}` : 'جدول الوصول الفعلي'}</div></div>
+          <div class="sub">${sc.arrival_multiplier !== 1 ? `بمضاعف ×${num(sc.arrival_multiplier, 1)} ${badge('user')}` : 'جدول الوصول الفعلي'}</div></div>
         <div class="card"><div class="lbl">إشغال الساحة ${badge('syn')}</div>
           <div class="val ${c.evidence.yard_occupancy_percent >= 85 ? 'red' : c.evidence.yard_occupancy_percent >= 75 ? 'amber' : ''}">${num(c.evidence.yard_occupancy_percent, 1)}%</div>
-          <div class="sub">نسبة من مقياس افتراضي (10,000 وحدة)، وليست سعة حقيقية · حالة وكيل البضائع: <span class="pill ${c.cargo_status}">${AR[c.cargo_status] || c.cargo_status}</span></div></div>
+          <div class="sub">نسبة من مقياس افتراضي في ملف وكيل البضائع (${num(sc.yard_capacity)} وحدة)، وليست سعة حقيقية · حالة وكيل البضائع: <span class="pill ${c.cargo_status}">${AR[c.cargo_status] || c.cargo_status}</span></div></div>
         <div class="card"><div class="lbl">الرياح والموج ${badge('obs')}</div>
           <div class="row"><span>سرعة الرياح (الوحدة غير مؤكدة، يُفترض كم/س)</span><b>${num(s.wind_speed_10m, 1)}</b></div>
           <div class="row"><span>ارتفاع الموج (م)</span><b>${num(s.wave_height, 2)}</b></div>
@@ -233,7 +336,8 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 14px; }
             ? `حدث نشط: ${EVENT_AR[ew.external_event_assessment.type] || esc(ew.external_event_assessment.type)} (${AR[ew.external_event_assessment.severity] || esc(ew.external_event_assessment.severity)}) ${badge('syn')}`
             : 'لا يوجد حدث نشط'}</div></div>
       </div>
-      <div class="panel" style="margin-top:14px">
+      <div class="panel" style="margin-top:14px" id="twinTop">
+        <div class="showing">المعروض في الخريطة والرسوم: ${esc(TITLES[SEL] || result(SEL).title)}${SEL === 'user_decision' ? ' ' + badge('user') : ''}</div>
         <div class="map-head">
           <div class="map-title">أرصفة لوس أنجلوس وسفن الشحن ${badge('ais')} ${badge('sim')}</div>
           <div class="scrub">
@@ -250,6 +354,7 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 14px; }
           <span><i style="border-color:var(--amber);background:rgba(243,182,87,.25)"></i>سفينة تنتظر موعد رسوها</span>
           <span><i style="border-color:var(--red);background:rgba(246,131,124,.25)"></i>سفينة تنتظر رصيفًا شاغرًا</span>
           <span><i style="border-color:var(--muted)"></i>سفينة قادمة</span>
+          <span><i style="border-color:var(--violet);border-style:dashed"></i>سفينة مضافة (مدة إقامتها تقديرية)</span>
         </div>
         <div class="note" style="margin-top:8px">الخريطة تعرض الخيار المحدد في القسم ٤. الساعة صفر هي حالة AIS الفعلية؛ ما بعدها نتيجة محاكاة. مرّري المؤشر على أي سفينة لرؤية بياناتها.</div>
       </div>
@@ -270,9 +375,17 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 14px; }
           <svg class="chart-svg" id="chartSvg" viewBox="0 0 700 190" role="img" aria-label="السفن على الأرصفة والمنتظرة عبر الساعات"></svg>
           <div class="legend"><span><i style="border-color:var(--sky);background:var(--sky)"></i>على الأرصفة</span>
             <span><i style="border-color:var(--amber);background:var(--amber)"></i>منتظرة</span>
-            <span><i style="border-color:var(--muted);border-style:dashed"></i>الأرصفة المفتوحة</span></div>
+            <span><i style="border-color:var(--muted);border-style:dashed"></i>الأرصفة المفتوحة</span>
+            <span><i style="border-color:var(--sky);border-style:dotted"></i>أفق نموذج التنبؤ (+${num(d.digital_twin.marker_hours[0])} س)</span></div>
         </div>
       </div>
+      ${result(SEL).timeline[0].yard_occupancy_pct !== undefined ? `
+      <div class="card" style="margin-top:12px"><div class="lbl">إشغال الساحة خلال ${num(d.digital_twin.simulation_horizon_hours)} ساعة — ${esc(TITLES[SEL] || result(SEL).title)} ${badge('syn')} ${badge('sim')}</div>
+        <svg class="chart-svg" id="yardSvg" viewBox="0 0 700 170" role="img" aria-label="إشغال الساحة عبر الساعات"></svg>
+        <div class="legend"><span><i style="border-color:var(--amber);background:var(--amber)"></i>الخيار المعروض</span>
+          <span><i style="border-color:var(--muted);border-style:dashed"></i>بدون تغيير (إعادة ملف البضائع)</span>
+          <span><i style="border-color:var(--sky);border-style:dotted"></i>أفق نموذج التنبؤ</span></div>
+        <div class="note">الساحة تُعاد من ملف وكيل البضائع كما هو؛ قرار البوابة يُخرج حاويات إضافية كل ساعة. الساحة لا تؤثر على انتظار السفن في المحاكاة لعدم وجود بيانات عن هذا الأثر.</div></div>` : ''}
     </section>
 
     <section>
@@ -304,44 +417,83 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 14px; }
       <div class="panel decision ${shortage ? 'alert' : ''}">
         <div class="lbl" style="font-size:12px;color:var(--teal);font-weight:700;margin-bottom:6px">توصية وكيل الاستراتيجية ${badge('sim')}${d.decision_support.reasoning_mode === 'llm_assisted' ? ' <span class="badge b-pub">صياغة بمساعدة LLM</span>' : ''}</div>
         <p class="summary">${esc(d.decision_support.summary)}</p>
-        <div class="cands">${d.digital_twin.results.map(r => candCard(r)).join('')}</div>
+        <div class="cands">${d.digital_twin.results.map(r => candCard(r)).join('')}${d.custom ? candCard(d.custom) : ''}</div>
+        <div class="card" style="margin-top:14px"><div class="lbl">جرّب قرارك الخاص ${badge('user')} ${badge('sim')}</div>
+          <div class="note">يُشغَّل على نفس الساعة والسيناريو والسفن المضافة في آخر تحليل، ويُقارن بعدم التغيير.</div>
+          <div class="custom-form">
+            <label class="ctl">ترتيب الطابور<select id="cuPolicy"><option value="fcfs">الأسبق وصولًا أولًا</option><option value="shortest_service_first">الأقصر خدمة أولًا</option></select></label>
+            <label class="ctl">أرصفة إضافية<input id="cuBerths" type="number" min="0" step="1" value="0"></label>
+            <label class="ctl">البوابة (حاوية/ساعة)<select id="cuGate">${sc.gate_max_recorded === null ? '<option value="none">لا توجد بيانات ساحة</option>'
+              : `<option value="none">كما في ملف البضائع</option><option value="max_recorded">أعلى ما سُجّل: ${num(sc.gate_max_recorded, 1)}</option><option value="number">رقم أكتبه</option>`}</select></label>
+            <label class="ctl">الرقم<input id="cuGateN" type="number" min="1" step="1" value="${sc.gate_max_recorded === null ? '' : Math.round(sc.gate_max_recorded)}"></label>
+            <button class="b-primary" type="button" id="cuRun">جرّب</button>
+          </div>
+          <div class="status" id="cuStatus"></div></div>
         <ul class="sources">${d.digital_twin.sources.map(src => `<li>${sourceLine(src)}</li>`).join('')}
-          <li>ترتيب الخيارات حسب إجمالي ساعات انتظار السفن خلال الأفق، بدون أوزان.</li></ul>
+          <li>ترتيب الخيارات حسب إجمالي ساعات انتظار السفن خلال الأفق، بدون أوزان. إشغال الساحة يُعرض بجانبه ولا يدخل في الترتيب.</li></ul>
         <div class="human">القرار النهائي بيد مشغّل الميناء — مرسى لا ينفذ أي إجراء تلقائيًا.</div>
       </div>
     </section>`;
 
     document.querySelectorAll('.cand').forEach(el => el.addEventListener('click', () => {
       SEL = el.dataset.id; render(); }));
+    document.querySelectorAll('.try[data-id]').forEach(el => el.addEventListener('click', e => {
+      e.stopPropagation(); showOnTop(el.dataset.id); }));
+    $('cuRun').addEventListener('click', tryCustom);
+    if (CU) Object.entries(CU).forEach(([k, v]) => { if ($(k)) $(k).value = v; });   // keep the user's last custom inputs
     $('hourSlider').addEventListener('input', e => { HOUR = +e.target.value; drawMap(); });
-    drawMap(); drawChart();
+    drawMap(); drawChart(); drawYard();
   }
 
   function candCard(r) {
-    const k = r.kpis, vs = r.vs_baseline;
+    const k = r.kpis, vs = r.vs_baseline, custom = r.candidate_id === 'user_decision';
+    const yard = k.yard_peak_occupancy_pct !== undefined && k.yard_peak_occupancy_pct !== null;
+    const better = [];
+    if (vs && vs.total_wait_vessel_hours < 0) better.push(`أقل بـ ${num(-vs.total_wait_vessel_hours, 1)} ساعة انتظار للسفن`);
+    if (vs && vs.yard_peak_occupancy_pct < 0) better.push(`أعلى إشغال للساحة أقل بـ ${num(-vs.yard_peak_occupancy_pct, 1)} نقطة`);
     const delta = !vs ? '<div class="delta none">الأساس للمقارنة</div>'
-      : vs.total_wait_vessel_hours < 0 ? `<div class="delta good">أقل بـ ${num(-vs.total_wait_vessel_hours, 1)} ساعة انتظار من عدم التغيير</div>`
+      : better.length ? `<div class="delta good">مقارنة بعدم التغيير: ${better.join('، ')}</div>`
       : '<div class="delta none">بدون تحسّن مقارنة بعدم التغيير</div>';
-    return `<div class="cand ${r.candidate_id === SEL ? 'sel' : ''}" data-id="${esc(r.candidate_id)}">
-      <div class="ct"><span class="rank">#${r.rank}</span>${esc(TITLES[r.candidate_id] || r.title)}</div>
+    const cand = (DATA.strategy_candidates || []).find(c => c.candidate_id === r.candidate_id);
+    const why = cand && cand.evidence_references.length && r.candidate_id !== 'baseline'
+      ? `<div class="note" style="margin-bottom:6px">سبب اختباره: ${cand.evidence_references.filter(x => TRIGGER_AR[x]).map(x => TRIGGER_AR[x]).join('، ')}</div>` : '';
+    return `<div class="cand ${custom ? 'custom' : ''} ${r.candidate_id === SEL ? 'sel' : ''}" data-id="${esc(r.candidate_id)}">
+      <div class="ct">${custom ? badge('user') : `<span class="rank">#${r.rank}</span>`}${esc(TITLES[r.candidate_id] || r.title)}</div>
+      ${why}
       <div class="row"><span>إجمالي ساعات الانتظار</span><b>${num(k.total_wait_vessel_hours, 1)}</b></div>
       <div class="row"><span>منها بسبب امتلاء الأرصفة</span><b>${num(k.capacity_wait_vessel_hours, 1)}</b></div>
       <div class="row"><span>سفن انتظرت / أقصى انتظار</span><b>${num(k.vessels_waited)} / ${hrs(k.max_wait_hours)}</b></div>
       <div class="row"><span>منتظرة في نهاية الأفق</span><b>${num(k.waiting_end)}</b></div>
       <div class="row"><span>الأرصفة المفتوحة</span><b>${num(k.open_berths)}</b></div>
-      ${delta}</div>`;
+      ${yard ? `<div class="row"><span>أعلى إشغال للساحة ${badge('syn')}</span><b>${num(k.yard_peak_occupancy_pct, 1)}%</b></div>
+      <div class="row"><span>إشغال الساحة في نهاية الأفق</span><b>${num(k.yard_end_occupancy_pct, 1)}%</b></div>
+      ${k.gate_per_hour ? `<div class="row"><span>البوابة (حاوية/ساعة) / حاويات إضافية خرجت</span><b>${num(k.gate_per_hour, 1)} / ${num(k.extra_containers_cleared)}</b></div>` : ''}` : ''}
+      ${delta}
+      <button class="b-secondary try" type="button" data-id="${esc(r.candidate_id)}">جرّب هذا القرار — اعرض نتيجته فوق</button></div>`;
   }
 
   function sourceLine(src) {
-    const map = { 'OBSERVED (AIS)': 'ais', 'PUBLIC SOURCE': 'pub', 'USER INPUT': 'user', 'LIMITATION': 'pub' };
+    const map = { 'OBSERVED (AIS)': 'ais', 'PUBLIC SOURCE': 'pub', 'USER INPUT': 'user', 'LIMITATION': 'note',
+                  'SYNTHETIC (Cargo agent)': 'syn' };
+    if (src.kind === 'added') {
+      return `${badge('user')} ${badge('est')} سفن أضافها المستخدم: ` + src.value.map((e, i) =>
+        `ADD${i + 1}${e.vessel_id ? ` (${esc(e.vessel_id)})` : ''} مدة إقامتها ${hrs(e.hours)} — ${METHOD_AR(e)}`).join('؛ ') +
+        '. تُحسب من إقامات انتهت قبل الساعة المختارة فقط.';
+    }
     const label = {
       'OBSERVED (AIS)': `السفن ومواعيد وصولها ورسوها ومدة خدمتها: ملف ${esc(src.source)}`,
-      'PUBLIC SOURCE': `عدد أرصفة الحاويات ${num(src.value)}: مجموع الأرصفة في صفحات محطات الحاويات السبع بموقع ميناء لوس أنجلوس (رقم تقريبي؛ بطاقة الميناء الرسمية لا تذكر عدد الأرصفة)`,
-      'USER INPUT': src.value ? `سيناريو الضغط: ${num(src.value.berths_closed)} رصيف مغلق، وزيادة السفن القادمة ${num(src.value.arrival_surge_pct)}%` : '',
-      'LIMITATION': 'بيانات AIS تنتهي داخل أفق المحاكاة؛ السفن القادمة بعدها غير معروفة',
+      'SYNTHETIC (Cargo agent)': src.kind === 'yard' ? `الساحة والبوابة: ملف وكيل البضائع ${esc(src.source)} (بيانات مولّدة ومعايرة) — السعة ${num(src.value.capacity)} وحدة (مقياس افتراضي)، وأعلى خروج حاويات سُجّل في ساعة واحدة حتى الساعة المختارة ${num(src.value.max_recorded_departures, 1)} (<bdi dir="ltr">${esc(src.value.max_recorded_at.slice(0, 16).replace('T', ' '))} UTC</bdi>)` : '',
+      'PUBLIC SOURCE': `عدد أرصفة الحاويات ${num(src.value)}: مجموع أرصفة محطات الحاويات السبع في كتيب ميناء لوس أنجلوس الرسمي Port 101 (الكتيب يذكر أرصفة كل محطة ولا يطبع المجموع)`,
+      'USER INPUT': src.value && src.value.berths_closed !== undefined ? `سيناريو الضغط: ${num(src.value.berths_closed)} رصيف مغلق، ومضاعف السفن القادمة ×${num(src.value.arrival_multiplier, 1)}` : '',
+      'LIMITATION': src.kind === 'data_gap'
+        ? `ساعات غير موجودة في بيانات AIS ضمن أفق المحاكاة أو إقامة سفينة حالية (${(src.value || []).map(g => `<bdi dir="ltr">${esc(g[0].slice(0, 16).replace('T', ' '))}${g[0] === g[1] ? '' : ' → ' + esc(g[1].slice(11, 16))}</bdi>`).join('، ')} UTC). السفن الموجودة قبلها وبعدها اعتُبرت نفس الإقامة.`
+        : 'بيانات AIS تنتهي داخل أفق المحاكاة؛ السفن القادمة بعدها غير معروفة',
     }[src.provenance] || esc(src.source);
     return `${badge(map[src.provenance] || 'pub')} ${label}`;
   }
+
+  const vesselName = v => v.added ? `سفينة مضافة ${v.id}${v.est && v.est.vessel_id ? ` (${esc(v.est.vessel_id)})` : ''}`
+    : `سفينة MMSI ${v.mmsi}<br>زيارة ${v.id}`;
 
   // ---------- map ----------
   function drawMap() {
@@ -358,12 +510,12 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 14px; }
       const closed = i >= open, v = !closed ? occupied[i] : null;
       const over = closed && occupied[i];   // more vessels at berth than open berths (closure scenario)
       const fill = closed ? 'url(#hatch)' : v ? 'rgba(127,178,229,.25)' : 'transparent';
-      const stroke = closed ? '#A3B4CA' : v ? '#7FB2E5' : '#3ED0B6';
-      const tipText = v ? `سفينة MMSI ${v.mmsi}<br>زيارة ${v.id}<br>تغادر بعد ${hrs(v.leaves)}` :
+      const stroke = closed ? '#A3B4CA' : v ? (v.added ? '#B9A2F0' : '#7FB2E5') : '#3ED0B6';
+      const tipText = v ? `${vesselName(v)}<br>تغادر بعد ${hrs(v.leaves)}${v.added ? '<br>' + METHOD_AR(v.est) : ''}` :
                      over ? `رصيف مغلق في السيناريو<br>ما زالت عليه سفينة MMSI ${over.mmsi} حتى مغادرتها بعد ${hrs(over.leaves)}` :
                      closed ? 'رصيف مغلق في السيناريو' : 'رصيف متاح';
       s += `<g class="hit" data-tip="${esc(tipText)}"><rect x="${x}" y="${y}" width="${bw}" height="${bh}" rx="6" fill="${fill}" stroke="${stroke}"
-        stroke-width="1.5" ${!closed && !v ? 'stroke-dasharray="4 3"' : ''}/>
+        stroke-width="1.5" ${(!closed && !v) || (v && v.added) ? 'stroke-dasharray="4 3"' : ''}/>
         ${v || over ? `<text x="${x + bw / 2}" y="${y + 28}" text-anchor="middle" fill="#F1F5FA" font-size="12" font-family="IBM Plex Mono">${hrs((v || over).leaves).replace(' س', 'h')}</text>` : ''}</g>`;
     }
     const extraRows = Math.max(0, occupied.length - total);
@@ -371,10 +523,10 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 14px; }
     s += `<text x="${W - 20}" y="${yW}" fill="#A3B4CA" font-size="13">منطقة الانتظار (${num(st.waiting.length)})${extraRows ? ` · ${extraRows} سفينة إضافية على الأرصفة` : ''}</text>`;
     st.waiting.forEach((v, i) => {
       const x = W - 40 - i * 46, y = yW + 26, capWait = v.cap > 0.01;
-      const tipText = `سفينة MMSI ${v.mmsi}<br>زيارة ${v.id}<br>تنتظر منذ ${hrs(v.waited)}<br>` +
+      const tipText = `${vesselName(v)}<br>تنتظر منذ ${hrs(v.waited)}<br>` + (v.added ? METHOD_AR(v.est) + '<br>' : '') +
         (capWait ? `تنتظر رصيفًا شاغرًا منذ ${hrs(v.cap)}` : `موعد رسوها المسجل بعد ${hrs(Math.max(0, v.sched))}`);
       s += `<g class="hit" data-tip="${esc(tipText)}"><circle cx="${x}" cy="${y}" r="15" fill="${capWait ? 'rgba(246,131,124,.25)' : 'rgba(243,182,87,.25)'}"
-        stroke="${capWait ? '#F6837C' : '#F3B657'}" stroke-width="1.6"/></g>`;
+        stroke="${v.added ? '#B9A2F0' : capWait ? '#F6837C' : '#F3B657'}" stroke-width="1.6" ${v.added ? 'stroke-dasharray="4 3"' : ''}/></g>`;
     });
     if (!st.waiting.length) s += `<text x="${W - 40}" y="${yW + 30}" fill="#3ED0B6" font-size="12">لا توجد سفن منتظرة</text>`;
     const yC = yW + 70;
@@ -383,7 +535,7 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 14px; }
     s += `<line x1="${W - 40}" y1="${yC + 26}" x2="${W - 40 - span}" y2="${yC + 26}" stroke="#38597F" stroke-dasharray="3 5"/>`;
     st.coming.forEach(v => {
       const x = W - 40 - Math.min(1, v.eta / Math.max(1, H - HOUR)) * span;
-      s += `<g class="hit" data-tip="${esc(`سفينة MMSI ${v.mmsi}<br>زيارة ${v.id}<br>تصل بعد ${hrs(v.eta)}`)}"><circle cx="${x}" cy="${yC + 26}" r="9" fill="transparent" stroke="#A3B4CA" stroke-width="1.6"/></g>`;
+      s += `<g class="hit" data-tip="${esc(`${vesselName(v)}<br>تصل بعد ${hrs(v.eta)}${v.added ? '<br>' + METHOD_AR(v.est) : ''}`)}"><circle cx="${x}" cy="${yC + 26}" r="9" fill="transparent" stroke="${v.added ? '#B9A2F0' : '#A3B4CA'}" stroke-width="1.6" ${v.added ? 'stroke-dasharray="3 2"' : ''}/></g>`;
     });
     s = `<defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
       <rect width="3" height="6" fill="rgba(163,180,202,.35)"/></pattern></defs>` + s;
@@ -409,7 +561,41 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 14px; }
     s += `<line x1="${pl}" x2="${W - pr}" y1="${Y(r.kpis.open_berths)}" y2="${Y(r.kpis.open_berths)}" stroke="#A3B4CA" stroke-dasharray="5 4"/>`;
     s += `<path d="${line('at_berth')}" fill="none" stroke="#7FB2E5" stroke-width="2"/>`;
     s += `<path d="${line('waiting')}" fill="none" stroke="#F3B657" stroke-width="2"/>`;
+    s += markerLines(X, pt, Hh - pb);
     $('chartSvg').innerHTML = s;
+  }
+
+  // Dotted vertical line at the prediction model's horizon (+6 h), the hour its alert refers to.
+  function markerLines(X, top, bottom) {
+    const H = DATA.digital_twin.simulation_horizon_hours;
+    return DATA.digital_twin.marker_hours.filter(m => m <= H).map(m =>
+      `<line x1="${X(m)}" x2="${X(m)}" y1="${top}" y2="${bottom}" stroke="#7FB2E5" stroke-dasharray="2 3"/>
+       <text x="${X(m) - 4}" y="${top + 10}" fill="#7FB2E5" font-size="10" text-anchor="end">وقت تنبيه النموذج</text>`).join('');
+  }
+
+  // Yard occupancy (%) of the shown decision against no change, both from the twin.
+  function drawYard() {
+    const svg = $('yardSvg');
+    if (!svg) return;
+    const r = result(SEL), b = baseline(), W = 700, Hh = 170, pl = 40, pr = 10, pt = 10, pb = 26;
+    const vals = [...r.timeline, ...b.timeline].map(p => p.yard_occupancy_pct).filter(v => v !== null);
+    if (!vals.length) { svg.innerHTML = ''; return; }
+    const lo = Math.floor(Math.min(...vals) / 5) * 5, hi = Math.min(100, Math.ceil(Math.max(...vals) / 5) * 5 + 5);
+    const X = h => W - pr - (h / (r.timeline.length - 1)) * (W - pl - pr);
+    const Y = v => pt + (1 - (v - lo) / Math.max(1, hi - lo)) * (Hh - pt - pb);
+    // missing hours in the Cargo file break the line instead of being filled in
+    const line = tl => tl.map((p, i) => p.yard_occupancy_pct === null ? '' :
+      `${i && tl[i - 1].yard_occupancy_pct !== null ? 'L' : 'M'}${X(p.hour).toFixed(1)},${Y(p.yard_occupancy_pct).toFixed(1)}`).join(' ');
+    let s = '';
+    for (let v = lo; v <= hi; v += Math.max(1, Math.ceil((hi - lo) / 4))) {
+      s += `<line x1="${pl}" x2="${W - pr}" y1="${Y(v)}" y2="${Y(v)}" stroke="#38597F" stroke-width=".5"/>
+            <text x="${pl - 6}" y="${Y(v) + 4}" fill="#A3B4CA" font-size="10" text-anchor="end" font-family="IBM Plex Mono">${v}%</text>`;
+    }
+    r.timeline.forEach(p => { if (p.hour % 6 === 0) s += `<text x="${X(p.hour)}" y="${Hh - 8}" fill="#A3B4CA" font-size="10" text-anchor="middle" font-family="IBM Plex Mono">+${p.hour}h</text>`; });
+    s += `<path d="${line(b.timeline)}" fill="none" stroke="#A3B4CA" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+    s += `<path d="${line(r.timeline)}" fill="none" stroke="#F3B657" stroke-width="2"/>`;
+    s += markerLines(X, pt, Hh - pb);
+    svg.innerHTML = s;
   }
 
   // ---------- tooltips ----------
@@ -423,6 +609,7 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 14px; }
   }
 
   $('ctlForm').addEventListener('submit', analyze);
+  $('addvAdd').addEventListener('click', () => addRow());
 })();
 </script>
 </body>

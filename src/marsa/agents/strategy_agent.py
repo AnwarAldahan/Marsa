@@ -12,13 +12,14 @@ from marsa.twin.engine import SUPPORTED_ACTIONS as TWIN_ACTIONS
 from marsa.twin.engine import simulate_candidate
 from marsa.twin.scoring import score_results
 
-# The Digital Twin only simulates sea-side berth use from AIS, so only these two actions exist.
+# Actions the Digital Twin can test (berths and queue from AIS, gate from the Cargo agent file).
 SUPPORTED_ACTIONS = set(TWIN_ACTIONS)
 
 ARABIC_CANDIDATE_TITLES = {
     "baseline": "عدم إجراء تغيير تشغيلي",
     "shortest_first": "إعطاء الأولوية للسفن ذات مدة الخدمة الأقصر",
     "extra_berth": "فتح رصيف إضافي مؤقت",
+    "gate_max": "تشغيل البوابة بأعلى طاقة سجّلها ملف البضائع",
 }
 
 
@@ -41,34 +42,58 @@ def _candidate(candidate_id: str, title: str, rationale: str,
     }
 
 
-# Candidates come from the twin's own no-change run: actions are only worth testing when the
-# twin shows vessels waiting for a berth (capacity wait). Otherwise "no change" is the answer.
+# Which signals ask for which twin test. Each candidate lists the signals that triggered it.
+# Maritime pressure or a berth shortage in the twin -> berth tests; Cargo pressure or a real HIGH
+# six-hour model alert -> gate test; any active external event -> every test (the twin shows which
+# one helps). Weather gives context only: the 2025 data showed no clear effect on berth stays.
+def _signals(forecast: dict, maritime: dict, cargo: dict, events_weather: dict,
+             baseline: dict | None) -> dict[str, list[str]]:
+    berth, gate = [], []
+    if maritime["maritime_status"] in {"ELEVATED", "CONGESTED"} and \
+            maritime["evidence"].get("waiting_vessels", 0) > 0:
+        berth.append("maritime.maritime_status")
+    if baseline is not None and baseline["kpis"]["capacity_wait_vessel_hours"] > 0:
+        berth.append("digital_twin.baseline.kpis.capacity_wait_vessel_hours")
+    if cargo["cargo_status"] in {"ELEVATED", "CRITICAL"}:
+        gate.append("cargo.cargo_status")
+    if (forecast.get("status") == "success" and forecast.get("classification") == "HIGH"
+            and forecast.get("alert_active") is True and forecast.get("is_real_model_prediction")):
+        gate.append("ml_forecast.alert_active")
+    if (events_weather.get("external_event_assessment") or {}).get("active"):
+        berth.append("events_weather.external_event_assessment.active")
+        gate.append("events_weather.external_event_assessment.active")
+    return {"berth": berth, "gate": gate}
+
+
+# Generate the tests to run in the twin from the three agents, the model and the no-change run.
 def generate_candidates(forecast: dict, maritime: dict, cargo: dict,
-                        events_weather: dict, baseline: dict | None = None) -> list[dict]:
+                        events_weather: dict, baseline: dict | None = None,
+                        gate_available: bool = True) -> list[dict]:
     candidates = [_candidate(
         "baseline", "No operational change",
-        "Replays the real AIS schedule; required for the what-if comparison.",
+        "Replays the recorded data; required for the what-if comparison.",
         ["digital_twin.scenario"], [],
     )]
-    if baseline is None or baseline["kpis"]["capacity_wait_vessel_hours"] <= 0:
-        return candidates
-    evidence = [
-        "digital_twin.baseline.kpis.capacity_wait_vessel_hours",
-        "digital_twin.baseline.kpis.waiting_end",
-        "maritime.maritime_status",
-    ]
-    candidates.append(_candidate(
-        "shortest_first", "Prioritize shorter vessel services",
-        "The no-change run shows vessels waiting for a free berth; the twin tests giving the next "
-        "free berth to the vessel with the shortest real service time.",
-        evidence, [{"type": "queue_policy", "value": "shortest_service_first"}],
-    ))
-    candidates.append(_candidate(
-        "extra_berth", "Temporarily open one additional berth",
-        "The no-change run shows vessels waiting for a free berth; the twin tests one more "
-        "open berth.",
-        evidence, [{"type": "add_berths", "value": 1}],
-    ))
+    signals = _signals(forecast, maritime, cargo, events_weather, baseline)
+    if signals["berth"]:
+        candidates.append(_candidate(
+            "shortest_first", "Prioritize shorter vessel services",
+            "Triggered by: " + ", ".join(signals["berth"]) + ". The twin tests giving the next "
+            "free berth to the vessel with the shortest service time.",
+            signals["berth"], [{"type": "queue_policy", "value": "shortest_service_first"}],
+        ))
+        candidates.append(_candidate(
+            "extra_berth", "Temporarily open one additional berth",
+            "Triggered by: " + ", ".join(signals["berth"]) + ". The twin tests one more open berth.",
+            signals["berth"], [{"type": "add_berths", "value": 1}],
+        ))
+    if signals["gate"] and gate_available:
+        candidates.append(_candidate(
+            "gate_max", "Run the gate at its highest recorded hourly clearance",
+            "Triggered by: " + ", ".join(signals["gate"]) + ". The twin tests clearing, every hour, "
+            "the highest number of containers the Cargo agent file recorded leaving in one hour.",
+            signals["gate"], [{"type": "gate_capacity", "value": "max_recorded"}],
+        ))
     return candidates
 
 
@@ -127,30 +152,34 @@ def evaluate(scenario: object, candidates: list[dict], cfg: dict | None = None,
     return ranked
 
 
-# Arabic summary built only from the ranking; no numbers from an LLM.
+# Arabic summary built only from the twin results (vessel and yard measures reported separately).
 def _deterministic_summary(ranked: list[dict]) -> str:
     if len(ranked) == 1:
         return (
-            "لا يُظهر التوأم الرقمي نقصًا في الأرصفة خلال الساعات الأربع والعشرين القادمة؛ "
-            "وأي انتظار حالي هو انتظار لموعد الرسو المسجّل في بيانات AIS وليس بسبب امتلاء "
-            "الأرصفة، لذلك لا حاجة لتدخل تشغيلي. لا تضمن المحاكاة النتيجة في التشغيل الفعلي."
+            "لا توجد إشارة من الوكلاء أو نموذج التنبؤ تستدعي اختبار قرار، ولا يُظهر التوأم الرقمي "
+            "نقصًا في الأرصفة خلال أفق المحاكاة؛ وأي انتظار حالي هو انتظار لموعد الرسو المسجّل في "
+            "بيانات AIS، لذلك لا حاجة لتدخل تشغيلي. لا تضمن المحاكاة النتيجة في التشغيل الفعلي."
         )
-    best = ranked[0]
-    if best["candidate_id"] == "baseline":
+    base = next(r for r in ranked if r["candidate_id"] == "baseline")
+    def title(r):
+        return ARABIC_CANDIDATE_TITLES.get(r["candidate_id"], r["title"])
+    vessel_best = min(ranked, key=lambda r: r["kpis"]["total_wait_vessel_hours"])
+    parts = []
+    if vessel_best["kpis"]["total_wait_vessel_hours"] < base["kpis"]["total_wait_vessel_hours"]:
+        parts.append(f"خفّض خيار «{title(vessel_best)}» إجمالي ساعات انتظار السفن أكثر من غيره")
+    yard_runs = [r for r in ranked if r["kpis"].get("yard_peak_occupancy_pct") is not None]
+    if yard_runs and base["kpis"].get("yard_peak_occupancy_pct") is not None:
+        yard_best = min(yard_runs, key=lambda r: r["kpis"]["yard_peak_occupancy_pct"])
+        if yard_best["kpis"]["yard_peak_occupancy_pct"] < base["kpis"]["yard_peak_occupancy_pct"]:
+            parts.append(f"وخفّض خيار «{title(yard_best)}» أعلى امتلاء للساحة أكثر من غيره")
+    if not parts:
         return (
-            "يُظهر التوأم الرقمي انتظارًا بسبب نقص الأرصفة في سيناريو الضغط المحدد، لكن لم "
-            "يحسّن أي من الخيارات المختبرة إجمالي ساعات انتظار السفن، لذلك بقي خيار «عدم إجراء "
-            "تغيير تشغيلي» في المرتبة الأولى. لا تضمن المحاكاة النتيجة في التشغيل الفعلي."
+            "اختبر التوأم الرقمي الخيارات التي اقترحها الوكيل، ولم يحسّن أيٌّ منها انتظار السفن أو "
+            "امتلاء الساحة مقارنة بعدم التغيير. لا تضمن المحاكاة النتيجة في التشغيل الفعلي."
         )
-    candidate_title = ARABIC_CANDIDATE_TITLES.get(best["candidate_id"], best["title"])
-    option_count = {
-        2: "خيارين",
-        3: "ثلاثة خيارات",
-    }.get(len(ranked), f"{len(ranked)} خيارات")
     return (
-        f"صنّف التوأم الرقمي خيار «{candidate_title}» في المرتبة الأولى من بين {option_count} "
-        "وفق إجمالي ساعات انتظار السفن. تعتمد المحاكاة على جدول السفن الفعلي من بيانات AIS "
-        "وعلى سيناريو الضغط المحدد، ولا تضمن تفوق الخيار في التشغيل الفعلي."
+        "، ".join(parts) + ". تُعرض نتائج السفن والساحة منفصلة، والقرار النهائي لمشغّل الميناء. "
+        "تعتمد المحاكاة على بيانات AIS وملف البضائع ولا تضمن النتيجة في التشغيل الفعلي."
     )
 
 

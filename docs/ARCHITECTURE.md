@@ -34,7 +34,8 @@ waiting. Simulation output is not an ML forecast, and the ML forecast does not f
 ## Runtime surfaces
 
 - `scripts/run_pipeline.py <UTC hour>Z` — one cycle from the command line (deterministic narrative).
-- `POST /api/decision-support/analyze` — same cycle over HTTP (optional `stress`); the strategy narrative is Gemini-assisted
+- `POST /api/twin/simulate` — one user decision vs no change (optional `stress`, `added`); `GET /api/twin/vessels` — known vessels
+- `POST /api/decision-support/analyze` — same cycle over HTTP (optional `stress`, `added`); the strategy narrative is Gemini-assisted
   when `GEMINI_API_KEY` is set (Arabic, guard-railed), otherwise deterministic.
 - `dashboard/marsa.html` — renders only the analyze response (sections ١–٤, berth map, twin replay); no demo data.
 

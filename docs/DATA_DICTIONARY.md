@@ -22,14 +22,17 @@ One hour (2025-11-02 08:00) has missing weather and is left null.
 
 Target: `waiting_vessel_count` at t+h (wall-clock shift, rows without the future hour are dropped).
 
-# Twin input — la_cargo_calls_2023_2025.csv (3,448 rows, one per stay at an LA berth)
+# Twin input — la_cargo_calls_2023_2025.csv (4,704 rows, one per stay at an LA berth)
 
 Built by `scripts/build_la_cargo_calls.py` from the raw Kaggle AIS files (2023-H2 to 2025-H2). All values are from AIS pings.
 
 | Column | Meaning |
 |---|---|
 | call_id | row id |
+| vessel_id | IMO number when the vessel reports one, else "MMSI" + mmsi (links visits of a vessel that changed MMSI) |
 | mmsi | vessel id (ITU MMSI) |
+| imo | most reported IMO value of the vessel in the raw file (empty if never reported) |
+| length_m | median of the vessel's reported lengths in the raw file (m) |
 | arrival | first hour in the waiting area if the vessel waited, else first hour at the LA berth (UTC) |
 | waited | True when the vessel was in the waiting area and reached an LA berth within 6 h after leaving it |
 | wait_start, wait_end | waiting-area stay (UTC) |
@@ -37,6 +40,12 @@ Built by `scripts/build_la_cargo_calls.py` from the raw Kaggle AIS files (2023-H
 | wait_hours | berth_start − arrival |
 | berth_hours | berth_end − berth_start (real service time) |
 
-Rules: a stay continues across gaps ≤ 6 h counted in hours present in the AIS file (data outages do not end stays);
-stays of ≤ 2 h are vessels passing through the box (1,264 such stays, then a drop to 30 at 2–3 h).
-2025: 1,304 LA cargo calls, 99 waited (median wait 27 h); hourly occupancy matches `pola_berthed_cargo_vessels` (r = 0.96).
+Rules: a stay continues across gaps ≤ 6 h counted in hours present in the AIS file (data outages do not end stays: on 1 and 13 July 2025, whole days missing from the AIS file, 9 and 11 vessels are at an LA berth on both sides of the gap);
+every stay is kept as recorded, whatever its length (no minimum duration).
+
+`data/processed/similar_k_selection.json` (from `scripts/select_similar_k.py`): for k in 5, 10, 20, 50, 100,
+200, the error of estimating each 2025 stay from the k vessels closest in length, using only earlier
+stays and never the vessel's own. k = 5 had the lowest median absolute error (10.4 h) and is stored in
+`config/port_config.yaml → twin.similar_vessels_k`.
+2025: 1,772 LA cargo stays (468 of them 2 h or shorter), 100 came after a wait (median wait 26.5 h);
+hourly occupancy matches `pola_berthed_cargo_vessels` (r = 0.96).

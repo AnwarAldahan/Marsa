@@ -12,12 +12,13 @@ Every value in the output comes from AIS pings. The only rules applied are:
                     Marine Exchange daily counts)
   - a stay continues across short signal gaps of up to GAP_HOURS (same value as the berth script);
     hours missing from the whole AIS file (data outages, e.g. 1 and 13 July 2025) are skipped
-    when measuring a gap, so an outage does not end every stay at once
-  - stays of MIN_STAY_HOURS or less are vessels passing through the LA box, not berth calls:
-    the stay-length histogram has 1,264 stays of 1-2 h, then drops to 30 stays of 2-3 h
-    (a natural gap in the data; no container ship is worked in under 2 h)
+    when measuring a gap, so an outage does not end every stay at once (on those two days 9 and 11
+    vessels are at an LA berth both before and after the missing day)
+  - every stay is kept as recorded, whatever its length (no minimum duration is applied)
   - a wait belongs to an LA call when the vessel reaches an LA berth within GAP_HOURS after
     leaving the waiting area; waits that end anywhere else (Long Beach, departure) are not LA calls
+  - vessel identity: the IMO number (never changes) when AIS reports one, otherwise the MMSI;
+    vessel length = median of the vessel's reported lengths (both columns come from the raw file)
 
 Usage: python scripts/build_la_cargo_calls.py data/raw/ais_2023H2.parquet ... data/raw/ais_2025H2.parquet
 """
@@ -34,7 +35,6 @@ from marsa.config import load_config  # noqa: E402
 cfg = load_config()
 LON_SPLIT, LAT_MIN = cfg["port"]["ais_lon_split"], cfg["port"]["ais_lat_min_inner"]
 GAP_HOURS = 6
-MIN_STAY_HOURS = 2
 OUT = R / "data" / "processed" / "la_cargo_calls_2023_2025.csv"
 
 
@@ -48,6 +48,19 @@ def vessel_hours(files: list[str]) -> pd.DataFrame:
         from read_parquet({files})
         where vessel_type between 70 and 79
         group by 1, 2
+    """).df()
+
+
+# One row per vessel: its IMO number (most reported value) and median reported length.
+def vessel_attributes(files: list[str]) -> pd.DataFrame:
+    con = duckdb.connect()
+    return con.execute(f"""
+        select mmsi,
+               mode(nullif(imo, ''))  as imo,
+               median(length)         as length_m
+        from read_parquet({files})
+        where vessel_type between 70 and 79
+        group by 1
     """).df()
 
 
@@ -84,13 +97,13 @@ def link_waits(berths: pd.DataFrame, waits: pd.DataFrame) -> pd.DataFrame:
 def main(files: list[str]) -> None:
     hours = vessel_hours(files)
     hours["hour_key"] = pd.to_datetime(hours["hour_key"], utc=True)
-    berths = stays(hours, "is_la_berth")
-    berths = berths[(berths["end"] - berths["start"]) > pd.Timedelta(hours=MIN_STAY_HOURS)]
-    calls = link_waits(berths, stays(hours, "is_waiting"))
+    calls = link_waits(stays(hours, "is_la_berth"), stays(hours, "is_waiting"))
+    calls = calls.merge(vessel_attributes(files), on="mmsi", how="left")
+    calls["vessel_id"] = calls["imo"].where(calls["imo"].notna(), "MMSI" + calls["mmsi"].astype(str))
     calls = calls.sort_values(["arrival", "mmsi"]).reset_index(drop=True)
     calls.insert(0, "call_id", [f"LA{i:05d}" for i in range(len(calls))])
-    cols = ["call_id", "mmsi", "arrival", "waited", "wait_start", "wait_end", "berth_start",
-            "berth_end", "wait_hours", "berth_hours"]
+    cols = ["call_id", "vessel_id", "mmsi", "imo", "length_m", "arrival", "waited", "wait_start",
+            "wait_end", "berth_start", "berth_end", "wait_hours", "berth_hours"]
     calls[cols].to_csv(OUT, index=False)
     print(f"{len(calls)} LA cargo calls written to {OUT.relative_to(R)}")
     print(calls.groupby(calls["arrival"].dt.year)[["waited"]].agg(["size", "sum"]))

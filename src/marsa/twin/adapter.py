@@ -1,50 +1,120 @@
 """Bridge between the pipeline and the Digital Twin: build the starting state and list its sources.
 
-The starting state comes only from AIS (data/processed/la_cargo_calls_2023_2025.csv) plus the
-number of container berths (config/port_config.yaml, with its source). Stress values are what the
-user chose in the interface; with none chosen the twin replays the real AIS schedule.
+The starting state comes from AIS (data/processed/la_cargo_calls_2023_2025.csv), the Cargo agent's
+file (yard and gate) and the number of container berths (config/port_config.yaml, with its source).
+Stress values and added vessels are what the user chose in the interface; with none chosen the twin
+replays the recorded data.
 """
 from __future__ import annotations
 
 import pandas as pd
 
-from marsa.twin.calls import CALLS_PATH, scenario_at
-from marsa.twin.engine import Scenario
+from marsa.twin.calls import CALLS_PATH, missing_ranges, scenario_at
+from marsa.twin.engine import Scenario, Vessel
+from marsa.twin.estimates import estimate_stay
+from marsa.twin.yard import CARGO_PATH, yard_state
 
-MAX_SURGE_PCT = 200.0
+ADDED_KEYS = {"arrival_in_hours", "vessel_id", "length_m", "service_hours"}
 
 
-# Check the user's stress inputs; anything outside the allowed range is rejected, never clipped.
+# Check the user's stress inputs; invalid values are rejected, never clipped. There is no upper
+# limit on the arrival multiplier: the user is free to test any scenario.
 def validate_stress(stress: dict | None, berths: int) -> dict:
     stress = dict(stress or {})
-    unknown = set(stress) - {"berths_closed", "arrival_surge_pct"}
+    unknown = set(stress) - {"berths_closed", "arrival_multiplier"}
     if unknown:
         raise ValueError(f"unknown stress inputs: {sorted(unknown)}")
     closed = int(stress.get("berths_closed", 0))
-    surge = float(stress.get("arrival_surge_pct", 0.0))
+    multiplier = float(stress.get("arrival_multiplier", 1.0))
     if not 0 <= closed <= berths:
         raise ValueError(f"berths_closed must be between 0 and {berths}")
-    if not 0.0 <= surge <= MAX_SURGE_PCT:
-        raise ValueError(f"arrival_surge_pct must be between 0 and {MAX_SURGE_PCT:g}")
-    return {"berths_closed": closed, "arrival_surge_pct": surge}
+    if not multiplier > 0.0:
+        raise ValueError("arrival_multiplier must be greater than 0 (1 = real schedule)")
+    return {"berths_closed": closed, "arrival_multiplier": multiplier}
+
+
+# Turn the user's added vessels into twin vessels; each stay is estimated from history (or typed).
+def added_vessels(ts: pd.Timestamp, specs: list[dict] | None, horizon: int, k: int) -> list[Vessel]:
+    out = []
+    for i, spec in enumerate(specs or []):
+        unknown = set(spec) - ADDED_KEYS
+        if unknown:
+            raise ValueError(f"unknown added-vessel fields: {sorted(unknown)}")
+        eta = float(spec.get("arrival_in_hours", 0.0))
+        if not 0.0 <= eta <= horizon:
+            raise ValueError(f"arrival_in_hours must be between 0 and {horizon}")
+        est = estimate_stay(ts, k, vessel_id=spec.get("vessel_id") or None,
+                            length_m=spec.get("length_m"), service_hours=spec.get("service_hours"))
+        out.append(Vessel(f"ADD{i + 1}", mmsi=0, arrival_h=eta, ready_h=eta,
+                          service_h=est["hours"], source="added",
+                          estimate={**est, "vessel_id": spec.get("vessel_id")}))
+    return out
+
+
+# Short description of the starting state, shown in the interface next to the results.
+def scenario_summary(sc: Scenario) -> dict:
+    return {
+        "open_berths": sc.berths - sc.berths_closed,
+        "container_berths": sc.berths,
+        "berths_closed": sc.berths_closed,
+        "arrival_multiplier": sc.arrival_multiplier,
+        "vessels_at_berth_now": len(sc.berthed),
+        "vessels_at_berth": [
+            {"call_id": v.call_id, "mmsi": v.mmsi, "berthed_since_h": round(v.berth_h, 2),
+             "leaves_in_h": round(v.berth_h + v.service_h, 2)}
+            for v in sc.berthed],
+        "vessels_waiting_now": sum(1 for v in sc.vessels if v.arrival_h <= 0),
+        "vessels_arriving_in_horizon": sum(
+            1 for v in sc.vessels if 0 < v.arrival_h <= sc.horizon_hours),
+        "stress_applied": bool(sc.berths_closed or sc.arrival_multiplier != 1.0),
+        "yard_capacity": None if sc.yard is None else sc.yard["capacity"],
+        "gate_max_recorded": None if sc.yard is None else sc.yard["max_recorded_departures"],
+        "vessels_added": sum(1 for v in sc.vessels if v.source == "added"),
+    }
 
 
 # Build the scenario at ts and the list of sources the interface shows next to the results.
-def build_scenario(ts: pd.Timestamp, cfg: dict, stress: dict | None = None) -> tuple[Scenario, list[dict]]:
+def build_scenario(ts: pd.Timestamp, cfg: dict, stress: dict | None = None,
+                   added: list[dict] | None = None) -> tuple[Scenario, list[dict]]:
     berths = int(cfg["capacity"]["container_berths"])
+    horizon = int(cfg["twin"]["horizon_hours"])
     stress = validate_stress(stress, berths)
-    sc = scenario_at(ts, berths=berths, horizon_hours=int(cfg["twin"]["horizon_hours"]), **stress)
+    sc = scenario_at(ts, berths=berths, horizon_hours=horizon, **stress)
+    sc.yard = yard_state(ts, horizon)
+    extra = added_vessels(ts, added, horizon, int(cfg["twin"]["similar_vessels_k"]))
+    sc.vessels = sc.vessels + extra
     sources = [
         {"input": "vessels at berth, waiting and arriving; their arrival, berth and service times",
          "source": str(CALLS_PATH.name), "provenance": "OBSERVED (AIS)"},
         {"input": "container berths", "value": berths,
          "source": cfg["capacity"]["container_berths_source"], "provenance": "PUBLIC SOURCE"},
     ]
-    if stress["berths_closed"] or stress["arrival_surge_pct"]:
+    if sc.yard is not None:
+        sources.append({"input": "yard and gate", "kind": "yard",
+                        "value": {"capacity": sc.yard["capacity"],
+                                  "max_recorded_departures": sc.yard["max_recorded_departures"],
+                                  "max_recorded_at": sc.yard["max_recorded_at"]},
+                        "source": str(CARGO_PATH.name), "provenance": "SYNTHETIC (Cargo agent)"})
+    if extra:
+        sources.append({"input": "added vessels", "kind": "added",
+                        "value": [v.estimate for v in extra],
+                        "source": "added by the user; stays estimated from earlier stays",
+                        "provenance": "USER INPUT"})
+    if stress["berths_closed"] or stress["arrival_multiplier"] != 1.0:
         sources.append({"input": "stress scenario", "value": stress,
                         "source": "chosen by the user in the interface", "provenance": "USER INPUT"})
     if sc.data_end < sc.horizon_hours:
-        sources.append({"input": "arrival schedule",
+        sources.append({"input": "arrival schedule", "kind": "data_end",
                         "source": "AIS data ends inside the horizon; later arrivals are unknown",
+                        "provenance": "LIMITATION"})
+    # hours missing from the AIS file inside the horizon or inside a current vessel's stay:
+    # a vessel seen at berth/waiting on both sides of such a gap is kept as one stay
+    earliest = min([v.arrival_h for v in sc.berthed + sc.vessels if v.arrival_h <= 0], default=0.0)
+    gaps = missing_ranges(ts + pd.Timedelta(hours=earliest), ts + pd.Timedelta(hours=sc.horizon_hours))
+    if gaps:
+        sources.append({"input": "missing AIS hours", "kind": "data_gap",
+                        "value": [[a.isoformat(), b.isoformat()] for a, b in gaps],
+                        "source": "These hours are missing from the AIS file; a vessel seen on both "
+                                  "sides of a gap is treated as the same stay.",
                         "provenance": "LIMITATION"})
     return sc, sources

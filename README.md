@@ -105,7 +105,7 @@ python -m http.server 5500 --bind 127.0.0.1
 ```
 Open **http://127.0.0.1:5500/marsa.html**.
 Type a UTC hour of 2025 and press **تحليل**. Optional stress scenario: **أرصفة مغلقة** (berths closed) and
-**زيادة السفن القادمة %** (the real arrival schedule of the next 24·(1+x) h is compressed into 24 h).
+**مضاعف السفن القادمة** (×1 = the real schedule; ×2 = the real vessels of the next 48 h all arrive within 24 h; no upper limit).
 If the API is not running the page says so and shows no numbers.
 
 ### Step 9 — stop
@@ -116,8 +116,8 @@ after editing `marsa.html`, just refresh the browser.
 | Hour (UTC) | Stress | Why |
 |---|---|---|
 | `2025-07-10T19:00:00Z` | none | busy hour: 17 of 23 LA berths used, 1 vessel waiting for its berth time → "no intervention needed" |
-| `2025-01-04T22:00:00Z` | none | 20 of 23 berths used, the highest in 2025 |
-| `2025-01-03T04:00:00Z` | 6 berths closed, +100 % arrivals | berth shortage; all three options give different results |
+| `2025-01-04T19:00:00Z` | none | 21 of 23 berths used, the highest in 2025 |
+| `2025-01-03T04:00:00Z` | 6 berths closed, arrivals ×2 | berth shortage; all three options give different results |
 | `2025-01-13T18:00:00Z` | none | active synthetic external event |
 | `2025-05-14T06:00:00Z` | none | calm |
 
@@ -131,7 +131,9 @@ after editing `marsa.html`, just refresh the browser.
 | POST | `/api/agents/maritime/investigate` | `{"timestamp_utc": "2025-07-10T19:00:00Z"}` | Agent 1 assessment |
 | POST | `/api/agents/cargo/investigate` | same | Agent 2 assessment |
 | POST | `/api/agents/events-weather/investigate` | same | Agent 3 assessment |
-| POST | `/api/decision-support/analyze` | same, optional `"stress": {"berths_closed": 6, "arrival_surge_pct": 100}` | full cycle: state, forecast, agents, twin results, recommendation |
+| POST | `/api/decision-support/analyze` | same, optional `"stress": {"berths_closed": 6, "arrival_multiplier": 2}` and `"added": [{"arrival_in_hours": 3, "length_m": 330}]` | full cycle: state, forecast, agents, twin results, recommendation |
+| POST | `/api/twin/simulate` | `timestamp_utc`, `actions: [{"type": "gate_capacity", "value": "max_recorded"}]`, optional `stress`, `added` | one decision vs no change, with sources (no ranking) |
+| GET | `/api/twin/vessels?timestamp_utc=…` | — | vessels with stays completed before the hour (IMO/MMSI, length, visits, median stay) |
 
 Example from PowerShell (backend running on port 8000):
 ```powershell
@@ -184,13 +186,13 @@ Marsa/
 |---|---|---|---|
 | Vessel traffic | NOAA AIS via Kaggle *LA/LB Maritime Trajectory & AIS Dataset 2023-2025* (CC BY 4.0) | OBSERVED → hourly DERIVED | 21.7 M pings → 8,688 hours of 2025 |
 | Berth occupancy | derived from raw AIS (cargo vessels stationary inside the LA port area) | DERIVED | validated against Marine Exchange daily counts |
-| LA cargo calls (twin) | derived from raw AIS 2023-H2 → 2025 (`scripts/build_la_cargo_calls.py`) | OBSERVED → DERIVED | 3,448 berth calls; arrival, wait, berth and service time of each vessel |
+| LA cargo calls (twin) | derived from raw AIS 2023-H2 → 2025 (`scripts/build_la_cargo_calls.py`) | OBSERVED → DERIVED | 4,704 berth stays (every stay as recorded); arrival, wait, berth and service time of each vessel |
 | Weather | Open-Meteo (LA/LB), hourly | OBSERVED | wind, wave height, WMO code |
 | Cargo / yard / gate | generated, calibrated to official Port of Los Angeles 2025 monthly TEU and PMSA dwell times | SYNTHETIC | port-level, normalised yard scale (10,000 units) |
 | External events | generated with a fixed seed, independent of AIS | SYNTHETIC | 15 events, 172 hours |
 
 Port of Los Angeles is a **stand-in**: Eastern Province port data was requested and not made available.
-Everything port-specific lives in `config/port_config.yaml` (23 container berths — an approximate public figure, see the source note there).
+Everything port-specific lives in `config/port_config.yaml` (23 container berths — the sum of the per-terminal berth counts in the port's official *Port 101* brochure).
 72 source hours are missing from the AIS timeline and are deliberately **not** filled.
 Full column list: `docs/DATA_DICTIONARY.md`.
 
@@ -211,18 +213,29 @@ real-world accuracy (see `docs/LIMITATIONS.md`).
 
 ## 7. Digital twin
 
-Sea side of the Port of Los Angeles, cargo vessels only. The starting state at any hour comes from AIS:
+Berths of the Port of Los Angeles (cargo vessels only) plus the yard and gate. The vessel starting state at any hour comes from AIS:
 which vessels are at a berth (and when each one really left), which are waiting for an LA berth (destination
 taken from where the vessel berthed next), and which arrive in the next 24 h, each with its real service time.
 Ports know the next day's arrivals from advance arrival notices, so the twin uses the real arrival schedule.
 
 Without a stress scenario the twin reproduces AIS exactly (tested: every vessel berths at its recorded time).
-In 2025 LA berths never filled (max 20 of 23) and 7.4 % of cargo calls waited — for reasons the data does not
+In 2025 LA berths never filled (max 21 of 23) and 5.6 % of cargo stays came after a wait (100 of 1,772) — for reasons the data does not
 show (terminal windows), so those waits are kept as recorded. A stress scenario chosen by the user (berths
 closed, compressed arrival schedule) makes berths scarce; vessels then also wait for a free berth
-(*capacity wait*). Actions: `queue_policy` (FCFS / shortest real service first) and `add_berths`.
-The simulation is deterministic (no random sampling) and options are ranked by total vessel-hours waiting.
-Yard and gates are not simulated (their data is synthetic).
+(*capacity wait*). Actions: `queue_policy` (FCFS / shortest real service first), `add_berths` and
+`gate_capacity`. The simulation is deterministic (no random sampling).
+
+Yard and gate come from the Cargo agent's file (synthetic, calibrated): the twin replays
+`containers_in_yard` exactly (the file satisfies yard[t] = yard[t-1] + arrivals − departures). The gate
+action clears up to N containers per hour; the data-based value is the highest hourly
+`container_departures` the file recorded up to the chosen hour (no future values), or a number typed by the
+user. The yard does not change vessel waiting (no data on that effect). The twin returns vessel and yard
+measures side by side; options are listed by total vessel-hours waiting and the Strategy agent reads both.
+
+The user can add vessels for a what-if test. An added vessel's stay is: the median of its own earlier LA
+stays (matched by IMO, else MMSI), else the median stay of the k vessels closest in length (k = 5, chosen
+by `scripts/select_similar_k.py`: lowest error on 2025 stays using only earlier stays), or a duration typed
+by the user. Only stays completed before the chosen hour are used.
 
 ---
 
