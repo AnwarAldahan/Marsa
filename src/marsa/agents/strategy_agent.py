@@ -8,20 +8,17 @@ from pydantic import BaseModel, ConfigDict
 
 from marsa.agents.llm import StructuredLLMProvider
 from marsa.provenance.types import DataProvenance
+from marsa.twin.engine import SUPPORTED_ACTIONS as TWIN_ACTIONS
 from marsa.twin.engine import simulate_candidate
 from marsa.twin.scoring import score_results
 
-SUPPORTED_ACTIONS = {
-    "queue_policy", "add_berths", "crane_boost", "gate_boost",
-    "delay_arrivals", "prioritise_vessel",
-}
+# The Digital Twin only simulates sea-side berth use from AIS, so only these two actions exist.
+SUPPORTED_ACTIONS = set(TWIN_ACTIONS)
 
 ARABIC_CANDIDATE_TITLES = {
     "baseline": "عدم إجراء تغيير تشغيلي",
     "shortest_first": "إعطاء الأولوية للسفن ذات مدة الخدمة الأقصر",
-    "gate_extension": "زيادة قدرة التخليص عبر البوابات",
-    "extra_berth": "إضافة رصيف مؤقت",
-    "combined_queue_gate": "الجمع بين تعديل أولوية الانتظار وزيادة قدرة البوابات",
+    "extra_berth": "فتح رصيف إضافي مؤقت",
 }
 
 
@@ -44,120 +41,35 @@ def _candidate(candidate_id: str, title: str, rationale: str,
     }
 
 
-def _has_synthetic_arrival_pressure(events_weather: dict, event_impact: dict) -> bool:
-    event = events_weather.get("external_event_assessment", {})
-    if not event.get("active") or event.get("provenance") != DataProvenance.SYNTHETIC.value:
-        return False
-    mapping = event_impact.get(event.get("type"), {}).get(event.get("severity"), {})
-    return float(mapping.get("arrivals", 1.0)) > 1.0
-
-
-def _supports_preventive_cargo_test(forecast: dict, cargo_status: str) -> bool:
-    return (
-        cargo_status == "MODERATE"
-        and forecast.get("status") == "success"
-        and forecast.get("target") == "operational_cargo_congestion_proxy"
-        and forecast.get("classification") == "HIGH"
-        and forecast.get("alert_active") is True
-        and forecast.get("is_real_model_prediction") is True
-    )
-
-
+# Candidates come from the twin's own no-change run: actions are only worth testing when the
+# twin shows vessels waiting for a berth (capacity wait). Otherwise "no change" is the answer.
 def generate_candidates(forecast: dict, maritime: dict, cargo: dict,
-                        events_weather: dict, event_impact: dict | None = None) -> list[dict]:
-    """Generate a small explainable set without forcing cross-domain consensus."""
+                        events_weather: dict, baseline: dict | None = None) -> list[dict]:
     candidates = [_candidate(
         "baseline", "No operational change",
-        "Provides the baseline required for paired what-if comparison.",
-        ["authoritative current port state"], [],
+        "Replays the real AIS schedule; required for the what-if comparison.",
+        ["digital_twin.scenario"], [],
     )]
-    maritime_status = maritime["maritime_status"]
-    cargo_status = cargo["cargo_status"]
-    waiting = maritime["evidence"]["waiting_vessels"]
-
-    if maritime_status in {"ELEVATED", "CONGESTED"} and waiting > 0:
-        candidates.append(_candidate(
-            "shortest_first", "Prioritize shorter vessel services",
-            "Current Maritime status and waiting-vessel evidence support testing a queue-policy alternative without changing capacity.",
-            [
-                "maritime.maritime_status",
-                "maritime.evidence.waiting_vessels",
-                "maritime.evidence.waiting_ratio",
-                "maritime.evidence.vessels",
-            ],
-            [{"type": "queue_policy", "value": "shortest_service_first"}],
-        ))
-    preventive_cargo_test = _supports_preventive_cargo_test(forecast, cargo_status)
-    if cargo_status in {"ELEVATED", "CRITICAL"} or preventive_cargo_test:
-        rationale = (
-            "Current MODERATE synthetic Cargo evidence identifies the gate domain, and an "
-            "active HIGH real six-hour cargo-proxy alert supports preventively testing the "
-            "existing gate-capacity adjustment in simulation without implying it is necessary."
-            if preventive_cargo_test else
-            "Synthetic Cargo state is consistent with elevated cargo-side pressure; the "
-            "simulation tests a 30% gate-capacity adjustment."
-        )
-        evidence_references = [
-            "cargo.cargo_status",
-            "cargo.evidence.yard_occupancy_percent",
-            "cargo.evidence.truck_waiting_time_minutes",
-            "cargo.evidence.gate_throughput_last_1h",
-            "cargo.evidence.cargo_flow_ratio",
-        ]
-        if preventive_cargo_test:
-            evidence_references.extend([
-                "ml_forecast.target",
-                "ml_forecast.classification",
-                "ml_forecast.congestion_score",
-                "ml_forecast.alert_active",
-                "ml_forecast.is_real_model_prediction",
-            ])
-        candidates.append(_candidate(
-            "gate_extension", "Increase gate clearance capacity",
-            rationale,
-            evidence_references,
-            [{"type": "gate_boost", "value": 1.3}],
-        ))
-    if maritime_status == "CONGESTED" and waiting > 0:
-        candidates.append(_candidate(
-            "extra_berth", "Temporarily add one berth",
-            "Current Maritime status is CONGESTED; the simulation tests one additional modeled berth.",
-            [
-                "maritime.maritime_status",
-                "maritime.evidence.waiting_vessels",
-                "maritime.evidence.waiting_ratio",
-            ],
-            [{"type": "add_berths", "value": 1}],
-        ))
-    candidate_ids = {candidate["candidate_id"] for candidate in candidates}
-    synthetic_arrival_pressure = _has_synthetic_arrival_pressure(
-        events_weather, event_impact or {},
-    )
-    if (
-        len(candidates) < 4
-        and {"shortest_first", "gate_extension"} <= candidate_ids
-        and synthetic_arrival_pressure
-    ):
-        event = events_weather["external_event_assessment"]
-        event_mapping = f"config.event_impact.{event['type']}.{event['severity']}.arrivals"
-        candidates.append(_candidate(
-            "combined_queue_gate", "Combine queue and gate adjustments",
-            "Both component candidates are independently supported, and configured synthetic arrival-pressure context supports testing their combined modeled response without attributing current pressure to the event.",
-            [
-                "maritime.maritime_status",
-                "maritime.evidence.waiting_vessels",
-                "cargo.cargo_status",
-                "events_weather.external_event_assessment.active",
-                "events_weather.external_event_assessment.type",
-                "events_weather.external_event_assessment.severity",
-                event_mapping,
-            ],
-            [
-                {"type": "queue_policy", "value": "shortest_service_first"},
-                {"type": "gate_boost", "value": 1.3},
-            ],
-        ))
-    return candidates[:4]
+    if baseline is None or baseline["kpis"]["capacity_wait_vessel_hours"] <= 0:
+        return candidates
+    evidence = [
+        "digital_twin.baseline.kpis.capacity_wait_vessel_hours",
+        "digital_twin.baseline.kpis.waiting_end",
+        "maritime.maritime_status",
+    ]
+    candidates.append(_candidate(
+        "shortest_first", "Prioritize shorter vessel services",
+        "The no-change run shows vessels waiting for a free berth; the twin tests giving the next "
+        "free berth to the vessel with the shortest real service time.",
+        evidence, [{"type": "queue_policy", "value": "shortest_service_first"}],
+    ))
+    candidates.append(_candidate(
+        "extra_berth", "Temporarily open one additional berth",
+        "The no-change run shows vessels waiting for a free berth; the twin tests one more "
+        "open berth.",
+        evidence, [{"type": "add_berths", "value": 1}],
+    ))
+    return candidates
 
 
 def synthesize(forecast: dict, maritime: dict, cargo: dict, events_weather: dict) -> dict:
@@ -191,18 +103,19 @@ def synthesize(forecast: dict, maritime: dict, cargo: dict, events_weather: dict
     }
 
 
-def evaluate(scenario: object, candidates: list[dict], cfg: dict) -> list[dict]:
-    twin_cfg = cfg["twin"]
+# Run every candidate in the twin and rank by total vessel-hours waiting (no weights).
+def evaluate(scenario: object, candidates: list[dict], cfg: dict | None = None,
+             baseline: dict | None = None) -> list[dict]:
     raw_results = []
     for candidate in candidates:
-        twin_candidate = {"id": candidate["candidate_id"], "actions": candidate["actions"]}
-        result = simulate_candidate(
-            scenario, twin_candidate,
-            runs=twin_cfg["monte_carlo_runs"], seed=twin_cfg["random_seed"],
-        )
+        if candidate["candidate_id"] == "baseline" and baseline is not None:
+            result = dict(baseline)
+        else:
+            twin_candidate = {"id": candidate["candidate_id"], "actions": candidate["actions"]}
+            result = simulate_candidate(scenario, twin_candidate)
         result["provenance"] = DataProvenance.SIMULATED.value
         raw_results.append(result)
-    ranked = score_results(raw_results, cfg["scoring"]["weights"])
+    ranked = score_results(raw_results)
     by_id = {candidate["candidate_id"]: candidate for candidate in candidates}
     for result in ranked:
         candidate = by_id[result["candidate_id"]]
@@ -214,19 +127,30 @@ def evaluate(scenario: object, candidates: list[dict], cfg: dict) -> list[dict]:
     return ranked
 
 
+# Arabic summary built only from the ranking; no numbers from an LLM.
 def _deterministic_summary(ranked: list[dict]) -> str:
+    if len(ranked) == 1:
+        return (
+            "لا يُظهر التوأم الرقمي نقصًا في الأرصفة خلال الساعات الأربع والعشرين القادمة؛ "
+            "وأي انتظار حالي هو انتظار لموعد الرسو المسجّل في بيانات AIS وليس بسبب امتلاء "
+            "الأرصفة، لذلك لا حاجة لتدخل تشغيلي. لا تضمن المحاكاة النتيجة في التشغيل الفعلي."
+        )
     best = ranked[0]
+    if best["candidate_id"] == "baseline":
+        return (
+            "يُظهر التوأم الرقمي انتظارًا بسبب نقص الأرصفة في سيناريو الضغط المحدد، لكن لم "
+            "يحسّن أي من الخيارات المختبرة إجمالي ساعات انتظار السفن، لذلك بقي خيار «عدم إجراء "
+            "تغيير تشغيلي» في المرتبة الأولى. لا تضمن المحاكاة النتيجة في التشغيل الفعلي."
+        )
     candidate_title = ARABIC_CANDIDATE_TITLES.get(best["candidate_id"], best["title"])
     option_count = {
-        1: "خيار واحد",
         2: "خيارين",
         3: "ثلاثة خيارات",
-        4: "أربعة خيارات",
     }.get(len(ranked), f"{len(ranked)} خيارات")
     return (
-        f"صنّف التقييم الحتمي لنتائج المحاكاة خيار «{candidate_title}» في المرتبة الأولى "
-        f"من بين {option_count}. تقارن هذه النتيجة المخرجات المحاكاة وفق "
-        "افتراضات موثقة، ولا تضمن تفوق الخيار في التشغيل الفعلي."
+        f"صنّف التوأم الرقمي خيار «{candidate_title}» في المرتبة الأولى من بين {option_count} "
+        "وفق إجمالي ساعات انتظار السفن. تعتمد المحاكاة على جدول السفن الفعلي من بيانات AIS "
+        "وعلى سيناريو الضغط المحدد، ولا تضمن تفوق الخيار في التشغيل الفعلي."
     )
 
 

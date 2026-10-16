@@ -20,21 +20,23 @@ Orchestrator Agent. ML is not an agent. The Digital Twin is not an agent.
 
 Domain agents report evidence and limitations independently. They do not change
 their status in response to an ML forecast. The Strategy Agent preserves conflicting
-signals, generates a small candidate set from supported Digital Twin actions, and
+signals, runs the Digital Twin with no change, proposes actions only when that run shows a
+berth shortage, and
 explains deterministic simulation ranking.
 
 The ML contract is an uncalibrated XGBoost score for the operational
 cargo-congestion proxy at `t + 6h`. It is a retrospective predictive prototype,
 not independently observed congestion ground truth or production online inference.
-The Digital Twin independently simulates candidates over the configured horizon,
-currently 24 hours. Simulation output is not an ML forecast.
+The Digital Twin replays the real AIS schedule of Port of Los Angeles cargo vessels over
+24 hours (optionally under a user stress scenario) and ranks options by total vessel-hours
+waiting. Simulation output is not an ML forecast, and the ML forecast does not feed the twin.
 
 ## Runtime surfaces
 
 - `scripts/run_pipeline.py <UTC hour>Z` — one cycle from the command line (deterministic narrative).
-- `POST /api/decision-support/analyze` — same cycle over HTTP; the strategy narrative is Gemini-assisted
+- `POST /api/decision-support/analyze` — same cycle over HTTP (optional `stress`); the strategy narrative is Gemini-assisted
   when `GEMINI_API_KEY` is set (Arabic, guard-railed), otherwise deterministic.
-- `dashboard/marsa.html` — reads the analyze response and fills sections ١–٤ and the twin cards.
+- `dashboard/marsa.html` — renders only the analyze response (sections ١–٤, berth map, twin replay); no demo data.
 
 ## Decision-support response (key fields)
 
@@ -44,8 +46,8 @@ currently 24 hours. Simulation output is not an ML forecast.
   "port_state": { "...one row of merged_port_dataset_2025_v2..." },
   "ml_forecast": { "status": "success", "classification": "HIGH", "congestion_score": 0.96, "horizon_hours": 6 },
   "domain_agents": { "maritime": {...}, "cargo": {...}, "events_weather": {...} },
-  "strategy_candidates": [ { "candidate_id": "gate_extension", "actions": [ {"type": "gate_boost", "value": 1.3} ] } ],
-  "digital_twin": { "scenario": {...}, "results": [ { "candidate_id": "...", "rank": 1, "score": 0.0, "kpis": {...} } ] },
+  "strategy_candidates": [ { "candidate_id": "extra_berth", "actions": [ {"type": "add_berths", "value": 1} ] } ],
+  "digital_twin": { "scenario": {...}, "sources": [...], "results": [ { "candidate_id": "...", "rank": 1, "score": 0.0, "kpis": {...}, "timeline": [...], "vessels": [...] } ] },
   "decision_support": { "highest_ranked_candidate": "...", "summary": "...", "reasoning_mode": "llm_assisted", "ranking": [...] },
   "human_approval_required": true
 }

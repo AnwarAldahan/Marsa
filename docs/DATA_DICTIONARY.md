@@ -14,10 +14,29 @@ One hour (2025-11-02 08:00) has missing weather and is left null.
 | yard_occupancy_percent, cargo_flow_ratio | cargo | DERIVED (synthetic) | ⛔ | computed from other columns |
 | operations_status | cargo | DERIVED rule label | ⛔ | same-hour label → leakage risk |
 | wind_speed_10m, wave_height, weather_code | events/weather (agent 3) | OBSERVED (Open-Meteo, LA/LB) | ✅ (weather_code with caution) | wind unit unverified (assumed km/h) |
-| hour, hour_sin, hour_cos, day_of_week, month, is_weekend, is_public_holiday | events/weather | DERIVED **on UTC** | ⛔ replaced by `local_*` features (America/Los_Angeles) | day_of_week: Sunday=1 |
+| hour, hour_sin, hour_cos, day_of_week, month, is_weekend, is_public_holiday | events/weather | DERIVED **on UTC** | ✅ used on UTC by the final XGBoost model (not converted to Los Angeles time) | day_of_week: Sunday=1 |
 | weather_pressure_index | events/weather | DERIVED | ⛔ | thresholds fitted on 2023-25 incl. test period; agent-facing only |
 | event_active, event_id, event_type, event_severity, event_start, event_end, event_duration_hours, event_represented_hours | events/weather | SYNTHETIC | ⛔ | independent of AIS by design; used by context agent and twin as scenarios; `event_end` is future information |
 | **pola_berthed_cargo_vessels** | raw AIS → `scripts/berth_occupancy_from_ais.py` | DERIVED | ✅ | cargo vessels (type 70-79), sog<0.5 kn, inside LA area (lon<-118.245, lat>33.72), stays >7 days excluded. Mean 10.2, max 20 (23 container berths). Validated: LA+LB total 27.5 vs Marine Exchange 27-31/day. |
 | **pola_berthed_tanker_vessels** | same | DERIVED | ✅ | tankers (type 80-89), same filters; not compared to container berths |
 
 Target: `waiting_vessel_count` at t+h (wall-clock shift, rows without the future hour are dropped).
+
+# Twin input — la_cargo_calls_2023_2025.csv (3,448 rows, one per stay at an LA berth)
+
+Built by `scripts/build_la_cargo_calls.py` from the raw Kaggle AIS files (2023-H2 to 2025-H2). All values are from AIS pings.
+
+| Column | Meaning |
+|---|---|
+| call_id | row id |
+| mmsi | vessel id (ITU MMSI) |
+| arrival | first hour in the waiting area if the vessel waited, else first hour at the LA berth (UTC) |
+| waited | True when the vessel was in the waiting area and reached an LA berth within 6 h after leaving it |
+| wait_start, wait_end | waiting-area stay (UTC) |
+| berth_start, berth_end | stay at an LA berth: cargo vessel (type 70-79), sog < 0.5 kn inside the LA box (UTC) |
+| wait_hours | berth_start − arrival |
+| berth_hours | berth_end − berth_start (real service time) |
+
+Rules: a stay continues across gaps ≤ 6 h counted in hours present in the AIS file (data outages do not end stays);
+stays of ≤ 2 h are vessels passing through the box (1,264 such stays, then a drop to 30 at 2–3 h).
+2025: 1,304 LA cargo calls, 99 waited (median wait 27 h); hourly occupancy matches `pola_berthed_cargo_vessels` (r = 0.96).

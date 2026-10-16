@@ -54,7 +54,7 @@ def test_strategy_accepts_conflicting_signals_without_mutation():
     cargo = {"cargo_status": "CRITICAL", "evidence": {"yard_occupancy_percent": 95, "gate_throughput_last_1h": 2}}
     weather = {"contextual_pressure": {"level": "low"}}
     before = deepcopy((forecast, maritime, cargo, weather))
-    candidates = generate_candidates(forecast, maritime, cargo, weather)
+    candidates = generate_candidates(forecast, maritime, cargo, weather, None)
     synthesis = synthesize(forecast, maritime, cargo, weather)
     assert (forecast, maritime, cargo, weather) == before
     assert synthesis["signals"] == {
@@ -69,13 +69,32 @@ def test_strategy_accepts_conflicting_signals_without_mutation():
         "events_weather": "low",
     }
     assert {action["type"] for candidate in candidates for action in candidate["actions"]} <= SUPPORTED_ACTIONS
-    assert any(candidate["candidate_id"] == "gate_extension" for candidate in candidates)
+    # domain pressure alone never creates a twin action; only a twin-measured berth shortage does
+    assert [candidate["candidate_id"] for candidate in candidates] == ["baseline"]
 
 
-def test_fixed_seed_scoring_is_deterministic():
-    first = run("2025-01-01T00:00:00Z")["deterministic_evaluation"]
-    second = run("2025-01-01T00:00:00Z")["deterministic_evaluation"]
+def test_twin_ranking_is_deterministic():
+    stress = {"berths_closed": 6, "arrival_surge_pct": 150}
+    first = run("2025-07-10T19:00:00Z", stress=stress)["deterministic_evaluation"]
+    second = run("2025-07-10T19:00:00Z", stress=stress)["deterministic_evaluation"]
     assert first == second
+    assert first[0]["candidate_id"] == "extra_berth"
+
+
+def test_stress_scenario_reaches_twin_and_api_validates_it():
+    with TestClient(app) as client:
+        ok = client.post("/api/decision-support/analyze", json={
+            "timestamp_utc": "2025-07-10T19:00:00Z",
+            "stress": {"berths_closed": 6, "arrival_surge_pct": 150}})
+        assert ok.status_code == 200
+        twin = ok.json()["digital_twin"]
+        assert twin["scenario"]["open_berths"] == 17 and twin["scenario"]["stress_applied"]
+        bad = client.post("/api/decision-support/analyze", json={
+            "timestamp_utc": "2025-07-10T19:00:00Z", "stress": {"berths_closed": 40}})
+        assert bad.status_code == 422
+        extra = client.post("/api/decision-support/analyze", json={
+            "timestamp_utc": "2025-07-10T19:00:00Z", "stress": {"wind_kmh": 80}})
+        assert extra.status_code == 422
 
 
 def test_real_ml_signal_reaches_strategy_without_overwriting_domain_agents():

@@ -1,200 +1,54 @@
+"""Strategy Agent candidate rules: actions are tested only when the twin shows a berth shortage."""
 from marsa.agents.strategy_agent import _deterministic_summary, generate_candidates
 
 FORECAST = {"status": "ml_unavailable"}
-HIGH_REAL_FORECAST = {
-    "status": "success",
-    "target": "operational_cargo_congestion_proxy",
-    "classification": "HIGH",
-    "congestion_score": 0.95,
-    "alert_active": True,
-    "is_real_model_prediction": True,
-}
-EVENT_IMPACT = {
-    "demand_surge": {
-        "minor": {"arrivals": 1.1},
-    },
-}
+MARITIME = {"maritime_status": "ELEVATED", "evidence": {"waiting_vessels": 12}}
+CARGO = {"cargo_status": "CRITICAL", "evidence": {}}
+WEATHER = {"contextual_pressure": {"level": "elevated"},
+           "external_event_assessment": {"active": True, "type": "demand_surge",
+                                         "severity": "severe", "provenance": "SYNTHETIC"}}
 
 
-def maritime(status="NORMAL", waiting=0):
-    return {
-        "maritime_status": status,
-        "evidence": {
-            "vessels": 20,
-            "waiting_vessels": waiting,
-            "waiting_ratio": waiting / 20,
-        },
-    }
+def baseline(capacity_wait):
+    return {"kpis": {"capacity_wait_vessel_hours": capacity_wait, "waiting_end": 1}}
 
 
-def cargo(status="NORMAL"):
-    return {
-        "cargo_status": status,
-        "evidence": {
-            "yard_occupancy_percent": 70.0,
-            "truck_waiting_time_minutes": 20.0,
-            "gate_throughput_last_1h": 100,
-            "cargo_flow_ratio": 1.0,
-        },
-    }
+def ids(base):
+    return [c["candidate_id"] for c in generate_candidates(FORECAST, MARITIME, CARGO, WEATHER, base)]
 
 
-def weather(*, active=False, event_type=None, severity=None, provenance="SYNTHETIC"):
-    return {
-        "contextual_pressure": {"level": "moderate" if active else "low"},
-        "external_event_assessment": {
-            "active": active,
-            "type": event_type,
-            "severity": severity,
-            "provenance": provenance,
-        },
-    }
+# Domain pressure alone (agents, events, ML) never creates a twin action.
+def test_no_berth_shortage_means_baseline_only():
+    assert ids(baseline(0.0)) == ["baseline"]
+    assert ids(None) == ["baseline"]
 
 
-def candidate_ids(maritime_result, cargo_result, weather_result, forecast=FORECAST):
-    candidates = generate_candidates(
-        forecast,
-        maritime_result,
-        cargo_result,
-        weather_result,
-        EVENT_IMPACT,
-    )
-    return candidates, [candidate["candidate_id"] for candidate in candidates]
+def test_berth_shortage_tests_queue_policy_and_extra_berth():
+    candidates = generate_candidates(FORECAST, MARITIME, CARGO, WEATHER, baseline(5.5))
+    assert [c["candidate_id"] for c in candidates] == ["baseline", "shortest_first", "extra_berth"]
+    assert candidates[1]["actions"] == [{"type": "queue_policy", "value": "shortest_service_first"}]
+    assert candidates[2]["actions"] == [{"type": "add_berths", "value": 1}]
+    assert all(c["provenance"] == "AGENT_GENERATED" for c in candidates)
 
 
-def test_normal_maritime_with_waiting_does_not_generate_shortest_first():
-    _, ids = candidate_ids(maritime("NORMAL", 3), cargo(), weather())
-    assert ids == ["baseline"]
+def test_summary_without_shortage_says_no_intervention():
+    summary = _deterministic_summary([{"candidate_id": "baseline", "title": "No operational change"}])
+    assert "لا حاجة لتدخل" in summary
+    assert "No operational change" not in summary
 
 
-def test_elevated_maritime_with_waiting_generates_shortest_first():
-    _, ids = candidate_ids(maritime("ELEVATED", 3), cargo(), weather())
-    assert ids == ["baseline", "shortest_first"]
+def test_summary_when_no_option_improves():
+    summary = _deterministic_summary([
+        {"candidate_id": "baseline", "title": "x"}, {"candidate_id": "extra_berth", "title": "y"}])
+    assert "لم يحسّن" in summary
 
 
-def test_elevated_cargo_generates_gate_extension():
-    _, ids = candidate_ids(maritime(), cargo("ELEVATED"), weather())
-    assert ids == ["baseline", "gate_extension"]
-
-
-def test_high_real_ml_and_moderate_cargo_generate_preventive_gate_test():
-    candidates, ids = candidate_ids(
-        maritime(), cargo("MODERATE"), weather(), HIGH_REAL_FORECAST,
-    )
-    assert ids == ["baseline", "gate_extension"]
-    gate = candidates[-1]
-    assert gate["actions"] == [{"type": "gate_boost", "value": 1.3}]
-    assert "preventively testing" in gate["rationale"]
-    assert "without implying it is necessary" in gate["rationale"]
-    assert "cargo.cargo_status" in gate["evidence_references"]
-    assert "ml_forecast.congestion_score" in gate["evidence_references"]
-    assert "ml_forecast.alert_active" in gate["evidence_references"]
-
-
-def test_high_real_ml_and_normal_cargo_remain_baseline_only():
-    _, ids = candidate_ids(maritime(), cargo("NORMAL"), weather(), HIGH_REAL_FORECAST)
-    assert ids == ["baseline"]
-
-
-def test_low_ml_and_moderate_cargo_preserve_baseline_only():
-    low = {**HIGH_REAL_FORECAST, "classification": "LOW", "alert_active": False}
-    _, ids = candidate_ids(maritime(), cargo("MODERATE"), weather(), low)
-    assert ids == ["baseline"]
-
-
-def test_high_label_without_active_alert_does_not_trigger_preventive_candidate():
-    inactive = {**HIGH_REAL_FORECAST, "alert_active": False}
-    _, ids = candidate_ids(maritime(), cargo("MODERATE"), weather(), inactive)
-    assert ids == ["baseline"]
-
-
-def test_ml_unavailable_and_moderate_cargo_preserve_baseline_only():
-    _, ids = candidate_ids(maritime(), cargo("MODERATE"), weather())
-    assert ids == ["baseline"]
-
-
-def test_domain_pressure_without_active_arrival_event_has_no_combined_candidate():
-    _, ids = candidate_ids(maritime("ELEVATED", 3), cargo("ELEVATED"), weather())
-    assert ids == ["baseline", "shortest_first", "gate_extension"]
-
-
-def test_domain_pressure_and_synthetic_arrival_event_generate_combined_candidate():
-    candidates, ids = candidate_ids(
-        maritime("ELEVATED", 3),
-        cargo("ELEVATED"),
-        weather(active=True, event_type="demand_surge", severity="minor"),
-    )
-    assert ids == ["baseline", "shortest_first", "gate_extension", "combined_queue_gate"]
-    combined = candidates[-1]
-    assert combined["actions"] == [
-        {"type": "queue_policy", "value": "shortest_service_first"},
-        {"type": "gate_boost", "value": 1.3},
-    ]
-    assert "config.event_impact.demand_surge.minor.arrivals" in combined["evidence_references"]
-
-
-def test_synthetic_demand_surge_alone_does_not_generate_intervention():
-    _, ids = candidate_ids(
-        maritime(),
-        cargo(),
-        weather(active=True, event_type="demand_surge", severity="minor"),
-    )
-    assert ids == ["baseline"]
-
-
-def test_candidate_list_length_does_not_trigger_combined_candidate():
-    _, ids = candidate_ids(maritime("NORMAL", 3), cargo("ELEVATED"), weather())
-    assert ids == ["baseline", "gate_extension"]
-
-
-def test_candidate_count_never_exceeds_four():
-    candidates, ids = candidate_ids(
-        maritime("CONGESTED", 3),
-        cargo("CRITICAL"),
-        weather(active=True, event_type="demand_surge", severity="minor"),
-    )
-    assert ids == ["baseline", "shortest_first", "gate_extension", "extra_berth"]
-    assert len(candidates) == 4
-
-
-def test_non_synthetic_event_cannot_trigger_combined_candidate():
-    _, ids = candidate_ids(
-        maritime("ELEVATED", 3),
-        cargo("ELEVATED"),
-        weather(
-            active=True,
-            event_type="demand_surge",
-            severity="minor",
-            provenance="OBSERVED",
-        ),
-    )
-    assert ids == ["baseline", "shortest_first", "gate_extension"]
-
-
-def test_deterministic_summary_is_arabic_and_translates_candidate_titles():
-    candidates = {
-        "baseline": ("No operational change", "عدم إجراء تغيير تشغيلي"),
-        "shortest_first": (
-            "Prioritize shorter vessel services",
-            "إعطاء الأولوية للسفن ذات مدة الخدمة الأقصر",
-        ),
-        "gate_extension": (
-            "Increase gate clearance capacity",
-            "زيادة قدرة التخليص عبر البوابات",
-        ),
-        "extra_berth": ("Temporarily add one berth", "إضافة رصيف مؤقت"),
-        "combined_queue_gate": (
-            "Combine queue and gate adjustments",
-            "الجمع بين تعديل أولوية الانتظار وزيادة قدرة البوابات",
-        ),
-    }
-
-    for candidate_id, (english_title, arabic_title) in candidates.items():
-        summary = _deterministic_summary([
-            {"candidate_id": candidate_id, "title": english_title},
-        ])
-        assert arabic_title in summary
-        assert english_title not in summary
-        assert "افتراضات موثقة" in summary
-        assert "لا تضمن" in summary
-        assert "من بين خيار واحد" in summary
+def test_summary_names_best_option_in_arabic():
+    summary = _deterministic_summary([
+        {"candidate_id": "extra_berth", "title": "Temporarily open one additional berth"},
+        {"candidate_id": "baseline", "title": "No operational change"},
+        {"candidate_id": "shortest_first", "title": "Prioritize shorter vessel services"},
+    ])
+    assert "فتح رصيف إضافي مؤقت" in summary
+    assert "ثلاثة خيارات" in summary
+    assert "Temporarily" not in summary

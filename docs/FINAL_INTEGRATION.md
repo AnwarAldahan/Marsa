@@ -32,20 +32,15 @@ context, and local calendar context. It does not predict congestion or own simul
 multipliers.
 
 The Strategy Agent preserves the three domain results and optional forecast signal,
-including conflicts. It identifies supported pressure areas, creates a small set of
-explainable candidates, invokes the Digital Twin, and reports deterministic ranking.
-Candidate generation is deterministic and capped at four candidates including the
-baseline. Maritime queue actions require both an ELEVATED/CONGESTED status and a
-non-empty waiting queue; Cargo gate action generation continues to use the stored
-ELEVATED/CRITICAL status without re-thresholding rounded evidence. A combined queue
-and gate candidate requires both component candidates plus an active SYNTHETIC event
-whose existing configured mapping increases modeled arrivals. The event multiplier
-remains a scenario adjustment applied once by the Digital Twin adapter; it is not
-copied into candidate actions and is not claimed to cause current pressure.
+including conflicts. It first runs the Digital Twin with no change. Only when that run
+shows vessels waiting for a free berth (capacity wait) does it add two candidates:
+`shortest_first` (queue policy) and `extra_berth` (one more open berth). Domain statuses,
+synthetic events and the ML signal never create a twin action on their own.
 
 ## ML contract
 
-The integrated XGBoost model version `layer1-cargo-proxy-v1` targets the
+The integrated XGBoost model version `layer1-cargo-proxy-v1` (trained on data identical to
+`merged_port_dataset_2025_v2.csv`: same 31 source columns, same 284 positive labels) targets the
 `operational_cargo_congestion_proxy` at exactly `t + 6h`. It returns an uncalibrated
 `congestion_score` plus LOW/MEDIUM/HIGH classification; it does not return a
 probability. Runtime construction requires the timestamp and every exact source hour
@@ -61,19 +56,20 @@ must not be represented as fully leakage-free production online inference.
 
 ## Digital Twin
 
-The preserved teammate engine is an hour-stepped Monte Carlo queue and yard stock-flow
-simulation. Its default horizon is 24 hours. Supported actions are `queue_policy`,
-`add_berths`, `crane_boost`, `gate_boost`, `delay_arrivals`, and `prioritise_vessel`.
+Sea side of the Port of Los Angeles, cargo vessels only (`src/marsa/twin/`). The starting state at
+the requested hour is read from `data/processed/la_cargo_calls_2023_2025.csv` (built from raw AIS by
+`scripts/build_la_cargo_calls.py`): vessels at a berth with their real departure time, vessels waiting
+for an LA berth with their real berth time, and vessels arriving in the next 24 hours with their real
+service times. The only non-AIS input is the number of container berths (23, approximate public figure
+with its source in `config/port_config.yaml`).
 
-The deterministic scenario adapter derives the starting state from the authoritative
-snapshot and `config/port_config.yaml`. It records assumptions for berth allocation,
-LA share of waiting vessels, service distributions, yard scale, gate/discharge rates,
-and deterministic weather/event multiplier mappings. These mappings are simulation
-assumptions, not domain-agent facts and never come from Gemini.
-
-Simulation output contains mean, p10, and p90 for average/max wait, delayed vessels,
-vessels served/arrived, berth utilization, yard peak/end occupancy, and ending queue.
-Every outcome is marked `SIMULATED`.
+With no stress scenario and no action the twin reproduces the recorded AIS schedule exactly (tested).
+An optional user stress scenario (`berths_closed`, `arrival_surge_pct`) makes berths scarce; vessels then
+also wait for a free berth. Supported actions are `queue_policy` (fcfs / shortest_service_first) and
+`add_berths`. The simulation is deterministic (no Monte Carlo). KPIs: total and capacity vessel-hours
+waiting, vessels waited, average/max wait, vessels arrived/berthed, waiting at the end, peak berths used,
+plus an hourly timeline and a per-vessel list. Options are ranked by total vessel-hours waiting; ties keep
+"no change" first. Every outcome is marked `SIMULATED`; every input is listed in `digital_twin.sources`.
 
 ## Provenance
 
@@ -104,15 +100,16 @@ Run one decision:
 python scripts/run_pipeline.py 2025-01-01T00:00:00Z
 ```
 
-`POST /api/decision-support/analyze` accepts `timestamp_utc`. The response separates
+`POST /api/decision-support/analyze` accepts `timestamp_utc` and an optional
+`stress: {"berths_closed": int, "arrival_surge_pct": float}` (out-of-range values → 422). The response separates
 timestamp, ML state, domain-agent results, Strategy synthesis/candidates, Digital Twin
 scenario/results, deterministic ranking, limitations, and the human-approval flag.
 
 ## Known limitations
 
 - ML inference remains unavailable until an approved runtime source provides exact feature parity.
-- Cargo, yard, gate, event, capacity, and several simulation inputs are synthetic or assumptions.
-- The port is simplified into one container-chain model rather than terminal/operator-level resources.
-- Simulation score weights are documented choices, not operational cost estimates.
+- Cargo, yard, gate and event inputs are synthetic; the twin does not use them.
+- The twin treats the LA berths as one pool rather than terminal/operator-level resources.
+- In 2025 LA berths never filled; berth-shortage results appear only under a user stress scenario.
 - Simulation ranking is not guaranteed real-world superiority.
 - The MVP uses Los Angeles/Long Beach as a stand-in port and only calendar year 2025.

@@ -1,30 +1,26 @@
-"""Composite score for twin results. Deterministic and documented: lower is better.
+"""Rank Digital Twin results by one measured quantity: total vessel-hours spent waiting.
 
-score = sum_k w_k * normalised_k, where each KPI is min-max normalised across the candidates
-of the same run (so scores are comparable within one decision, not across days).
+There are no weights. Lower total waiting is better; on a tie the earlier candidate in the list
+keeps its place, so "no change" (always first) wins whenever an action brings no improvement.
 """
 from __future__ import annotations
 
+RANKING_KPI = "total_wait_vessel_hours"
 
-def score_results(results: list[dict], weights: dict) -> list[dict]:
-    keys = list(weights)
-    lo = {k: min(r["kpis"][k]["mean"] for r in results) for k in keys}
-    hi = {k: max(r["kpis"][k]["mean"] for r in results) for k in keys}
+
+# Sort candidates by total waiting and attach the difference to the no-change baseline.
+def score_results(results: list[dict]) -> list[dict]:
     base = next((r for r in results if r["candidate_id"] == "baseline"), None)
+    ranked = sorted(results, key=lambda r: r["kpis"][RANKING_KPI])
     out = []
-    for r in results:
-        parts = {}
-        for k in keys:
-            span = hi[k] - lo[k]
-            parts[k] = 0.0 if span == 0 else (r["kpis"][k]["mean"] - lo[k]) / span
-        s = sum(weights[k] * parts[k] for k in keys)
-        item = dict(r)
-        item["score"] = round(s, 4)
-        item["score_components"] = {k: round(v, 3) for k, v in parts.items()}
-        if base is not None and base is not r:
-            item["vs_baseline"] = {k: round(r["kpis"][k]["mean"] - base["kpis"][k]["mean"], 3) for k in keys}
+    for rank, item in enumerate(ranked, 1):
+        item = dict(item, rank=rank, ranking_kpi=RANKING_KPI,
+                    score=item["kpis"][RANKING_KPI])
+        if base is not None and item["candidate_id"] != "baseline":
+            item["vs_baseline"] = {
+                k: round(item["kpis"][k] - base["kpis"][k], 2)
+                for k in ("total_wait_vessel_hours", "capacity_wait_vessel_hours",
+                          "vessels_waited", "max_wait_hours", "waiting_end")
+            }
         out.append(item)
-    out.sort(key=lambda x: x["score"])
-    for rank, item in enumerate(out, 1):
-        item["rank"] = rank
     return out
