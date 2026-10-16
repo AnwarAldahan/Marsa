@@ -67,14 +67,22 @@ def run(timestamp: str, cfg=None, df=None, llm=None, save=False,
     )).model_dump(mode="json")
 
     domain_results = {"maritime": maritime, "cargo": cargo, "events_weather": events_weather}
+    investigation = strategy_agent.run_investigation(ts, forecast, domain_results, cfg, llm=llm)
     scenario, sources = build_scenario(ts, cfg, stress, added)
     baseline = simulate_candidate(scenario, {"id": "baseline", "actions": []})
     candidates = strategy_agent.generate_candidates(
         forecast, maritime, cargo, events_weather, baseline,
-        gate_available=scenario.yard is not None,
+        gate_available=scenario.yard is not None, investigation=investigation,
+    )
+    legacy_order = [candidate["candidate_id"] for candidate in candidates]
+    candidates, candidate_selection = strategy_agent.select_candidates(
+        candidates, investigation, ts, domain_results, cfg,
     )
     synthesis = strategy_agent.synthesize(forecast, maritime, cargo, events_weather)
-    ranked = strategy_agent.evaluate(scenario, candidates, cfg, baseline=baseline)
+    ranked = strategy_agent.evaluate(
+        scenario, candidates, cfg, baseline=baseline,
+        comparison_order=None if candidate_selection is None else legacy_order,
+    )
     decision_support = strategy_agent.recommend(ranked, forecast, domain_results, llm=llm)
     out = {
         "architecture": {
@@ -112,6 +120,10 @@ def run(timestamp: str, cfg=None, df=None, llm=None, save=False,
         ],
         "human_approval_required": True,
     }
+    if investigation is not None:
+        out["strategy_investigation"] = investigation
+    if candidate_selection is not None:
+        out["candidate_selection"] = candidate_selection
     if save:
         OUTPUTS_DIR.mkdir(exist_ok=True)
         path = OUTPUTS_DIR / f"run_{pd.Timestamp(ts).strftime('%Y%m%dT%H')}.json"

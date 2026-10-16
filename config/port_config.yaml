@@ -52,3 +52,13 @@ ml_contract:
   artifact: "prediction_model/final_proxy/artifacts/XGBoost_6h/model.json"
   score_calibrated_as_probability: false
   prototype_scope: "retrospective finalized 2025 dataset"
+
+strategy_investigation:
+  enabled: true
+  use_gemini: true
+  max_rounds: 2
+  max_tool_calls: 3
+  window_hours: 6
+
+adaptive_candidates:
+  enabled: true

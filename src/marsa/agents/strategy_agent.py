@@ -6,6 +6,9 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
+from marsa.agents.candidate_selection import select_candidates as select_candidates
+from marsa.agents.investigation import annotate_candidates
+from marsa.agents.investigation import run_investigation as run_investigation
 from marsa.agents.llm import StructuredLLMProvider
 from marsa.provenance.types import DataProvenance
 from marsa.twin.engine import SUPPORTED_ACTIONS as TWIN_ACTIONS
@@ -68,7 +71,7 @@ def _signals(forecast: dict, maritime: dict, cargo: dict, events_weather: dict,
 # Generate the tests to run in the twin from the three agents, the model and the no-change run.
 def generate_candidates(forecast: dict, maritime: dict, cargo: dict,
                         events_weather: dict, baseline: dict | None = None,
-                        gate_available: bool = True) -> list[dict]:
+                        gate_available: bool = True, investigation: dict | None = None) -> list[dict]:
     candidates = [_candidate(
         "baseline", "No operational change",
         "Replays the recorded data; required for the what-if comparison.",
@@ -94,6 +97,7 @@ def generate_candidates(forecast: dict, maritime: dict, cargo: dict,
             "the highest number of containers the Cargo agent file recorded leaving in one hour.",
             signals["gate"], [{"type": "gate_capacity", "value": "max_recorded"}],
         ))
+    annotate_candidates(candidates, investigation)
     return candidates
 
 
@@ -129,17 +133,20 @@ def synthesize(forecast: dict, maritime: dict, cargo: dict, events_weather: dict
 
 
 # Run every candidate in the twin and rank by total vessel-hours waiting (no weights).
+# comparison_order: the generator's order; when the adaptive policy changes the execution order,
+# results are put back in this order so it never becomes the ranking's tie breaker.
 def evaluate(scenario: object, candidates: list[dict], cfg: dict | None = None,
-             baseline: dict | None = None) -> list[dict]:
+             baseline: dict | None = None, comparison_order: list[str] | None = None) -> list[dict]:
     raw_results = []
     for candidate in candidates:
-        if candidate["candidate_id"] == "baseline" and baseline is not None:
-            result = dict(baseline)
-        else:
-            twin_candidate = {"id": candidate["candidate_id"], "actions": candidate["actions"]}
-            result = simulate_candidate(scenario, twin_candidate)
+        # every selected candidate runs in the twin, baseline included (deterministic: same result)
+        twin_candidate = {"id": candidate["candidate_id"], "actions": candidate["actions"]}
+        result = simulate_candidate(scenario, twin_candidate)
         result["provenance"] = DataProvenance.SIMULATED.value
         raw_results.append(result)
+    if comparison_order is not None:
+        positions = {key: index for index, key in enumerate(comparison_order)}
+        raw_results.sort(key=lambda result: positions[result["candidate_id"]])
     ranked = score_results(raw_results)
     by_id = {candidate["candidate_id"]: candidate for candidate in candidates}
     for result in ranked:
