@@ -11,20 +11,18 @@ from marsa.agents.investigation import annotate_candidates
 from marsa.agents.investigation import run_investigation as run_investigation
 from marsa.agents.llm import StructuredLLMProvider
 from marsa.provenance.types import DataProvenance
+from marsa.twin.engine import SUPPORTED_ACTIONS as TWIN_ACTIONS
 from marsa.twin.engine import simulate_candidate
 from marsa.twin.scoring import score_results
 
-SUPPORTED_ACTIONS = {
-    "queue_policy", "add_berths", "crane_boost", "gate_boost",
-    "delay_arrivals", "prioritise_vessel",
-}
+# Actions the Digital Twin can test (berths and queue from AIS, gate from the Cargo agent file).
+SUPPORTED_ACTIONS = set(TWIN_ACTIONS)
 
 ARABIC_CANDIDATE_TITLES = {
     "baseline": "عدم إجراء تغيير تشغيلي",
     "shortest_first": "إعطاء الأولوية للسفن ذات مدة الخدمة الأقصر",
-    "gate_extension": "زيادة قدرة التخليص عبر البوابات",
-    "extra_berth": "إضافة رصيف مؤقت",
-    "combined_queue_gate": "الجمع بين تعديل أولوية الانتظار وزيادة قدرة البوابات",
+    "extra_berth": "فتح رصيف إضافي مؤقت",
+    "gate_max": "تشغيل البوابة بأعلى طاقة سجّلها ملف البضائع",
 }
 
 
@@ -47,121 +45,58 @@ def _candidate(candidate_id: str, title: str, rationale: str,
     }
 
 
-def _has_synthetic_arrival_pressure(events_weather: dict, event_impact: dict) -> bool:
-    event = events_weather.get("external_event_assessment", {})
-    if not event.get("active") or event.get("provenance") != DataProvenance.SYNTHETIC.value:
-        return False
-    mapping = event_impact.get(event.get("type"), {}).get(event.get("severity"), {})
-    return float(mapping.get("arrivals", 1.0)) > 1.0
+# Which signals ask for which twin test. Each candidate lists the signals that triggered it.
+# Maritime pressure or a berth shortage in the twin -> berth tests; Cargo pressure or a real HIGH
+# six-hour model alert -> gate test; any active external event -> every test (the twin shows which
+# one helps). Weather gives context only: the 2025 data showed no clear effect on berth stays.
+def _signals(forecast: dict, maritime: dict, cargo: dict, events_weather: dict,
+             baseline: dict | None) -> dict[str, list[str]]:
+    berth, gate = [], []
+    if maritime["maritime_status"] in {"ELEVATED", "CONGESTED"} and \
+            maritime["evidence"].get("waiting_vessels", 0) > 0:
+        berth.append("maritime.maritime_status")
+    if baseline is not None and baseline["kpis"]["capacity_wait_vessel_hours"] > 0:
+        berth.append("digital_twin.baseline.kpis.capacity_wait_vessel_hours")
+    if cargo["cargo_status"] in {"ELEVATED", "CRITICAL"}:
+        gate.append("cargo.cargo_status")
+    if (forecast.get("status") == "success" and forecast.get("classification") == "HIGH"
+            and forecast.get("alert_active") is True and forecast.get("is_real_model_prediction")):
+        gate.append("ml_forecast.alert_active")
+    if (events_weather.get("external_event_assessment") or {}).get("active"):
+        berth.append("events_weather.external_event_assessment.active")
+        gate.append("events_weather.external_event_assessment.active")
+    return {"berth": berth, "gate": gate}
 
 
-def _supports_preventive_cargo_test(forecast: dict, cargo_status: str) -> bool:
-    return (
-        cargo_status == "MODERATE"
-        and forecast.get("status") == "success"
-        and forecast.get("target") == "operational_cargo_congestion_proxy"
-        and forecast.get("classification") == "HIGH"
-        and forecast.get("alert_active") is True
-        and forecast.get("is_real_model_prediction") is True
-    )
-
-
+# Generate the tests to run in the twin from the three agents, the model and the no-change run.
 def generate_candidates(forecast: dict, maritime: dict, cargo: dict,
-                        events_weather: dict, event_impact: dict | None = None,
-                        investigation: dict | None = None) -> list[dict]:
-    """Generate a small explainable set without forcing cross-domain consensus."""
+                        events_weather: dict, baseline: dict | None = None,
+                        gate_available: bool = True, investigation: dict | None = None) -> list[dict]:
     candidates = [_candidate(
         "baseline", "No operational change",
-        "Provides the baseline required for paired what-if comparison.",
-        ["authoritative current port state"], [],
+        "Replays the recorded data; required for the what-if comparison.",
+        ["digital_twin.scenario"], [],
     )]
-    maritime_status = maritime["maritime_status"]
-    cargo_status = cargo["cargo_status"]
-    waiting = maritime["evidence"]["waiting_vessels"]
-
-    if maritime_status in {"ELEVATED", "CONGESTED"} and waiting > 0:
+    signals = _signals(forecast, maritime, cargo, events_weather, baseline)
+    if signals["berth"]:
         candidates.append(_candidate(
             "shortest_first", "Prioritize shorter vessel services",
-            "Current Maritime status and waiting-vessel evidence support testing a queue-policy alternative without changing capacity.",
-            [
-                "maritime.maritime_status",
-                "maritime.evidence.waiting_vessels",
-                "maritime.evidence.waiting_ratio",
-                "maritime.evidence.vessels",
-            ],
-            [{"type": "queue_policy", "value": "shortest_service_first"}],
+            "Triggered by: " + ", ".join(signals["berth"]) + ". The twin tests giving the next "
+            "free berth to the vessel with the shortest service time.",
+            signals["berth"], [{"type": "queue_policy", "value": "shortest_service_first"}],
         ))
-    preventive_cargo_test = _supports_preventive_cargo_test(forecast, cargo_status)
-    if cargo_status in {"ELEVATED", "CRITICAL"} or preventive_cargo_test:
-        rationale = (
-            "Current MODERATE synthetic Cargo evidence identifies the gate domain, and an "
-            "active HIGH real six-hour cargo-proxy alert supports preventively testing the "
-            "existing gate-capacity adjustment in simulation without implying it is necessary."
-            if preventive_cargo_test else
-            "Synthetic Cargo state is consistent with elevated cargo-side pressure; the "
-            "simulation tests a 30% gate-capacity adjustment."
-        )
-        evidence_references = [
-            "cargo.cargo_status",
-            "cargo.evidence.yard_occupancy_percent",
-            "cargo.evidence.truck_waiting_time_minutes",
-            "cargo.evidence.gate_throughput_last_1h",
-            "cargo.evidence.cargo_flow_ratio",
-        ]
-        if preventive_cargo_test:
-            evidence_references.extend([
-                "ml_forecast.target",
-                "ml_forecast.classification",
-                "ml_forecast.congestion_score",
-                "ml_forecast.alert_active",
-                "ml_forecast.is_real_model_prediction",
-            ])
         candidates.append(_candidate(
-            "gate_extension", "Increase gate clearance capacity",
-            rationale,
-            evidence_references,
-            [{"type": "gate_boost", "value": 1.3}],
+            "extra_berth", "Temporarily open one additional berth",
+            "Triggered by: " + ", ".join(signals["berth"]) + ". The twin tests one more open berth.",
+            signals["berth"], [{"type": "add_berths", "value": 1}],
         ))
-    if maritime_status == "CONGESTED" and waiting > 0:
+    if signals["gate"] and gate_available:
         candidates.append(_candidate(
-            "extra_berth", "Temporarily add one berth",
-            "Current Maritime status is CONGESTED; the simulation tests one additional modeled berth.",
-            [
-                "maritime.maritime_status",
-                "maritime.evidence.waiting_vessels",
-                "maritime.evidence.waiting_ratio",
-            ],
-            [{"type": "add_berths", "value": 1}],
+            "gate_max", "Run the gate at its highest recorded hourly clearance",
+            "Triggered by: " + ", ".join(signals["gate"]) + ". The twin tests clearing, every hour, "
+            "the highest number of containers the Cargo agent file recorded leaving in one hour.",
+            signals["gate"], [{"type": "gate_capacity", "value": "max_recorded"}],
         ))
-    candidate_ids = {candidate["candidate_id"] for candidate in candidates}
-    synthetic_arrival_pressure = _has_synthetic_arrival_pressure(
-        events_weather, event_impact or {},
-    )
-    if (
-        len(candidates) < 4
-        and {"shortest_first", "gate_extension"} <= candidate_ids
-        and synthetic_arrival_pressure
-    ):
-        event = events_weather["external_event_assessment"]
-        event_mapping = f"config.event_impact.{event['type']}.{event['severity']}.arrivals"
-        candidates.append(_candidate(
-            "combined_queue_gate", "Combine queue and gate adjustments",
-            "Both component candidates are independently supported, and configured synthetic arrival-pressure context supports testing their combined modeled response without attributing current pressure to the event.",
-            [
-                "maritime.maritime_status",
-                "maritime.evidence.waiting_vessels",
-                "cargo.cargo_status",
-                "events_weather.external_event_assessment.active",
-                "events_weather.external_event_assessment.type",
-                "events_weather.external_event_assessment.severity",
-                event_mapping,
-            ],
-            [
-                {"type": "queue_policy", "value": "shortest_service_first"},
-                {"type": "gate_boost", "value": 1.3},
-            ],
-        ))
-    candidates = candidates[:4]
     annotate_candidates(candidates, investigation)
     return candidates
 
@@ -197,23 +132,22 @@ def synthesize(forecast: dict, maritime: dict, cargo: dict, events_weather: dict
     }
 
 
-def evaluate(scenario: object, candidates: list[dict], cfg: dict,
-             comparison_order: list[str] | None = None) -> list[dict]:
-    twin_cfg = cfg["twin"]
+# Run every candidate in the twin and rank by total vessel-hours waiting (no weights).
+# comparison_order: the generator's order; when the adaptive policy changes the execution order,
+# results are put back in this order so it never becomes the ranking's tie breaker.
+def evaluate(scenario: object, candidates: list[dict], cfg: dict | None = None,
+             baseline: dict | None = None, comparison_order: list[str] | None = None) -> list[dict]:
     raw_results = []
     for candidate in candidates:
+        # every selected candidate runs in the twin, baseline included (deterministic: same result)
         twin_candidate = {"id": candidate["candidate_id"], "actions": candidate["actions"]}
-        result = simulate_candidate(
-            scenario, twin_candidate,
-            runs=twin_cfg["monte_carlo_runs"], seed=twin_cfg["random_seed"],
-        )
+        result = simulate_candidate(scenario, twin_candidate)
         result["provenance"] = DataProvenance.SIMULATED.value
         raw_results.append(result)
     if comparison_order is not None:
-        # Execution priority must not silently become the scorer's tie breaker.
         positions = {key: index for index, key in enumerate(comparison_order)}
         raw_results.sort(key=lambda result: positions[result["candidate_id"]])
-    ranked = score_results(raw_results, cfg["scoring"]["weights"])
+    ranked = score_results(raw_results)
     by_id = {candidate["candidate_id"]: candidate for candidate in candidates}
     for result in ranked:
         candidate = by_id[result["candidate_id"]]
@@ -225,19 +159,34 @@ def evaluate(scenario: object, candidates: list[dict], cfg: dict,
     return ranked
 
 
+# Arabic summary built only from the twin results (vessel and yard measures reported separately).
 def _deterministic_summary(ranked: list[dict]) -> str:
-    best = ranked[0]
-    candidate_title = ARABIC_CANDIDATE_TITLES.get(best["candidate_id"], best["title"])
-    option_count = {
-        1: "خيار واحد",
-        2: "خيارين",
-        3: "ثلاثة خيارات",
-        4: "أربعة خيارات",
-    }.get(len(ranked), f"{len(ranked)} خيارات")
+    if len(ranked) == 1:
+        return (
+            "لا توجد إشارة من الوكلاء أو نموذج التنبؤ تستدعي اختبار قرار، ولا يُظهر التوأم الرقمي "
+            "نقصًا في الأرصفة خلال أفق المحاكاة؛ وأي انتظار حالي هو انتظار لموعد الرسو المسجّل في "
+            "بيانات AIS، لذلك لا حاجة لتدخل تشغيلي. لا تضمن المحاكاة النتيجة في التشغيل الفعلي."
+        )
+    base = next(r for r in ranked if r["candidate_id"] == "baseline")
+    def title(r):
+        return ARABIC_CANDIDATE_TITLES.get(r["candidate_id"], r["title"])
+    vessel_best = min(ranked, key=lambda r: r["kpis"]["total_wait_vessel_hours"])
+    parts = []
+    if vessel_best["kpis"]["total_wait_vessel_hours"] < base["kpis"]["total_wait_vessel_hours"]:
+        parts.append(f"خفّض خيار «{title(vessel_best)}» إجمالي ساعات انتظار السفن أكثر من غيره")
+    yard_runs = [r for r in ranked if r["kpis"].get("yard_peak_occupancy_pct") is not None]
+    if yard_runs and base["kpis"].get("yard_peak_occupancy_pct") is not None:
+        yard_best = min(yard_runs, key=lambda r: r["kpis"]["yard_peak_occupancy_pct"])
+        if yard_best["kpis"]["yard_peak_occupancy_pct"] < base["kpis"]["yard_peak_occupancy_pct"]:
+            parts.append(f"وخفّض خيار «{title(yard_best)}» أعلى امتلاء للساحة أكثر من غيره")
+    if not parts:
+        return (
+            "اختبر التوأم الرقمي الخيارات التي اقترحها الوكيل، ولم يحسّن أيٌّ منها انتظار السفن أو "
+            "امتلاء الساحة مقارنة بعدم التغيير. لا تضمن المحاكاة النتيجة في التشغيل الفعلي."
+        )
     return (
-        f"صنّف التقييم الحتمي لنتائج المحاكاة خيار «{candidate_title}» في المرتبة الأولى "
-        f"من بين {option_count}. تقارن هذه النتيجة المخرجات المحاكاة وفق "
-        "افتراضات موثقة، ولا تضمن تفوق الخيار في التشغيل الفعلي."
+        "، ".join(parts) + ". تُعرض نتائج السفن والساحة منفصلة، والقرار النهائي لمشغّل الميناء. "
+        "تعتمد المحاكاة على بيانات AIS وملف البضائع ولا تضمن النتيجة في التشغيل الفعلي."
     )
 
 

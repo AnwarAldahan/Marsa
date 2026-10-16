@@ -5,4 +5,5 @@ Only `config/port_config.yaml` and the three agent datasets change:
 - Terminal operating system (TOS) exports replace the synthetic cargo layer (yard inventory, gate transactions, crane moves).
 - Official berth/crane/gate capacities per terminal → terminal-level twin (multi-operator).
 - Saudi calendar (weekend Fri–Sat, Eid, National Day) in `features.py`.
-- Score weights from operational cost data; LLM narrative in Arabic for the operations room.
+- Terminal booking windows (berth appointments) so the twin can explain scheduled waits; real TOS data to replace the synthetic yard/gate replay and to measure whether a full yard slows vessels.
+- LLM narrative in Arabic for the operations room.

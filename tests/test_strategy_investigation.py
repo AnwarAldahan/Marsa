@@ -328,10 +328,11 @@ def test_existing_gemini_transport_accepts_flattened_plan_schema(tools):
     assert len(requests) == 2
 
 
+# Output fingerprints with investigation disabled, regenerated after the AIS-driven twin merge.
 BASELINES = {
-    "2025-07-10T19:00:00Z": "cf8fb1c09938648b244a3dee7782f8cbae5cab89c8a60051eb1c669c43768806",
-    "2025-01-12T02:00:00Z": "d5748eb80830a61bde4cc830cb2fbb3bb3fcb4ed62c4dee71115b157a18d52f3",
-    "2025-11-02T08:00:00Z": "92d3f316e22a4cc3a36ec94b5f98461e4c6b9e4ee7cf4906d01629b53e4c436d",
+    "2025-07-10T19:00:00Z": "bdc6f925f595a0ea3cbf88116ad79a655c64b55563c23492736a2fafc1ee4b9c",
+    "2025-01-12T02:00:00Z": "6aa4fab4d2656ebcd5ca56fe35d04fe303f0424ad58ac417d26757f892783ab4",
+    "2025-11-02T08:00:00Z": "8032762d8473422865c4cc9908ed12c1b10c544547133f1b6919e5f131470420",
 }
 
 

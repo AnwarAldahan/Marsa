@@ -298,7 +298,7 @@ def annotate_candidates(candidates: list[dict], investigation: dict | None) -> N
     for candidate in candidates:
         key = candidate["candidate_id"]
         domains = (["cargo", "maritime"] if key == "combined_queue_gate" else
-                   ["cargo"] if key == "gate_extension" else
+                   ["cargo"] if key == "gate_max" else
                    ["maritime"] if key in {"shortest_first", "extra_berth"} else [])
         hypotheses = [item for item in investigation["hypotheses"]
                       if any(item["hypothesis_id"].startswith(domain) for domain in domains)]

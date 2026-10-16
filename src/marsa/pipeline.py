@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict
 
 import pandas as pd
 
@@ -26,16 +25,20 @@ from marsa.config import OUTPUTS_DIR, load_config
 from marsa.data.load import load_dataset, parse_exact_utc_hour, snapshot
 from marsa.model.predict import forecast as ml_forecast
 from marsa.model.predict import validate_test_forecast
-from marsa.twin.adapter import build_scenario
+from marsa.twin.adapter import build_scenario, scenario_summary
+from marsa.twin.engine import simulate_candidate
 
 
 def _forecast_risk(forecast: dict) -> str | None:
     return None if forecast["status"] == "ml_unavailable" else forecast.get("classification")
 
 
+# Run evidence collection, the Digital Twin, strategy generation and ranking for one hour.
+# stress: optional user scenario {"berths_closed": int, "arrival_multiplier": float}.
+# added: optional vessels added by the user [{"arrival_in_hours", "vessel_id"|"length_m"|"service_hours"}].
 def run(timestamp: str, cfg=None, df=None, llm=None, save=False,
-        agents=None, forecast_override: dict | None = None) -> dict:
-    """Run evidence collection, strategy generation, simulation, and evaluation."""
+        agents=None, forecast_override: dict | None = None, stress: dict | None = None,
+        added: list[dict] | None = None) -> dict:
     cfg = cfg or load_config()
     frame = df if df is not None else load_dataset()
     ts = parse_exact_utc_hour(timestamp)
@@ -65,19 +68,21 @@ def run(timestamp: str, cfg=None, df=None, llm=None, save=False,
 
     domain_results = {"maritime": maritime, "cargo": cargo, "events_weather": events_weather}
     investigation = strategy_agent.run_investigation(ts, forecast, domain_results, cfg, llm=llm)
-    scenario, assumptions = build_scenario(snap, cfg, events_weather)
+    scenario, sources = build_scenario(ts, cfg, stress, added)
+    baseline = simulate_candidate(scenario, {"id": "baseline", "actions": []})
     candidates = strategy_agent.generate_candidates(
-        forecast, maritime, cargo, events_weather, cfg["event_impact"], investigation=investigation,
+        forecast, maritime, cargo, events_weather, baseline,
+        gate_available=scenario.yard is not None, investigation=investigation,
     )
     legacy_order = [candidate["candidate_id"] for candidate in candidates]
     candidates, candidate_selection = strategy_agent.select_candidates(
         candidates, investigation, ts, domain_results, cfg,
     )
     synthesis = strategy_agent.synthesize(forecast, maritime, cargo, events_weather)
-    if candidate_selection is None:
-        ranked = strategy_agent.evaluate(scenario, candidates, cfg)
-    else:
-        ranked = strategy_agent.evaluate(scenario, candidates, cfg, comparison_order=legacy_order)
+    ranked = strategy_agent.evaluate(
+        scenario, candidates, cfg, baseline=baseline,
+        comparison_order=None if candidate_selection is None else legacy_order,
+    )
     decision_support = strategy_agent.recommend(ranked, forecast, domain_results, llm=llm)
     out = {
         "architecture": {
@@ -93,9 +98,11 @@ def run(timestamp: str, cfg=None, df=None, llm=None, save=False,
         "strategy_candidates": candidates,
         "strategy_synthesis": synthesis,
         "digital_twin": {
+            "port": "Port of Los Angeles - cargo vessels (AIS types 70-79) and yard",
+            "marker_hours": [int(cfg["ml_contract"]["horizon_hours"])],
             "simulation_horizon_hours": scenario.horizon_hours,
-            "scenario": asdict(scenario),
-            "assumptions": assumptions,
+            "scenario": scenario_summary(scenario),
+            "sources": sources,
             "results": ranked,
             "provenance": "SIMULATED",
         },
@@ -106,7 +113,9 @@ def run(timestamp: str, cfg=None, df=None, llm=None, save=False,
             "The ML score is uncalibrated and targets a retrospective operational cargo-congestion proxy.",
             "The finalized Cargo inputs and weather-pressure baseline have retrospective construction limitations.",
             "Cargo state is synthetic/calibrated synthetic, not observed terminal state.",
-            "Digital Twin outcomes are simulated estimates under documented assumptions.",
+            "The Digital Twin simulates berths and waiting vessels from AIS and the yard from the synthetic Cargo agent file; the yard does not change vessel waiting (no data on that effect).",
+            "Stays of vessels in AIS are the recorded ones (replay); vessels added by the user get a stay estimated from earlier stays.",
+            "Without a stress scenario the Digital Twin replays the real AIS schedule; stress values are chosen by the user.",
             "No operational action is executed automatically.",
         ],
         "human_approval_required": True,

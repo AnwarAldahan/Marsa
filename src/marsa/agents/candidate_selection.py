@@ -16,7 +16,7 @@ CANDIDATE_BUDGET = 4
 REQUIRED_TOOLS = {
     "baseline": set(),
     "shortest_first": {"maritime_history"},
-    "gate_extension": {"cargo_balance", "cargo_delay_profile"},
+    "gate_max": {"cargo_balance", "cargo_delay_profile"},
     "extra_berth": {"maritime_history"},
     "combined_queue_gate": {"cargo_balance", "cargo_delay_profile", "maritime_history"},
 }
@@ -103,7 +103,7 @@ def _priority(candidate, hypotheses):
     queue_id = "maritime_waiting_pressure_rising"
     gate_ids = ["cargo_accumulating", "cargo_delays_worsening"]
     ids = ([queue_id] if key in {"shortest_first", "extra_berth"} else gate_ids
-           if key == "gate_extension" else [queue_id, *gate_ids])
+           if key == "gate_max" else [queue_id, *gate_ids])
     support = _combined_state([hypotheses[name]["state"] for name in ids])
     reason = {
         "strongly_supported": "Concordant rising historical pressure prioritizes this existing comparative experiment.",
