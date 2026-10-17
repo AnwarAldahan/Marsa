@@ -610,16 +610,16 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
 
     <section id="sec5">
       <div class="storylabel"><span class="num">٥</span> كيف كان أداء مرسى؟</div>
-      <h2 class="stitle">أداء مرسى في اختبار 2025<span class="pf-demo" style="color:var(--teal);border-color:rgba(62,208,182,.45)">نتائج حقيقية</span></h2>
+      <h2 class="stitle">أداء النموذج في تقييم 2025<span class="pf-demo" style="color:var(--teal);border-color:rgba(62,208,182,.45)">تقييم تاريخي للمؤشر</span></h2>
 
       <div class="pf-grid" id="pfGrid"></div>
 
       <div class="pf-chart">
         <div class="pf-chart-head">
-          <div class="pf-chart-title">ساعات التكدس كل أسبوع: توقع مرسى مقابل الفعلي</div>
-          <div class="pf-legend"><span><i class="pred"></i>المتوقع</span><span><i class="act"></i>الفعلي</span></div>
+          <div class="pf-chart-title">ساعات مؤشر Cargo كل أسبوع: التوقع مقابل المرجع</div>
+          <div class="pf-legend"><span><i class="pred"></i>المتوقع</span><span><i class="act"></i>المرجع</span></div>
         </div>
-        <svg id="pfSvg" class="pf-svg" viewBox="0 0 1200 230" role="img" aria-label="ساعات التكدس الأسبوعية من يونيو إلى سبتمبر 2025: ما توقعه مرسى قبل 6 ساعات مقابل ما حدث فعلًا"></svg>
+        <svg id="pfSvg" class="pf-svg" viewBox="0 0 1200 230" role="img" aria-label="تقييم تاريخي لمؤشر Cargo الاصطناعي: توقع XGBoost قبل 6 ساعات مقابل التسميات المرجعية، يونيو إلى سبتمبر 2025"></svg>
         <div class="pf-cap" id="pfCap"></div>
       </div>
 
@@ -842,6 +842,7 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
 </div>
 
 <script>
+window.MARSA_API_MANAGED = true;
 // ===== حالة الميناء الحالية (مصدر واحد للوحة والخريطة والتنبيه والتوأم الرقمي) =====
 // ===== حدود التنبيه المعروضة بجانب كل رقم (نفس الحدود التي يستخدمها مرسى في التلوين) =====
 window.MARSA_LIMITS = {
@@ -1025,8 +1026,8 @@ window.MARSA_FILLFLOW = function (ts) {
 
   // ---------- «الميناء الحي»: يتشكل حسب عدد الأرصفة والساحات ----------
   window.MARSA_TIPS = null;
-  window.MARSA_DRAWMAP = function (S) {
-    const svg = document.getElementById('pmSvg'); if (!svg || !S) return;
+  window.MARSA_DRAWMAP = function (S, target = 'pmSvg') {
+    const svg = document.getElementById(target); if (!svg || !S) return;
     const LIMIT = window.MARSA_LIMIT('waiting'), YLIM = window.MARSA_LIMIT('yard');
     const fmt = x => x == null || isNaN(x) ? '—' : Number(Math.round(x)).toLocaleString('en-US');
     const usual = k => { const n = window.MARSA_NORM(k); return n ? fmt(n['50']) : '—'; };
@@ -1154,6 +1155,7 @@ window.MARSA_FILLFLOW = function (ts) {
 
   // ---------- تحميل port_state.json إن وُجد ----------
   async function boot() {
+    if (window.MARSA_API_MANAGED) return;
     let ts = '2025-07-10T19:00:00Z';
     try {
       const r = await fetch('port_state.json', { cache:'no-store' });
@@ -1854,6 +1856,7 @@ window.TwinEngine = (function () {
       });
     });
   }
+  window.MARSA_BELL_SET = rows => { notifData.splice(0, notifData.length, ...rows); renderBell(); };
   function pushNotif(type, text) { notifData.unshift({type, text, target:'sec4'}); renderBell(); }
   renderBell();
   document.getElementById('bellBtn').addEventListener('click', () => document.getElementById('bellPanel').classList.toggle('open'));
@@ -1870,6 +1873,7 @@ window.TwinEngine = (function () {
 
   let secs = 3;
   setInterval(() => {
+    if (window.MARSA_API_MANAGED) return;
     secs += 1;
     document.getElementById('lastUpdate').textContent = `آخر تحديث منذ ${secs} ثوانٍ`;
     if (secs > 30) secs = 0;
@@ -1879,17 +1883,19 @@ window.TwinEngine = (function () {
 
 <script>
 (function () {
-  // ===== أداء مرسى: نتائج حقيقية من اختبار نموذج التكدس (+6 ساعات، يونيو – سبتمبر 2025) =====
-  // المصدر: prediction_model/final_proxy/results/fold_predictions.csv
+  // ===== تقييم تاريخي لـ XGBoost +6h على مؤشر Cargo اصطناعي؛ ليس قياسًا تشغيليًا =====
+  // KPI sources: aggregate_results.csv and episode_early_warning_results.csv.
+  // Chart source: fold_predictions.csv, walk_forward XGBoost +6h, W-SAT by target_timestamp_6h.
+  // All sources are in prediction_model/final_proxy/results/.
   const kpis = [
-    { l:'دقة التنبيهات', v:'63%', u:'', s:'22 من 35 تنبيهًا تحقق فعلًا' },
-    { l:'الإنذار المبكر', v:'5', u:'ساعات', s:'قبل بداية التكدس عادةً' },
-    { l:'حالات تكدس التقطها', v:'22 من 60', u:'', s:'قبل أن تبدأ' },
+    { l:'دقة التنبيهات', v:'53.4%', u:'', s:'63 إصابة صحيحة من 118 تنبيهًا ساعيًا' },
+    { l:'وسيط الإنذار المبكر', v:'5', u:'ساعات', s:'للحالات المكتشفة قبل البداية فقط' },
+    { l:'حالات المؤشر المكتشفة', v:'22 من 60', u:'', s:'قبل البداية في التقييم التاريخي' },
   ];
   document.getElementById('pfGrid').innerHTML = kpis.map(k =>
     `<div class="pf-kpi"><div class="l">${k.l}</div><div class="v">${k.v}${k.u ? `<span class="u">${k.u}</span>` : ''}</div><div class="s">${k.s}</div></div>`).join('');
 
-  // ساعات التكدس كل أسبوع: المتوقع (تنبيه مرسى قبل 6 ساعات) مقابل الفعلي — الأقدم على اليمين
+  // Weekly proxy-positive target hours: model predictions vs reference labels, oldest at right.
   const WK = [
     { d:'21 يونيو', p:2,  a:7 },  { d:'28 يونيو', p:19, a:42 }, { d:'5 يوليو',  p:4,  a:23 }, { d:'12 يوليو', p:9,  a:55 },
     { d:'19 يوليو', p:3,  a:17 }, { d:'26 يوليو', p:23, a:37 }, { d:'2 أغسطس', p:17, a:28 }, { d:'9 أغسطس',  p:9,  a:5 },
@@ -1910,11 +1916,11 @@ window.TwinEngine = (function () {
         <path d="${path(PERF.actual)}" fill="none" stroke="var(--teal)" stroke-width="2.5"/>`;
   WK.forEach((w, i) => {
     s += `<circle cx="${xAt(i)}" cy="${yAt(w.p)}" r="4" fill="var(--panel)" stroke="var(--sky)" stroke-width="2"><title>${w.d} · المتوقع: ${w.p} ساعة</title></circle>`;
-    s += `<circle cx="${xAt(i)}" cy="${yAt(w.a)}" r="4.5" fill="var(--teal)"><title>${w.d} · الفعلي: ${w.a} ساعة</title></circle>`;
+    s += `<circle cx="${xAt(i)}" cy="${yAt(w.a)}" r="4.5" fill="var(--teal)"><title>${w.d} · المرجع: ${w.a} ساعة</title></circle>`;
     if (i % 2 === 0) s += `<text x="${xAt(i)}" y="${H - 12}" text-anchor="middle">${w.d}</text>`;
   });
   document.getElementById('pfSvg').innerHTML = s;
-  document.getElementById('pfCap').textContent = 'مرسى يلتقط أسابيع الذروة نفسها، لكنه يتوقع ساعات أقل من الفعلي.';
+  document.getElementById('pfCap').textContent = 'تقييم تاريخي لـ XGBoost (+6 ساعات) على مؤشر Cargo اصطناعي؛ لا يثبت فعالية تشغيلية.';
 
   // سجل قرارات القسم ٤ (اعتماد / رفض مع السبب)
   window.MarsaLog = { add(decision, reason) {
@@ -2172,7 +2178,7 @@ window.TwinEngine = (function () {
     try { const all = fbAll(); all.push(rec); localStorage.setItem(FB_STORE, JSON.stringify(all.slice(-500))); } catch (e) {}
     window.MarsaLog && window.MarsaLog.add(decision === 'accept' ? 'اعتماد (التوأم)' : 'اعتراض (التوأم)', decision === 'object' ? FB_AR[FB.reason] : null);
     const base = window.MARSA_API_BASE || 'http://127.0.0.1:8000';   // يُرسل للخادم إن كان يستقبل، وإلا يكفي الحفظ في المتصفح
-    try { fetch(base + '/api/feedback', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(rec) }).catch(() => {}); } catch (e) {}
+    if (!window.MARSA_API_MANAGED) try { fetch(base + '/api/feedback', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(rec) }).catch(() => {}); } catch (e) {}
     FB.sent = decision; FB.open = false; fbDraw();
   }
   function fbDemo() {
@@ -2316,7 +2322,7 @@ window.TwinEngine = (function () {
     kpisEl.innerHTML = `
       <div class="kpi"><div class="v">${fmt(result.avgWait)}س</div><div class="l">متوسط الانتظار</div></div>
       <div class="kpi"><div class="v">${fmt(result.maxWait)}س</div><div class="l">أقصى انتظار</div></div>
-      <div class="kpi"><div class="v">${result.served}/${result.total}</div><div class="l">السفن المخدومة</div></div>
+      <div class="kpi"><div class="v">${result.served}/${result.total}</div><div class="l">${result.real ? 'سفن أُسند لها رصيف' : 'السفن المخدومة'}</div></div>
       <div class="kpi"><div class="v">${fmt(result.utilization)}%</div><div class="l">استغلال الأرصفة</div></div>
     ` + (result.cmp || '');
   }
@@ -2335,6 +2341,15 @@ window.TwinEngine = (function () {
     renderFrame(playHead);
     if (playing) requestAnimationFrame(tick);
   }
+
+  // Reuse the original manual renderer for actual API results; typed examples keep their engine.
+  window.MARSA_MANUAL_STOP = () => { playing = false; result = null; lastTs = null; document.getElementById('playBtn').textContent = '▶'; };
+  window.MARSA_MANUAL_SET_RESULT = (value, count) => {
+    result = value; numBerths = count; playHead = 0; playing = false; lastTs = null;
+    rate = parseFloat(document.getElementById('speedSel').value) * (result.makespan > 0 ? result.makespan / 22 : 1);
+    transport.style.display = 'flex'; document.getElementById('playBtn').textContent = '▶';
+    renderFrame(0); renderKpis();
+  };
 
   document.getElementById('runBtn').addEventListener('click', () => {
     numBerths = Math.max(0, parseInt(document.getElementById('berths').value) || 0);
@@ -2510,10 +2525,8 @@ window.TwinEngine = (function () {
 <!-- ============================================================
      MARSA LIVE ADAPTER — connects this dashboard to the Marsa API
      POST {API_BASE}/api/decision-support/analyze  {timestamp_utc}
-     Everything below only OVERWRITES text/values already rendered by
-     the demo scripts above; the demo remains the fallback when the API
-     is offline. Sections touched: top bar, ١ flow row, ٢ timeline,
-     ٣ factors, ٤ alert/recommendation, twin console cards.
+     Binds the existing design to current legacy API results. Failed live
+     loads clear results; explicitly labelled manual examples stay separate.
      ============================================================ -->
 <style>
   #marsaToggle{position:fixed;top:84px;left:14px;z-index:10000;background:#3ED0B6;color:#062033;border:0;border-radius:999px;
@@ -2543,174 +2556,175 @@ window.TwinEngine = (function () {
   <span class="st" id="mlStatus">لم يتم الاتصال بعد</span>
 </div>
 <script>
-(function () {
-  const API_BASE = (window.MARSA_API_BASE || 'http://127.0.0.1:8000');
-  const $ = id => document.getElementById(id);
-  const st = (msg, cls) => { const e = $('mlStatus'); e.textContent = msg; e.className = 'st ' + (cls || ''); };
-  const num = (v, d = 0) => (v === null || v === undefined || isNaN(v)) ? '—' : Number(v).toLocaleString('en-US', { maximumFractionDigits: d });
-  const AR = { HIGH: 'مرتفع', MEDIUM: 'متوسط', LOW: 'منخفض', ELEVATED: 'مرتفع', CONGESTED: 'مزدحم', NORMAL: 'طبيعي', MODERATE: 'متوسط', CRITICAL: 'حرج',
-               low: 'منخفض', moderate: 'متوسط', elevated: 'مرتفع', severe: 'شديد', unknown: 'غير معروف' };
-  const ar = v => AR[v] || v || '—';
-  const CAND_AR = { baseline: 'بدون تدخل (الأول فالأول)', shortest_first: 'أولوية أقصر خدمة', extra_berth: 'فتح رصيف إضافي',
-                    virtual_arrival: 'إبطاء السفن القادمة (وصول افتراضي)', gate_extension: 'تمديد ساعات البوابة / زيادة التخليص',
-                    crane_boost: 'إضافة طاقم أوناش', combined: 'أقصر خدمة + تمديد البوابة' };
-  const candAr = r => r.title_ar || CAND_AR[r.candidate_id] || r.title || r.candidate_id;
-  const kpi = (r, k) => (r.kpis && r.kpis[k]) ? r.kpis[k].mean : null;
-
-  async function analyze(ts) {
-    const res = await fetch(API_BASE + '/api/decision-support/analyze', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ timestamp_utc: ts }) });
-    if (!res.ok) { const t = await res.text(); throw new Error(res.status + ' ' + t.slice(0, 160)); }
-    return res.json();
+/* MARSA CURRENT API BINDINGS: existing root design, legacy API results only. */
+(function(root) {
+  'use strict';
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const num=(v,d=1)=>typeof v==='number'&&Number.isFinite(v)?v.toLocaleString('en-US',{maximumFractionDigits:d}):'—';
+  const kpi=(r,k)=>typeof r?.kpis?.[k]==='number'&&Number.isFinite(r.kpis[k])?r.kpis[k]:null;
+  const winner=o=>o.decision_support.highest_ranked_candidate;
+  const names={baseline:'بدون تدخل',shortest_first:'أولوية أقصر خدمة',extra_berth:'فتح رصيف إضافي',gate_max:'البوابة بأعلى تخليص مسجل',user_decision:'قرار المستخدم'};
+  const title=r=>names[r.candidate_id]||r.title||r.candidate_id;
+  const ar=v=>({NORMAL:'طبيعي',ELEVATED:'مرتفع',CONGESTED:'مزدحم',CRITICAL:'حرج',low:'منخفض',moderate:'متوسط',elevated:'مرتفع',severe:'شديد',unknown:'غير متاح'}[v]||v||'غير متاح');
+  function forecast(ml){return {score:ml?.status==='success'&&Number.isFinite(ml.congestion_score)?ml.congestion_score:null,target:ml?.target_timestamp_utc||null};}
+  function actionRequest(data,rule,slots){
+    const count=data.digital_twin.scenario.open_berths;
+    if(!Number.isInteger(slots)||slots<0)throw Error('عدد الخانات يجب أن يكون عددًا صحيحًا غير سالب.');
+    let actions=[];
+    if(rule.startsWith('plan:')){const c=data.strategy_candidates.find(c=>c.candidate_id===rule.slice(5));if(!c)throw Error('الخيار غير متاح.');actions=c.actions.map(a=>({...a}));}
+    else if(rule==='shortest')actions=[{type:'queue_policy',value:'shortest_service_first'}];
+    else if(rule!=='fcfs')throw Error('هذه القاعدة للمثال المحلي فقط.');
+    if(slots!==count&&actions.some(a=>a.type==='add_berths'))throw Error('اختر تغيير الخانات أو خيار الرصيف الإضافي كلًا على حدة.');
+    if(slots>count)actions.push({type:'add_berths',value:slots-count});
+    return {timestamp_utc:data.authoritative_timestamp,user_actions:actions,...(slots<count?{stress:{berths_closed:count-slots}}:{})};
   }
-
-  function setFlow(key, val, sub, color, lim) {
-    const node = document.querySelector(`.flownode[data-key="${key}"]`); if (!node) return;
-    const v = node.querySelector('.fval'), s = node.querySelector('.fsub'), l = node.querySelector('.flim');
-    if (v) { v.textContent = val; v.className = 'fval ' + (color || ''); }
-    if (s && sub) s.textContent = sub;
-    if (l && lim !== undefined) l.innerHTML = lim;
-    const lb = node.querySelector('.flabel'); if (lb && window.MARSA_FLOW_META[key]) lb.textContent = window.MARSA_FLOW_META[key].label;
-  }
-
-  function renderTimeline(ml, m) {
-    const score = ml.status === 'success' ? Math.round(ml.congestion_score * 100) : null;
-    const nowRisk = m.maritime_status === 'CONGESTED' ? 70 : m.maritime_status === 'ELEVATED' ? 45 : 15;
-    const col = r => r >= 60 ? '#F6837C' : r >= 35 ? '#F3B657' : '#3ED0B6';
-    const lab = r => r >= 60 ? 'تكدس محتمل' : r >= 35 ? 'ضغط متزايد' : 'طبيعي';
-    const pts = [{ t: 'الآن', risk: nowRisk }];
-    if (score !== null) {
-      pts.push({ t: '+3 ساعات', risk: Math.round((nowRisk + score) / 2) });
-      pts.push({ t: '+6 ساعات (النموذج)', risk: score });
-    } else pts.push({ t: '+6 ساعات', risk: null });
-    const svg = $('tlineSvg'), W = 1000, H = 70, n = pts.length;
-    const xAt = i => (i / (n - 1)) * (W - 60) + 30, yAt = r => H - 10 - ((r || 0) / 100) * (H - 24);
-    svg.innerHTML = `<path d="M ${pts.map((p, i) => `${xAt(i)} ${yAt(p.risk)}`).join(' L ')}" fill="none" stroke="#3ED0B6" stroke-width="2"/>` +
-      pts.map((p, i) => `<circle cx="${xAt(i)}" cy="${yAt(p.risk)}" r="5" fill="${col(p.risk || 0)}" stroke="#17304D" stroke-width="2"/>`).join('');
-    $('tlLabels').innerHTML = pts.map(p => `<div><div class="tt">${p.t}</div><div class="ts" style="color:${col(p.risk || 0)}">${p.risk === null ? 'غير متاح' : lab(p.risk) + ' · ' + p.risk + '%'}</div></div>`).join('');
-    const w = $('dbWindow'); if (w && ml.target_timestamp_utc) w.textContent = 'حتى ' + new Date(ml.target_timestamp_utc).toISOString().slice(11, 16) + ' UTC';
-    const d = document.querySelector('.dstats div:last-child b'); if (d) d.textContent = score === null ? '—' : ar(ml.classification) + ' (' + score + '%)';
-  }
-
-  function renderFactors(o) {
-    const m = o.domain_agents.maritime, c = o.domain_agents.cargo, e = o.domain_agents.events_weather;
-    const rows = [
-      { name: 'السفن المنتظرة', cur: num(m.evidence.waiting_vessels) + ' من ' + num(m.evidence.vessels), w: Math.min(1, m.evidence.waiting_ratio / 0.4), up: m.evidence.waiting_ratio >= 0.263 },
-      { name: 'أرصفة الحاويات المشغولة', cur: num(o.port_state.pola_berthed_cargo_vessels) + ' / 23', w: (o.port_state.pola_berthed_cargo_vessels || 0) / 23, up: (o.port_state.pola_berthed_cargo_vessels || 0) / 23 >= 0.7 },
-      { name: 'إشغال الساحة', cur: num(c.evidence.yard_occupancy_percent, 1) + '%', w: (c.evidence.yard_occupancy_percent || 0) / 100, up: c.evidence.yard_occupancy_percent >= 80 },
-      { name: 'توازن الحاويات داخل/خارج', cur: num(c.evidence.cargo_flow_ratio, 2), w: Math.min(1, (c.evidence.cargo_flow_ratio || 0) / 1.5), up: c.evidence.cargo_flow_ratio > 1.1 },
-      { name: 'انتظار الشاحنات عند البوابة', cur: num(c.evidence.truck_waiting_time_minutes, 0) + ' د', w: Math.min(1, (c.evidence.truck_waiting_time_minutes || 0) / 90), up: c.evidence.truck_waiting_time_minutes >= 45 },
-      { name: 'الطقس (رياح/موج)', cur: ar(e.weather_assessment.level), w: { low: .15, moderate: .5, elevated: .8, severe: 1 }[e.weather_assessment.level] || .1, up: ['elevated', 'severe'].includes(e.weather_assessment.level) },
-      { name: 'حدث خارجي', cur: e.external_event_assessment && e.external_event_assessment.active ? (e.external_event_assessment.type + ' / ' + ar(e.external_event_assessment.severity)) : 'لا يوجد', w: e.external_event_assessment && e.external_event_assessment.active ? .7 : .05, up: !!(e.external_event_assessment && e.external_event_assessment.active) },
-    ];
-    $('factorsList').innerHTML = rows.map(f => `
-      <div class="factor"><div class="factor-top">
-        <div class="factor-name">${f.up ? '↑' : '↓'} ${f.name}</div>
-        <div class="factor-vals"><b>${f.cur}</b></div>
-        <div class="factor-bar-wrap"><div class="factor-bar" style="width:${Math.round(f.w * 100)}%"></div></div>
-      </div></div>`).join('');
-    const b = $('showAllBtn'); if (b) b.style.display = 'none';
-  }
-
-  function renderAlert(o) {
-    const res = o.digital_twin.results || [], base = res.find(r => r.candidate_id === 'baseline') || res[0];
-    const bestId = o.decision_support.recommended_candidate || o.decision_support.highest_ranked_candidate, best = res.find(r => r.candidate_id === bestId) || res[0];
-    const ml = o.ml_forecast, m = o.domain_agents.maritime, c = o.domain_agents.cargo;
-    const risky = ml.status === 'success' ? ml.classification !== 'LOW' : (m.maritime_status !== 'NORMAL' || c.cargo_status !== 'NORMAL');
-    const box = $('alertBox'), none = $('noAlert');
-    if (!risky) { box.style.display = 'none'; none.style.display = ''; return; }
-    box.style.display = ''; none.style.display = 'none';
-    const meta = box.querySelectorAll('.ameta b');
-    if (meta[0]) meta[0].textContent = ml.status === 'success' ? '6 ساعات' : '—';
-    if (meta[1]) meta[1].textContent = (m.maritime_status !== 'NORMAL' && c.cargo_status !== 'NORMAL') ? 'الأرصفة والساحة' : m.maritime_status !== 'NORMAL' ? 'منطقة الانتظار / الأرصفة' : 'الساحة / البوابة';
-    const reason = box.querySelector('.areason');
-    if (reason) reason.innerHTML = `${num(m.evidence.waiting_vessels)} سفينة منتظرة و${num(o.port_state.pola_berthed_cargo_vessels)} من 23 رصيفًا مشغولة، إشغال الساحة ${num(c.evidence.yard_occupancy_percent, 0)}%. ` +
-      (ml.status === 'success' ? `النموذج يتوقع خطر تكدس <b>${ar(ml.classification)}</b> (${Math.round(ml.congestion_score * 100)}%) خلال 6 ساعات.` : 'توقع النموذج غير متاح لهذه الساعة.');
-    if (best && base) {
-      $('alReco').textContent = candAr(best);
-      $('alBefore').textContent = num(kpi(base, 'avg_wait_hours'), 1) + 'h';
-      $('alAfter').textContent = num(kpi(best, 'avg_wait_hours'), 1) + 'h';
-      const dm = Math.round(((kpi(base, 'avg_wait_hours') || 0) - (kpi(best, 'avg_wait_hours') || 0)) * 60);
-      $('alImprove').textContent = bestId === 'baseline' ? 'لا يوجد خيار يحسّن الوضع بشكل ملموس' : `تحسّن متوقع: ${dm} دقيقة في متوسط الانتظار (محاكاة ${best.runs} مرة)`;
+  function manualResult(data,row){
+    const count=kpi(row,'open_berths'),H=data.digital_twin.simulation_horizon_hours;
+    if(!Number.isInteger(count)||count<0)throw Error('نتيجة الخانات غير صالحة.');
+    const free=Array(count).fill(0),intervals=free.map(()=>[]),vessels=[];
+    function add(id,arrival,start,service){
+      let slot=null;
+      if(start!==null){slot=free.findIndex(t=>t<=Math.max(0,start));if(slot<0)throw Error('تعذر عرض النتيجة بأمان.');free[slot]=start+service;}
+      const v={id:esc(id),arrival,service,assignTime:start,departTime:start===null?null:start+service,berth:slot};vessels.push(v);
+      if(slot!==null)intervals[slot].push({start:Math.max(0,start),end:start+service,vessel:v});
     }
-    // نص التوصية كما كتبه وكيل الاستراتيجية (حتمي أو بصياغة Gemini)
-    const rt = box.querySelector('.recotext'); if (rt) rt.innerHTML = `<span id="alReco">${$('alReco').textContent}</span><br><span style="opacity:.92">${o.decision_support.summary}</span>`;
-    const rl = box.querySelector('.recolabel'); if (rl) rl.textContent = 'توصية وكيل الاستراتيجية' + (o.decision_support.reasoning_mode === 'llm_assisted' ? ' (صياغة بمساعدة LLM)' : '');
-    const cap = box.querySelector('.metric-cap'); if (cap) cap.textContent = 'المقياس: متوسط انتظار السفن على الرصيف خلال 24 ساعة، من التوأم الرقمي (بدون تدخل مقابل أفضل خيار).';
-        const ab = $('alertButtons');
-    if (ab && !ab.querySelector('.final-note') && $('adoptBtn')) {
-      ab.insertAdjacentHTML('beforeend', '<div class="adopted-msg final-note" style="margin-top:8px;width:100%">القرار النهائي بيد مشغّل الميناء — مرسى لا ينفذ أي إجراء تلقائيًا.</div>');
+    data.digital_twin.scenario.vessels_at_berth.forEach(v=>add(v.call_id,0,0,v.leaves_in_h));
+    [...row.vessels].sort((a,b)=>(a.berth_h??Infinity)-(b.berth_h??Infinity)).forEach(v=>add(v.call_id,v.arrival_h,v.berth_h,v.service_h));
+    return {real:true,labels:free.map((_,i)=>'خانة '+(i+1)),vessels,berthIntervals:intervals,makespan:H,avgWait:kpi(row,'avg_wait_hours'),maxWait:kpi(row,'max_wait_hours'),served:kpi(row,'vessels_berthed'),total:row.vessels.length,utilization:null,cmp:''};
+  }
+  if(typeof module!=='undefined'&&module.exports)module.exports={esc,kpi,winner,forecast,actionRequest,manualResult};
+  if(!root.document)return;
+  const $=id=>root.document.getElementById(id),api=()=>String(root.MARSA_API_BASE||'http://127.0.0.1:8000').replace(/\/+$/,'');
+  let DATA=null,selected=null,hour=0,version=0,manualVersion=0,manualMode='typed',timer=null,expanded=false;
+  const buttons=$('alertButtons').innerHTML;
+  const status=t=>$('mlStatus').textContent=t;
+  async function post(body){
+    const r=await fetch(api()+'/api/decision-support/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),cache:'no-store'});
+    const out=await r.json().catch(()=>({}));if(!r.ok)throw Error(`${r.status}: ${typeof out.detail==='string'?out.detail:'تعذر التحليل'}`);return out;
+  }
+  function stop(){if(timer)clearInterval(timer);timer=null;$('twPlay').textContent='▶';}
+  function resetManual(){++manualVersion;root.MARSA_MANUAL_LAST=null;root.MARSA_MANUAL_STOP?.();for(const id of ['stageContent','kpis'])$(id).innerHTML='';$('transport').style.display='none';$('clockVal').textContent='—';$('statusVal').textContent='خامل';$('banner').classList.remove('show');}
+  function clear(){
+    stop();resetManual();DATA=null;root.MARSA_LAST=null;selected=null;
+    for(const id of ['pmSvg','twSvg','twCards','twFb','factorsList','tlineSvg','tlLabels','flowExpand'])$(id).innerHTML='';
+    root.document.querySelectorAll('.flownode .fval,.flownode .flim,.dstats b').forEach(e=>e.textContent='—');
+    $('alertBox').style.display='none';$('noAlert').style.display='';$('noAlert').textContent='جارٍ تحميل التحليل…';
+    for(const id of ['twT','twQ','twB','twTitle','dbWindow'])$(id).textContent='—';
+    $('twBest').style.display='none';$('flowStamp').textContent='';root.MARSA_BELL_SET?.([]);
+    $('runBtn').disabled=manualMode==='now';root.document.querySelector('.conn span:last-child').textContent='جارٍ الاتصال';
+    root.document.querySelector('.pm-status').textContent='لا توجد بيانات محملة';
+  }
+  function drawMap(state,target='pmSvg'){
+    root.MARSA_DRAWMAP(state,target);
+    $(target).querySelectorAll('text').forEach(e=>{e.textContent=e.textContent.replace('حاوية / 6 س','وحدة / ساعة').replace(/ · حد التكدس .*/, '');});
+  }
+  function flow(){
+    const s=DATA.port_state,sc=DATA.digital_twin.scenario,c=DATA.domain_agents.cargo,m=DATA.domain_agents.maritime;
+    const rows={in:['السفن القادمة',num(s.approaching_vessel_count,0),'سفينة · LA/LB'],wait:['الانتظار',num(s.waiting_vessel_count,0),'سفينة · LA/LB'],berth:['الأرصفة',num(sc.vessels_at_berth_now,0)+' / '+num(sc.open_berths,0),'سفن راسية / خانات النموذج'],dep:['المغادرة',num(s.departing_vessel_count,0),'سفينة خلال آخر ساعة'],yard:['الساحة',num(c.evidence.yard_occupancy_percent)+'%','بيانات Cargo اصطناعية'],out:['خروج الشحنات',num(s.container_departures),'وحدة / ساعة · اصطناعي']};
+    for(const [key,[label,value,sub]] of Object.entries(rows)){
+      const n=root.document.querySelector(`.flownode[data-key="${key}"]`);n.querySelector('.flabel').textContent=label;n.querySelector('.fval').textContent=value;n.querySelector('.fsub').textContent=sub;
+      n.querySelector('.flim').textContent=ar(['yard','out'].includes(key)?c.cargo_status:m.maritime_status);n.title=DATA.authoritative_timestamp;
     }
+    $('flowStamp').textContent=' · '+DATA.authoritative_timestamp+' · إعادة تشغيل تاريخية';
+    drawMap(root.MARSA_NORMALIZE({approaching:s.approaching_vessel_count,waiting:s.waiting_vessel_count,berths:sc.open_berths,berths_occupied:sc.vessels_at_berth_now,departures_24h:null,yards:[{name:'الساحة',occupancy:c.evidence.yard_occupancy_percent}],gate_out_6h:s.container_departures,synthetic:['yards','gate_out_6h']}));
+    root.document.querySelector('.pm-status').textContent='البحري: '+ar(m.maritime_status)+' · الساحة: '+ar(c.cargo_status);
   }
-
-  function renderTwinCards(o) {
-    const el = $('twCards'); if (!el) return;
-    const res = (o.digital_twin.results || []).slice().sort((a, b) => a.rank - b.rank);
-    const bestId = o.decision_support.recommended_candidate || o.decision_support.highest_ranked_candidate;
-    el.innerHTML = res.map(r => `
-      <div class="tw-card ${r.candidate_id === bestId ? 'best' : ''}" style="border:1px solid ${r.candidate_id === bestId ? '#3ED0B6' : '#2a4f7a'};border-radius:12px;padding:10px 12px;margin:6px 0">
-        <div style="display:flex;justify-content:space-between;gap:8px"><b>#${r.rank} ${candAr(r)}</b><span class="live-tag">score ${num(r.score, 3)}</span></div>
-        <div style="font-size:13px;opacity:.9;margin-top:4px">متوسط الانتظار ${num(kpi(r, 'avg_wait_hours'), 2)} س · أقصى انتظار ${num(kpi(r, 'max_wait_hours'), 1)} س · سفن متأخرة ${num(kpi(r, 'delayed_vessels'), 1)} · ذروة الساحة ${num((kpi(r, 'yard_peak_occupancy') || 0) * 100, 0)}%</div>
-        <div style="font-size:12px;opacity:.7;margin-top:2px">${r.runs} تشغيلة Monte-Carlo · ${r.rationale_ar || r.rationale || ''}</div>
-      </div>`).join('');
-    if (window.MARSA_TWFB_LIVE) {
-      const base = res.find(r => r.candidate_id === 'baseline'), bw = base ? kpi(base, 'avg_wait_hours') : null;
-      const L = res.map(r => ({ id:r.candidate_id, title:candAr(r),
-        gain:(bw != null && kpi(r, 'avg_wait_hours') != null) ? Math.round((bw - kpi(r, 'avg_wait_hours')) * 60) : null }));
-      window.MARSA_TWFB_LIVE(o, L.find(x => x.id === bestId) || L[0], L);
-    }
-    const t = $('twTitle'); if (t) t.textContent = 'نتائج التوأم الرقمي — ' + o.authoritative_timestamp;
-    const b = $('twBest'); if (b) b.style.display = '';
+  function timeline(){
+    const f=forecast(DATA.ml_forecast);
+    $('tlineSvg').innerHTML=f.score===null?'':`<circle cx="970" cy="${60-f.score*46}" r="5" fill="var(--teal)"><title>${esc(f.target)} · ${num(f.score,3)}</title></circle>`;
+    $('tlLabels').innerHTML=`<div><div class="tt">الآن</div><div class="ts">${esc(DATA.authoritative_timestamp)}</div></div><div><div class="tt">+6 ساعات · مؤشر ازدحام البضائع</div><div class="ts">${f.score===null?'غير متاح':'درجة '+num(f.score,3)+'، ليست احتمالًا معايرًا'}</div></div>`;
+    root.document.querySelector('.delayband .dtitle').textContent='توقع مؤشر ازدحام البضائع';$('dbWindow').textContent=f.target||'غير متاح';
+    const n=root.document.querySelector('.dstats div:last-child');n.firstChild.textContent='درجة النموذج (+6 ساعات)';n.querySelector('b').textContent=num(f.score,3);
   }
-
-  function render(o) {
-    const dm = document.getElementById('sec4Demo'); if (dm) dm.hidden = true;
-    const s = o.port_state, m = o.domain_agents.maritime, c = o.domain_agents.cargo, e = o.domain_agents.events_weather;
-    const snapH = window.MARSA_REAL.hours[o.authoritative_timestamp ? o.authoritative_timestamp.replace('+00:00', 'Z') : ''];
-    const liveVals = { in:s.approaching_vessel_count, wait:s.waiting_vessel_count, berth:s.pola_berthed_cargo_vessels,
-                       dep: snapH ? snapH.dep.v : null, yard:s.yard_occupancy_percent, out: snapH ? snapH.out.v : null };
-    Object.keys(liveVals).forEach(k => {
-      const M = window.MARSA_FLOW_META[k], v = liveVals[k], hh = snapH && snapH[k];
-      const ins = window.MARSA_INSIGHT(k, v, hh ? hh.d6 : null, hh ? hh.pct : null);
-      const val = v == null ? '—' : k === 'berth' ? num(v) + ' / 23' : num(v) + M.unit;
-      setFlow(k, val, M.sub, ins.color, ins.lim);
-      const nd = document.querySelector('.flownode[data-key="' + k + '"]'); if (nd) nd.title = ins.tip;
-    });
-    if (window.MARSA_DRAWMAP) window.MARSA_DRAWMAP(window.MARSA_NORMALIZE({
-      approaching:liveVals.in, waiting:liveVals.wait, berths:23, berths_occupied:liveVals.berth, departures_24h:liveVals.dep,
-      yards:[{ name:'الساحة', occupancy:liveVals.yard }], gate_out_6h:liveVals.out,
-      change_6h: snapH ? { approaching:snapH.in.d6, waiting:snapH.wait.d6, berths_occupied:snapH.berth.d6 } : {},
-      synthetic:['yards', 'gate_out_6h'] }));
-    renderTimeline(o.ml_forecast, m);
-    renderFactors(o);
-    renderAlert(o);
-    renderTwinCards(o);
-    const lu = $('lastUpdate'); if (lu) lu.textContent = 'حالة الميناء: ' + o.authoritative_timestamp + ' (إعادة تشغيل تاريخية)';
-    const conn = document.querySelector('.conn span:last-child'); if (conn) conn.textContent = 'متصل بـ Marsa API';
+  function factors(){
+    if(!DATA)return;
+    const {maritime:m,cargo:c,events_weather:e}=DATA.domain_agents;
+    const rows=[['الوكيل البحري',ar(m.maritime_status)],['السفن المنتظرة (LA/LB)',num(DATA.port_state.waiting_vessel_count,0)],['وكيل البضائع',ar(c.cargo_status)],['إشغال الساحة · اصطناعي',num(c.evidence.yard_occupancy_percent)+'%'],['انتظار الشاحنات · اصطناعي',num(c.evidence.truck_waiting_time_minutes)+' دقيقة'],['الطقس',ar(e.weather_assessment.level)],['الأحداث',e.external_event_assessment?.active?ar(e.external_event_assessment.severity):'لا يوجد حدث نشط']];
+    $('factorsList').innerHTML=rows.slice(0,expanded?rows.length:4).map(([name,value])=>`<div class="factor"><div class="factor-top"><div class="factor-name">${esc(name)}</div><div class="factor-vals"><b>${esc(value)}</b></div></div></div>`).join('');$('showAllBtn').textContent=expanded?'عرض أقل':'عرض جميع العوامل';
   }
-
-  async function load() {
-    const ts = ($('mlCustom').value || $('mlPreset').value).trim();
-    st('جارٍ الاتصال بـ ' + API_BASE + ' …');
-    try {
-      const o = await analyze(ts); window.MARSA_LAST = o; render(o);
-      st(`✓ ${ts} · النموذج: ${o.ml_forecast.status === 'success' ? ar(o.ml_forecast.classification) : 'غير متاح'} · الوكلاء: ${o.decision_support.reasoning_mode}`, 'ok');
-    } catch (err) {
-      try {
-        const r = await fetch('snapshots/' + ts.replace(/:/g, '').replace('Z', '') + '.json', { cache:'no-store' });
-        if (r.ok) { const o = await r.json(); window.MARSA_LAST = o; render(o); st('✓ ' + ts + ' · لقطة محفوظة من تشغيل مرسى الحقيقي', 'ok'); return; }
-      } catch (e2) {}
-      const okReal = window.MARSA_FILLFLOW && window.MARSA_FILLFLOW(ts);
-      const dm = document.getElementById('sec4Demo'); if (dm) dm.hidden = false;
-      st(okReal ? 'الخادم غير متصل · القسم ١ والخريطة حقيقيان، والتوصية مثال توضيحي.'
-                : '✗ تعذر الاتصال بالـ API (' + err.message + ') — تأكد أن uvicorn يعمل على 8000 وأن CORS مفعّل.', okReal ? '' : 'err');
-    }
+  function alert(){
+    const rows=DATA.digital_twin.results,b=rows.find(r=>r.candidate_id==='baseline'),w=rows.find(r=>r.candidate_id===winner(DATA));
+    if(!b||!w)throw Error('لا توجد توصية مرجعية صالحة.');
+    $('alertBox').style.display='';$('noAlert').style.display='none';$('sec4Demo').hidden=true;
+    if(!$('simBtn'))$('alertButtons').innerHTML=buttons;
+    root.document.querySelector('.atitle').textContent='نتيجة التحليل وتوصية الاستراتيجية';
+    const meta=root.document.querySelectorAll('.ameta b');meta[0].textContent='6 ساعات · مؤشر Cargo';meta[1].textContent='محاكاة تاريخية';
+    root.document.querySelector('.areason').textContent='AIS تاريخي وبيانات Cargo اصطناعية؛ نتائج الساحة لا تغيّر انتظار السفن في إعادة التشغيل القديمة.';
+    root.document.querySelector('.recotext').innerHTML=`<span id="alReco">${esc(title(w))}</span><br>${esc(DATA.decision_support.summary)}`;
+    root.document.querySelector('.recolabel').textContent='توصية وكيل الاستراتيجية';
+    root.document.querySelector('.metric-cap').textContent='إجمالي انتظار السفن خلال أفق المحاكاة (ساعة–سفينة)';
+    $('alBefore').textContent=num(kpi(b,'total_wait_vessel_hours'));$('alAfter').textContent=num(kpi(w,'total_wait_vessel_hours'));
+    const gain=kpi(b,'total_wait_vessel_hours')-kpi(w,'total_wait_vessel_hours');$('alImprove').textContent=gain>0?'انخفاض محاكى: '+num(gain)+' ساعة–سفينة':'لم ينخفض انتظار السفن مقارنة بالأساس';
   }
-  $('mlLoad').addEventListener('click', () => { load(); $('marsaLive').classList.remove('open'); });
-  $('mlPreset').addEventListener('change', () => { $('mlCustom').value = ''; load(); $('marsaLive').classList.remove('open'); });
-  $('marsaToggle').addEventListener('click', () => $('marsaLive').classList.toggle('open'));
-  setTimeout(load, 600);   // auto-load the default hour after the demo scripts have rendered
-})();
+  function cards(){
+    const rows=[...DATA.digital_twin.results].sort((a,b)=>a.rank-b.rank),base=rows.find(r=>r.candidate_id==='baseline');
+    $('twCards').innerHTML=rows.map(r=>`<button type="button" class="tw-card ${r.candidate_id===selected?'sel':''}" data-live-id="${esc(r.candidate_id)}"><div class="tw-tagrow">${r.candidate_id===winner(DATA)?'<span class="tw-badge">اختيار الوكيل</span>':''}</div><div class="tw-ct">${esc(title(r))}</div><div class="tw-cl">#${r.rank} · انتظار ${num(kpi(r,'total_wait_vessel_hours'))} ساعة–سفينة · ذروة الساحة ${num(kpi(r,'yard_peak_occupancy_pct'))}%</div><div class="tw-gain">${kpi(base,'total_wait_vessel_hours')>kpi(r,'total_wait_vessel_hours')?num(kpi(base,'total_wait_vessel_hours')-kpi(r,'total_wait_vessel_hours'))+' ساعة–سفينة أقل':'بدون انخفاض في الانتظار'}</div><div class="tw-bar"><i style="width:${Math.min(100,Math.max(0,100*(kpi(base,'total_wait_vessel_hours')-kpi(r,'total_wait_vessel_hours'))/Math.max(1,kpi(base,'total_wait_vessel_hours'))))}%"></i></div></button>`).join('');
+    $('twCards').querySelectorAll('[data-live-id]').forEach(b=>b.onclick=()=>{stop();selected=b.dataset.liveId;hour=0;cards();frame();});
+    const list=rows.map(r=>({id:r.candidate_id,title:title(r),gain:60*(kpi(base,'avg_wait_hours')-kpi(r,'avg_wait_hours'))}));root.MARSA_TWFB_LIVE?.(DATA,list.find(r=>r.id===winner(DATA)),list);
+  }
+  function frame(){
+    if(!DATA)return;
+    const r=DATA.digital_twin.results.find(r=>r.candidate_id===selected);if(!r)return;
+    const t=r.timeline[Math.min(r.timeline.length-1,Math.floor(hour))];
+    $('twSvg').setAttribute('viewBox','0 0 1100 540');
+    drawMap(root.MARSA_NORMALIZE({approaching:r.vessels.filter(v=>v.arrival_h>hour).length,waiting:t.waiting,berths:kpi(r,'open_berths'),berths_occupied:t.at_berth,departures_24h:null,yards:Number.isFinite(t.yard_occupancy_pct)?[{name:'الساحة',occupancy:t.yard_occupancy_pct}]:[],gate_out_6h:null,synthetic:['yards']}),'twSvg');
+    $('twTitle').textContent=title(r)+' · '+DATA.authoritative_timestamp+' · إعادة تشغيل تاريخية';$('twBest').style.display=selected===winner(DATA)?'':'none';$('twBest').textContent='اختيار الاستراتيجية';
+    $('twWx').textContent='محاكاة قديمة مستقلة عن Hybrid؛ الساحة لا تغيّر انتظار السفن هنا. الطقس سياق فقط.';
+    $('twT').textContent='+'+num(hour,0)+' س';$('twQ').textContent=num(t.waiting,0);$('twB').textContent=num(t.at_berth,0)+' / '+num(kpi(r,'open_berths'),0);$('twScrub').value=Math.round(hour/DATA.digital_twin.simulation_horizon_hours*1000);
+  }
+  function currentMode(){
+    manualMode='now';$('mtOwn').hidden=true;
+    $('mtSrc').querySelectorAll('[data-src]').forEach(b=>{const on=b.dataset.src==='now';b.classList.toggle('on',on);b.setAttribute('aria-checked',String(on));});
+    $('runBtn').disabled=!DATA;if(!DATA){$('mtSrcHint').textContent='حمّل تحليلًا صالحًا أولًا.';return;}
+    const sc=DATA.digital_twin.scenario;$('berths').max='1000';$('berths').value=sc.open_berths;$('vessels').value=sc.vessels_at_berth_now+sc.vessels_waiting_now+sc.vessels_arriving_in_horizon;
+    for(const id of ['vessels','gapMin','gapMax','svcMin','svcMax'])$(id).disabled=true;
+    $('mtPlans').innerHTML=DATA.strategy_candidates.map(c=>`<option value="plan:${esc(c.candidate_id)}">${esc(names[c.candidate_id]||c.title)}</option>`).join('');
+    $('rule').querySelectorAll('option').forEach(o=>o.disabled=!['fcfs','shortest'].includes(o.value)&&!o.value.startsWith('plan:'));$('rule').value='plan:'+winner(DATA);
+    $('mtSrcHint').textContent=DATA.authoritative_timestamp+' · محاكاة API تاريخية؛ خانات العرض ليست أرصفة فعلية.';$('ruleHint').textContent='القواعد غير المدعومة تخص المثال المحلي فقط.';
+  }
+  async function runManual(){
+    if(!DATA)return;const analysis=version;resetManual();const token=manualVersion;
+    $('statusVal').textContent='جارٍ الحساب…';
+    try{
+      const out=await post(actionRequest(DATA,$('rule').value,Number($('berths').value)));
+      if(token!==manualVersion||analysis!==version||manualMode!=='now')return;
+      const row=out.digital_twin.results.find(r=>r.candidate_id==='user_decision');if(!row)throw Error('نتيجة القرار غير متاحة.');
+      root.MARSA_MANUAL_LAST={timestamp_utc:out.authoritative_timestamp,candidate_id:'user_decision',actions:row.actions,avg_wait_h:kpi(row,'avg_wait_hours'),max_wait_h:kpi(row,'max_wait_hours'),provenance:'SIMULATED'};
+      const value=manualResult(out,row);value.cmp=`<div class="mt-cmp">${esc(out.authoritative_timestamp)} · فائز الاستراتيجية محفوظ: ${esc(names[winner(out)]||winner(out))}. خانات عرض افتراضية؛ ليست بيانات حمولة أو أوناش فعلية. متوسط الانتظار قد يشمل ما قبل ساعة القرار، بخلاف إجمالي الانتظار خلال الأفق.</div>`;root.MARSA_MANUAL_SET_RESULT(value,kpi(row,'open_berths'));
+    }catch(e){if(token!==manualVersion||analysis!==version)return;$('banner').textContent=e.message;$('banner').classList.add('show');$('statusVal').textContent='غير متاح';}
+  }
+  async function load(ts){
+    const request=++version;clear();status('جارٍ تحميل '+ts);$('lastUpdate').textContent='جارٍ تحميل '+ts;
+    try{
+      const out=await post({timestamp_utc:ts});if(request!==version)return;
+      DATA=out;root.MARSA_LAST=out;root.MARSA_FLOW_TS=out.authoritative_timestamp;selected=winner(out);hour=0;
+      flow();timeline();factors();alert();cards();if(!$('consoleView').hidden)frame();if(manualMode==='now')currentMode();
+      $('lastUpdate').textContent='إعادة تشغيل تاريخية: '+out.authoritative_timestamp;root.document.querySelector('.conn span:last-child').textContent='متصل بـ Marsa API';
+      root.MARSA_BELL_SET?.([{type:'info',text:esc('توصية الاستراتيجية: '+title(out.digital_twin.results.find(r=>r.candidate_id===winner(out)))),target:'sec4'}]);status('✓ '+out.authoritative_timestamp+' · الفائز: '+title(out.digital_twin.results.find(r=>r.candidate_id===winner(out))));
+    }catch(e){if(request!==version)return;clear();$('noAlert').textContent='لا توجد نتائج صالحة للساعة المطلوبة.';root.document.querySelector('.conn span:last-child').textContent='غير متصل';$('lastUpdate').textContent='تعذر تحميل '+ts;status(e.message);}
+  }
+  $('showAllBtn').addEventListener('click',e=>{e.stopImmediatePropagation();expanded=!expanded;factors();},true);
+  $('flowRow').addEventListener('click',e=>{const n=e.target.closest('.flownode');if(!n)return;e.stopImmediatePropagation();$('flowExpand').textContent=n.querySelector('.flabel').textContent+': '+n.querySelector('.fval').textContent+' · '+n.querySelector('.fsub').textContent;$('flowExpand').classList.toggle('show');},true);
+  $('twPlay').addEventListener('click',e=>{e.stopImmediatePropagation();if(!DATA)return;if(timer){stop();return;}const H=DATA.digital_twin.simulation_horizon_hours;if(hour>=H)hour=0;$('twPlay').textContent='❚❚';timer=setInterval(()=>{hour=Math.min(H,hour+1);frame();if(hour>=H)stop();},1000/Number($('twSpeed').value));},true);
+  $('twScrub').addEventListener('input',e=>{e.stopImmediatePropagation();stop();if(DATA){hour=Math.round(Number(e.target.value)/1000*DATA.digital_twin.simulation_horizon_hours);frame();}},true);
+  $('twSpeed').addEventListener('change',e=>{e.stopImmediatePropagation();if(timer){stop();$('twPlay').click();}},true);
+  $('mtSrc').addEventListener('click',e=>{const b=e.target.closest('[data-src]');if(!b)return;resetManual();if(b.dataset.src==='now'){e.stopImmediatePropagation();currentMode();}else{manualMode='typed';$('berths').max='10';for(const id of ['vessels','gapMin','gapMax','svcMin','svcMax'])$(id).disabled=false;$('runBtn').disabled=false;$('rule').querySelectorAll('option').forEach(o=>o.disabled=o.value.startsWith('plan:')||o.value==='own');}},true);
+  $('rule').addEventListener('change',e=>{if(manualMode==='now'){e.stopImmediatePropagation();$('mtOwn').hidden=true;}resetManual();},true);
+  $('berths').addEventListener('input',e=>{if(manualMode==='now')e.stopImmediatePropagation();resetManual();},true);
+  $('runBtn').addEventListener('click',e=>{if(manualMode==='now'){e.stopImmediatePropagation();runManual();}},true);
+  $('twFb').addEventListener('change',e=>{if(e.target.id==='twFbAlt'&&DATA?.digital_twin.results.some(r=>r.candidate_id===e.target.value)){selected=e.target.value;hour=0;cards();frame();}});
+  $('alertButtons').addEventListener('click',e=>{if(e.target.closest('button')?.id==='simBtn'){e.stopImmediatePropagation();if(!DATA)return;$('dashView').hidden=true;$('consoleView').hidden=false;root.scrollTo(0,0);root.TwinUI.open();}},true);
+  $('cvBack').addEventListener('click',()=>{stop();if(DATA)flow();},true);
+  root.document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('consoleView').hidden){stop();if(DATA)flow();}},true);
+  root.document.querySelectorAll('#manualTest .presets button').forEach(b=>b.addEventListener('click',()=>$('mtSrc').querySelector('[data-src="typed"]').click(),true));
+  $('mlLoad').addEventListener('click',()=>{load(($('mlCustom').value||$('mlPreset').value).trim());$('marsaLive').classList.remove('open');});
+  $('mlPreset').addEventListener('change',()=>{$('mlCustom').value='';load($('mlPreset').value);$('marsaLive').classList.remove('open');});
+  $('marsaToggle').addEventListener('click',()=>$('marsaLive').classList.toggle('open'));
+  root.TwinUI={open(){if(!DATA){$('twTitle').textContent='حمّل تحليلًا صالحًا أولًا.';return;}stop();selected=winner(DATA);hour=0;cards();frame();}};
+  root.MT_NOW={active:()=>manualMode==='now',plainRule:rule=>rule.startsWith('plan:')?'fcfs':rule,load(rule){currentMode();if(rule&&[...$('rule').options].some(o=>o.value===rule))$('rule').value=rule;$('manualTest').scrollIntoView({behavior:'smooth'});runManual();}};
+  root.document.querySelector('#manualTest .mt-sub').textContent='بيانات الميناء: محاكاة API تاريخية. أرقام أكتبها: مثال محلي مستقل عن التوصية.';
+  load($('mlPreset').value);
+})(typeof window!=='undefined'?window:globalThis);
 </script>
 
 </body>
