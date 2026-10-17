@@ -37,6 +37,8 @@ model:                           # LEGACY: used only by src/marsa/data/features.
     - is_weekend
 
 twin:
+  cargo_coupling: true          # Synthetic service-effort yard proxy; false preserves exact AIS/yard replay.
+  cargo_buffer_hours: 24        # ASSUMPTION: abstract storage = original slots x one day of nominal effort.
   horizon_hours: 24              # CHOICE (agreed, may change): how far ahead the twin simulates; the
                                  # interface marks +6 h, the prediction model's horizon
   similar_vessels_k: 5           # FROM DATA: chosen by scripts/select_similar_k.py (lowest error on

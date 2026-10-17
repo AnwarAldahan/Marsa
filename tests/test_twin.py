@@ -24,6 +24,7 @@ def tiny(**kw):
 # Without stress the twin berths every vessel exactly when AIS recorded it.
 def test_replay_matches_ais_without_stress():
     cfg = load_config()
+    cfg["twin"]["cargo_coupling"] = False  # Exact replay remains a supported compatibility mode.
     mismatches = checked = 0
     for ts in pd.date_range("2025-01-03", "2025-12-28", freq="61h", tz="UTC"):
         sc, _ = build_scenario(ts, cfg)
@@ -188,6 +189,7 @@ def test_typed_service_hours_wins():
 def test_yard_stress_gate_closed_and_inflow():
     ts = pd.Timestamp(TS)
     cfg = load_config()
+    cfg["twin"]["cargo_coupling"] = False  # This test specifies independent historical yard replay.
     base_sc, _ = build_scenario(ts, cfg)
     closed_sc, _ = build_scenario(ts, cfg, {"gate_closed_hours": 6})
     more_sc, _ = build_scenario(ts, cfg, {"container_inflow_multiplier": 1.5})

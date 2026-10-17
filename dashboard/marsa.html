@@ -971,12 +971,13 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
 
   // ---------------- حالة كل سفينة في ساعة h (من نتيجة التوأم) ----------------
   function stateAt(sc, r, h) {
-    const berthed = sc.vessels_at_berth.filter(v => v.leaves_in_h > h)
+    const berthed = (r.units === 'normalized_service_effort' ? [] : sc.vessels_at_berth).filter(v => v.leaves_in_h > h)
       .map(v => ({ id:v.call_id, mmsi:v.mmsi, leaves:v.leaves_in_h - h }));
     const waiting = [], coming = [];
     r.vessels.forEach(v => {
       const b = v.berth_h, who = { id:v.call_id, mmsi:v.mmsi, added:v.source === 'added', est:v.estimate };
-      if (b !== null && b <= h && h < b + v.service_h) berthed.push({ ...who, leaves:b + v.service_h - h });
+      const end = r.units === 'normalized_service_effort' ? (v.completion_h ?? Infinity) : b + v.service_h;
+      if (b !== null && b <= h && h < end) berthed.push({ ...who, leaves:Number.isFinite(end) ? end - h : null });
       else if (v.arrival_h <= h && (b === null || b > h))
         waiting.push({ ...who, waited:h - v.arrival_h, cap:Math.max(0, h - Math.max(v.arrival_h, v.scheduled_berth_h)), sched:v.scheduled_berth_h - h });
       else if (v.arrival_h > h) coming.push({ ...who, eta:v.arrival_h - h });
@@ -1340,7 +1341,7 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
     $('twTitle').textContent = 'محاكاة: ' + title(r) + ' — ' + DATA.authoritative_timestamp.replace('+00:00', ' UTC').replace('T', ' ');
     $('twBest').style.display = SEL === bestId ? '' : 'none';
     const e = DATA.domain_agents.events_weather, s = DATA.port_state;
-    $('twWx').textContent = `الطقس: ${ar(e.weather_assessment.level)} · رياح ${num(s.wind_speed_10m, 1)} · موج ${num(s.wave_height, 2)} م — لا يدخل حساب التوأم`;
+    $('twWx').textContent = r.units === 'normalized_service_effort' ? 'محاكاة بأثر رجعي · التفريغ والساحة بوحدات جهد خدمة مطبّعة، ليست حاويات مرصودة.' : `الطقس: ${ar(e.weather_assessment.level)} · رياح ${num(s.wind_speed_10m, 1)} · موج ${num(s.wave_height, 2)} م — لا يدخل حساب التوأم`;
     $('twScrub').max = DATA.digital_twin.simulation_horizon_hours;
     $('twScrub').value = TW.h;
     drawTwinFrame();

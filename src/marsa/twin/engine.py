@@ -11,8 +11,9 @@ scenario (fewer berths, a compressed arrival schedule) makes berths scarce, and 
 actions change how the scarce berths are used. The simulation is deterministic: there is no
 random sampling, so there are no Monte Carlo runs.
 
-Yard side (src/marsa/twin/yard.py): replays the Cargo agent's file; a gate decision clears more
-containers per hour. The twin returns vessel and yard measures side by side and does not rank them.
+Without a cargo profile the yard replays the Cargo file independently. With an explicit
+normalized cargo profile, service progress feeds yard stock and full-yard blocking delays
+completion and berth release. Ranking remains outside this engine.
 
 Vessels added by the user get a stay estimated from history (src/marsa/twin/estimates.py).
 
@@ -60,6 +61,7 @@ class Scenario:
     gate_closed_hours: int = 0           # user yard stress (see yard.simulate_yard)
     container_inflow_multiplier: float = 1.0
     notes: list[str] = field(default_factory=list)
+    cargo: dict | None = None  # Explicit normalized service-effort yard proxy; None preserves replay.
 
 
 # Apply a candidate's actions to a copy of the scenario.
@@ -122,6 +124,8 @@ def _assign(sc: Scenario) -> dict[str, float | None]:
 # Run one candidate and return hourly timeline + KPIs (all hours are within [0, horizon]).
 def simulate_candidate(sc: Scenario, candidate: dict) -> dict:
     s = apply_actions(sc, candidate.get("actions", []))
+    if s.cargo is not None:
+        return _simulate_cargo(s, candidate)
     H = s.horizon_hours
     berth = _assign(s)
 
@@ -176,3 +180,131 @@ def simulate_candidate(sc: Scenario, candidate: dict) -> dict:
                for v in s.vessels if v.arrival_h <= H]
     return {"candidate_id": candidate["id"], "actions": candidate.get("actions", []),
             "kpis": kpis, "timeline": timeline, "vessels": vessels}
+
+
+def _simulate_cargo(s: Scenario, candidate: dict) -> dict:
+    """Joint service/yard progression within this Twin, in service-equivalent units.
+
+    One occupied berth can discharge one nominal service-hour of work per hour.
+    Full-yard headroom shares clearance across occupied berths. Historical service
+    duration is only a retrospective effort proxy, never a measured cargo quantity.
+    """
+    from math import isfinite
+
+    H, slots = s.horizon_hours, max(0, s.berths - s.berths_closed + s.extra_berths)
+    capacity, initial, gate = (s.cargo[k] for k in ("capacity", "initial_inventory", "gate_rate"))
+    if s.gate_per_hour is not None:
+        gate = s.gate_per_hour / s.cargo["source_capacity"] * capacity
+    if (not all(isfinite(x) for x in (capacity, initial, gate, H)) or capacity <= 0
+            or not 0 <= initial <= capacity or gate < 0 or H <= 0):
+        raise ValueError("invalid normalized cargo scenario")
+    if not isfinite(s.container_inflow_multiplier) or s.container_inflow_multiplier <= 0:
+        raise ValueError("invalid vessel workload multiplier")
+    all_vessels = s.berthed + s.vessels
+    if (len({v.call_id for v in all_vessels}) != len(all_vessels)
+            or any(not isfinite(v.service_h) or v.service_h <= 0 for v in all_vessels)
+            or any(not all(isfinite(x) for x in (v.arrival_h, v.ready_h)) for v in all_vessels)):
+        raise ValueError("invalid vessel service effort or identity")
+    rows = []
+    for v in all_vessels:
+        start = v.berth_h if v in s.berthed else None
+        work = (max(0.0, start + v.service_h) if start is not None else v.service_h) * s.container_inflow_multiplier
+        rows.append({"call_id": v.call_id, "mmsi": v.mmsi, "arrival_h": v.arrival_h,
+                     "scheduled_berth_h": v.ready_h, "service_h": v.service_h,
+                     "berth_h": start, "completion_h": None,
+                     "initial_workload": work, "remaining_workload": work,
+                     "source": v.source, "estimate": v.estimate})
+    pending = [r for r in rows if r["berth_h"] is None]
+    active = [r for r in rows if r["berth_h"] is not None]
+    total_work = sum(r["initial_workload"] for r in rows)
+    inventory, unloaded, cleared, blocked, total_wait, capacity_wait, t = initial, 0., 0., 0., 0., 0., 0.
+    peak_inventory, peak_berths = initial, len(active)
+    timeline, flows = [], []
+    eps = 1e-9
+    order = (lambda r: (r["arrival_h"], r["call_id"])) if s.policy == "fcfs" else (
+        lambda r: (r["service_h"], r["arrival_h"], r["call_id"]))
+    for h in range(H + 1):
+        # Release only completed work; never use the recorded departure as a release override.
+        active = [r for r in active if r["completion_h"] is None]
+        timeline.append({"hour": h, "at_berth": len(active),
+                         "waiting": sum(r["arrival_h"] <= h for r in pending),
+                         "yard_inventory": inventory, "yard_occupancy_pct": inventory / capacity * 100,
+                         "completed": sum(r["completion_h"] is not None for r in rows)})
+        if h == H:
+            break
+        opening, before_unload, before_clear, before_block = inventory, unloaded, cleared, blocked
+        while t < h + 1 - eps:
+            for r in active[:]:
+                if r["remaining_workload"] <= eps:
+                    r["remaining_workload"] = 0.
+                    r["completion_h"] = t
+                    active.remove(r)
+            ready = sorted((r for r in pending if max(r["arrival_h"], r["scheduled_berth_h"]) <= t + eps), key=order)
+            for r in ready[:max(0, slots - len(active))]:
+                r["berth_h"] = t
+                pending.remove(r)
+                active.append(r)
+            peak_berths = max(peak_berths, len(active))
+            if abs(t - h) <= eps:
+                timeline[-1].update(at_berth=len(active),
+                                    waiting=sum(r["arrival_h"] <= h for r in pending),
+                                    completed=sum(r["completion_h"] is not None for r in rows))
+            clearance = 0. if t < s.gate_closed_hours else gate
+            productivity = min(1., clearance / len(active)) if active and inventory >= capacity - eps else 1.
+            unload_rate = len(active) * productivity
+            clear_rate = clearance if inventory > eps else min(clearance, unload_rate)
+            limits = [h + 1 - t]
+            limits += [r["arrival_h"] - t for r in pending if r["arrival_h"] > t + eps]
+            limits += [max(r["arrival_h"], r["scheduled_berth_h"]) - t for r in pending
+                       if max(r["arrival_h"], r["scheduled_berth_h"]) > t + eps]
+            if productivity > 0:
+                limits += [r["remaining_workload"] / productivity for r in active]
+            delta = unload_rate - clear_rate
+            if delta > eps and inventory < capacity - eps:
+                limits.append((capacity - inventory) / delta)
+            elif delta < -eps and inventory > eps:
+                limits.append(inventory / -delta)
+            dt = min(limits)
+            total_wait += dt * sum(r["arrival_h"] <= t + eps for r in pending)
+            capacity_wait += dt * sum(max(r["arrival_h"], r["scheduled_berth_h"]) <= t + eps for r in pending)
+            for r in active:
+                r["remaining_workload"] = max(0., r["remaining_workload"] - dt * productivity)
+                if r["remaining_workload"] <= eps:
+                    r["remaining_workload"] = 0.
+                    r["completion_h"] = t + dt
+            unloaded += unload_rate * dt
+            cleared += clear_rate * dt
+            blocked += (len(active) - unload_rate) * dt
+            inventory += delta * dt
+            peak_inventory = max(peak_inventory, inventory)
+            t += dt
+            active = [r for r in active if r["completion_h"] is None]
+        residual = initial + unloaded - cleared - inventory
+        work_residual = total_work - unloaded - sum(r["remaining_workload"] for r in rows)
+        if (abs(residual) > 1e-7 or abs(work_residual) > 1e-7
+                or inventory < -eps or inventory > capacity + eps):
+            raise ArithmeticError("cargo conservation or capacity invariant failed")
+        flows.append({"hour": h, "opening_inventory": opening, "unloaded": unloaded - before_unload,
+                      "gate_cleared": cleared - before_clear, "blocked_unloading": blocked - before_block,
+                      "closing_inventory": inventory, "yard_conservation_residual": residual,
+                      "work_conservation_residual": work_residual})
+    initial_ids = {v.call_id for v in s.berthed}
+    waits = [min(r["berth_h"] if r["berth_h"] is not None else H, H) - r["arrival_h"]
+             for r in rows if r["arrival_h"] < H and r["call_id"] not in initial_ids
+             and (r["berth_h"] is None or r["berth_h"] > max(0, r["arrival_h"]))]
+    kpis = {"total_wait_vessel_hours": round(total_wait, 2), "capacity_wait_vessel_hours": round(capacity_wait, 2),
+            "vessels_waited": len(waits), "avg_wait_hours": round(sum(waits) / len(waits), 2) if waits else 0.,
+            "max_wait_hours": round(max(waits), 2) if waits else 0.,
+            "vessels_arrived": sum(0 < r["arrival_h"] <= H for r in rows),
+            "vessels_berthed": sum(r["berth_h"] is not None and 0 <= r["berth_h"] < H for r in rows),
+            "waiting_end": timeline[-1]["waiting"], "open_berths": slots,
+            "peak_berths_used": peak_berths,
+            "yard_peak_occupancy_pct": peak_inventory / capacity * 100,
+            "yard_end_occupancy_pct": inventory / capacity * 100, "gate_per_hour": s.gate_per_hour,
+            "completed_vessels": sum(r["completion_h"] is not None for r in rows),
+            "cargo_unloaded": unloaded, "cargo_cleared": cleared, "blocked_unloading": blocked,
+            "yard_conservation_residual": initial + unloaded - cleared - inventory,
+            "work_conservation_residual": total_work - unloaded - sum(r["remaining_workload"] for r in rows)}
+    return {"candidate_id": candidate["id"], "actions": candidate.get("actions", []), "kpis": kpis,
+            "timeline": timeline, "vessels": rows, "flows": flows,
+            "cargo_assumptions": dict(s.cargo), "units": "normalized_service_effort", "provenance": "SIMULATED"}

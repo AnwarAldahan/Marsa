@@ -30,6 +30,7 @@ TOOLS = {"cargo_progression": "cargo_balance", "cargo_delays": "cargo_delay_prof
 
 def _legacy_config():
     cfg = load_config()
+    cfg["twin"]["cargo_coupling"] = False  # Historical replay hashes retain their original contract.
     cfg["strategy_investigation"]["enabled"] = False
     cfg["adaptive_candidates"]["enabled"] = False
     return cfg

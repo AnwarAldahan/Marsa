@@ -118,9 +118,18 @@ def run(timestamp: str, cfg=None, df=None, llm=None, save=False,
             "The ML score is uncalibrated and targets a retrospective operational cargo-congestion proxy.",
             "The finalized Cargo inputs and weather-pressure baseline have retrospective construction limitations.",
             "Cargo state is synthetic/calibrated synthetic, not observed terminal state.",
-            "The Digital Twin simulates berths and waiting vessels from AIS and the yard from the synthetic Cargo agent file; the yard does not change vessel waiting (no data on that effect).",
-            "Stays of vessels in AIS are the recorded ones (replay); vessels added by the user get a stay estimated from earlier stays.",
-            "Without a stress scenario the Digital Twin replays the real AIS schedule; stress values are chosen by the user.",
+            ("Connected cargo uses a normalized service-effort yard proxy, not TEU or measured unloading. "
+             "Only t0 Cargo ratios initialize stock/clearance; recorded service durations and later AIS arrivals are hindsight. "
+             "CSV cargo arrivals are not replayed in addition to vessel unloading."
+             if scenario.cargo is not None else
+             "The Digital Twin simulates berths and waiting vessels from AIS and the yard from the synthetic Cargo agent file; the yard does not change vessel waiting (no data on that effect)."),
+            ("AIS service durations supply normalized reference effort; completion and berth release depend on simulated unloading. "
+             "Vessels added by the user retain earlier-history service estimates or explicit service input."
+             if scenario.cargo is not None else
+             "Stays of vessels in AIS are the recorded ones (replay); vessels added by the user get a stay estimated from earlier stays."),
+            ("Connected mode retains historical arrivals and berth-readiness floors; it is a retrospective counterfactual, not exact AIS replay."
+             if scenario.cargo is not None else
+             "Without a stress scenario the Digital Twin replays the real AIS schedule; stress values are chosen by the user."),
             "No operational action is executed automatically.",
         ],
         "human_approval_required": True,

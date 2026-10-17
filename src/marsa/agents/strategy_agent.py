@@ -100,6 +100,11 @@ def generate_candidates(forecast: dict, maritime: dict, cargo: dict,
             signals["gate"], [{"type": "gate_capacity", "value": "max_recorded"}],
         ))
     annotate_candidates(candidates, investigation)
+    if baseline is not None and baseline.get("units") == "normalized_service_effort":
+        for candidate in candidates:
+            if candidate["candidate_id"] == "gate_max":
+                candidate["title_ar"] = "التخليص النسبي الأعلى في نموذج الساحة المطبّع"
+                candidate["rationale"] += " Coupled mode uses the recorded clearance/capacity ratio as an explicit normalized yard proxy, not measured vessel cargo."
     return candidates
 
 
@@ -156,6 +161,7 @@ def evaluate(scenario: object, candidates: list[dict], cfg: dict | None = None,
         result.update({
             "title": candidate["title"],
             "rationale": candidate["rationale"],
+            **({"title_ar": candidate["title_ar"]} if "title_ar" in candidate else {}),
             "evidence_references": candidate["evidence_references"],
         })
     return ranked
@@ -219,11 +225,19 @@ def _user_sentence(assessment: dict | None) -> str:
 def _deterministic_summary(ranked: list[dict]) -> str:
     sentence = _user_sentence(assess_user_decision(ranked))
     ranked = [r for r in ranked if r["candidate_id"] != USER_DECISION_ID]
-    return _agent_summary(ranked) + sentence
+    summary = _agent_summary(ranked) + sentence
+    if ranked[0].get("units") == "normalized_service_effort":
+        best = ranked[0]
+        summary += (f" في الخيار الأعلى ترتيبًا اكتملت {best['kpis']['completed_vessels']} سفينة "
+                    f"وفُرّغ {best['kpis']['cargo_unloaded']:.1f} وحدة جهد مطبّعة. "
+                    "أحمال الخدمة ومخزون الساحة افتراضات محاكاة بأثر رجعي، وليست حاويات أو نتائج تشغيلية مرصودة.")
+    return summary
 
 
 def _agent_summary(ranked: list[dict]) -> str:
     if len(ranked) == 1:
+        if ranked[0].get("units") == "normalized_service_effort":
+            return "تعرض المحاكاة سيناريو الأساس فقط؛ لم تُختبر مقارنة تدعم أفضلية تدخل آخر."
         return (
             "لا توجد إشارة من الوكلاء أو نموذج التنبؤ تستدعي اختبار قرار، ولا يُظهر التوأم الرقمي "
             "نقصًا في الأرصفة خلال أفق المحاكاة؛ وأي انتظار حالي هو انتظار لموعد الرسو المسجّل في "
@@ -231,7 +245,7 @@ def _agent_summary(ranked: list[dict]) -> str:
         )
     base = next(r for r in ranked if r["candidate_id"] == "baseline")
     def title(r):
-        return ARABIC_CANDIDATE_TITLES.get(r["candidate_id"], r["title"])
+        return r.get("title_ar") or ARABIC_CANDIDATE_TITLES.get(r["candidate_id"], r["title"])
     vessel_best = min(ranked, key=lambda r: r["kpis"]["total_wait_vessel_hours"])
     parts = []
     if vessel_best["kpis"]["total_wait_vessel_hours"] < base["kpis"]["total_wait_vessel_hours"]:
@@ -263,6 +277,8 @@ def recommend(ranked: list[dict], forecast: dict, agents: dict,
         try:
             raw: Any = llm.generate_structured(
                 system_prompt=(
+                    "Return deterministic_summary exactly, preserving all simulated values and qualifications; do not add or change any claim."
+                    if ranked[0].get("units") == "normalized_service_effort" else
                     "Write one concise decision-support sentence. Do not use numbers, claim "
                     "causality, alter facts, or describe simulated outcomes as observed. "
                     "Respond in Arabic only (Modern Standard Arabic, professional tone for a port "
@@ -281,8 +297,11 @@ def recommend(ranked: list[dict], forecast: dict, agents: dict,
             value = raw.model_dump() if isinstance(raw, BaseModel) else raw
             narrative = (StrategyNarrative.model_validate_json(value) if isinstance(value, str)
                          else StrategyNarrative.model_validate(value))
-            if re.search(r"\d|\b(?:caus\w*|guarantee\w*|observed outcome|execute|must|should)\b", narrative.summary, re.I) \
-                    or re.search(r"يضمن|بالتأكيد|نفّذ فورًا|السبب هو|يجب", narrative.summary):
+            if ranked[0].get("units") == "normalized_service_effort" and narrative.summary != summary:
+                raise ValueError("coupled recommendation must preserve the authoritative outcome summary")
+            if ranked[0].get("units") != "normalized_service_effort" and (
+                    re.search(r"\d|\b(?:caus\w*|guarantee\w*|observed outcome|execute|must|should)\b", narrative.summary, re.I)
+                    or re.search(r"يضمن|بالتأكيد|نفّذ فورًا|السبب هو|يجب", narrative.summary)):
                 raise ValueError("unsafe Strategy narrative")
             summary = narrative.summary
             reasoning_mode = "llm_assisted"

@@ -7,6 +7,9 @@ Marsa forecasts port congestion from real vessel-traffic (AIS) data, lets three 
 tests every intervention in a digital twin, and returns a ranked recommendation with evidence.
 Nothing is executed automatically — the port operator takes the final decision.
 
+The optional [connected cargo extension](docs/CARGO_COUPLING.md) runs inside the existing Twin and APIs.
+With it enabled, FastAPI also serves Main's root website at `/`; simulated cargo uses labelled normalized service effort, not TEU.
+
 <p align="center"><img src="docs/marsa_flow.png" width="900" alt="Marsa flow"></p>
 
 ---
