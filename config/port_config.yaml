@@ -62,3 +62,47 @@ strategy_investigation:
 
 adaptive_candidates:
   enabled: true
+# Independent Phase 1 experiment. Existing replay/pipeline never reads this section.
+# Every number below is a SYNTHETIC_SCENARIO_ASSUMPTION, not observed POLA capacity.
+coupled_normalized:
+  enabled: true
+  mode: coupled_normalized
+  parameters:
+    yard_capacity: 10000.0
+    initial_inventory: 0.0
+    berth_slots: 1                # Abstract scenario resource pool, not POLA's 22 reported berths
+    unloading_units_per_hour: 100.0  # Whole pool, not moves/crane-hour
+    gate_units_per_hour: 100.0    # Assumed eligible-cargo service, not Cargo CSV departures
+    release_delay_hours: 0       # New cargo eligible at the next interval opening
+    initial_inventory_eligible_in_hours: 0
+    units: normalized_units
+    provenance: SYNTHETIC_SCENARIO_ASSUMPTION
+  storage_sensitivity: [9090.91, 10000.0, 10909.09]
+  reference_note: "Storage sensitivity is relative only; POLA 22 berths, 85 cranes and historical 27 moves/hour are not runtime inputs or conversions."
+
+# Phase 2 is independently opt-in. Each request supplies its cohort and resource pool.
+hybrid_normalized:
+  enabled: true
+  workload:
+    method: constant_per_call_v1
+    full_import_units: 1000.0           # SYNTHETIC_ESTIMATED; not TEU or measured cargo
+    berthed_remaining_fraction: 0.5    # Unobserved progress; do not use future berth_end
+    remaining_fraction_sensitivity: [0.25, 0.5, 0.75]
+
+# Phase 3 experiment only: never consumed by Strategy or existing simulation routes.
+sensitivity_analysis:
+  enabled: true
+  plan:
+    storage_factors: [0.909091, 1.0, 1.090909]  # 9090.91 / 10000 / 10909.09 at base 10000
+    rate_workload_factors: [0.5, 1.0, 1.5]    # Exploratory synthetic assumptions
+    occupancy_low: 0.5
+    occupancy_high: 1.0
+    remaining_low: 0.25
+    remaining_high: 0.75
+    modest_increase: 0.2
+    large_gate_factor: 3.0
+    include_interactions: true
+
+# Optional additive evidence only. Ordinary requests never trigger sensitivity.
+strategy_decision_support:
+  enabled: true

@@ -39,7 +39,7 @@ def _forecast_risk(forecast: dict) -> str | None:
 # user_actions: optional decision typed by the user; the Strategy agent evaluates it next to its own.
 def run(timestamp: str, cfg=None, df=None, llm=None, save=False,
         agents=None, forecast_override: dict | None = None, stress: dict | None = None,
-        added: list[dict] | None = None, user_actions: list[dict] | None = None) -> dict:
+        added: list[dict] | None = None, user_actions: list[dict] | None = None, advisory_evidence: dict | None = None) -> dict:
     cfg = cfg or load_config()
     frame = df if df is not None else load_dataset()
     ts = parse_exact_utc_hour(timestamp)
@@ -129,6 +129,9 @@ def run(timestamp: str, cfg=None, df=None, llm=None, save=False,
         out["strategy_investigation"] = investigation
     if candidate_selection is not None:
         out["candidate_selection"] = candidate_selection
+    advisory = strategy_agent.build_advisory(ts, candidates, decision_support, cfg, evidence=advisory_evidence)
+    if advisory is not None:
+        out["strategy_advisory"] = advisory
     if save:
         OUTPUTS_DIR.mkdir(exist_ok=True)
         path = OUTPUTS_DIR / f"run_{pd.Timestamp(ts).strftime('%Y%m%dT%H')}.json"

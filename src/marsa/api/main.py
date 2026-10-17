@@ -2,7 +2,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from marsa.api.routes import cargo, decision_support, events_weather, flow, maritime, twin
+from marsa.api.routes import (
+    cargo,
+    coupled_twin,
+    decision_support,
+    events_weather,
+    flow,
+    maritime,
+    twin,
+)
 
 app = FastAPI(
     title="Marsa",
@@ -30,3 +38,5 @@ app.include_router(events_weather.router)
 app.include_router(decision_support.router)
 app.include_router(twin.router)
 app.include_router(flow.router)
+
+app.include_router(coupled_twin.router)

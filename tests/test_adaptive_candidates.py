@@ -21,6 +21,7 @@ ENABLED = {"adaptive_candidates": {"enabled": True}}
 
 def _legacy_config():
     cfg = load_config()
+    cfg["strategy_decision_support"] = {"enabled": False}  # isolate Main legacy contract
     cfg["strategy_investigation"]["enabled"] = False
     cfg["adaptive_candidates"]["enabled"] = False
     return cfg
