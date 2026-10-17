@@ -626,20 +626,8 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
     </section>
 
     <section id="sec5">
-      <div class="storylabel"><span class="num">٥</span> كيف كان أداء مرسى؟</div>
-      <h2 class="stitle">أداء نموذج التنبؤ في اختبار 2025<span class="pf-demo" style="color:var(--teal);border-color:rgba(62,208,182,.45)">من ملف نتائج النموذج</span></h2>
-
-      <div class="pf-grid" id="pfGrid"></div>
-      <div class="pf-mine" id="pfMine" title="مقياس التصرّف: ماذا فعل المشرف بتوصيات مرسى (في هذا المتصفح)."></div>
-
-      <div class="pf-chart">
-        <div class="pf-chart-head">
-          <div class="pf-chart-title">ساعات التكدس كل أسبوع: توقع مرسى مقابل الفعلي</div>
-          <div class="pf-legend"><span><i class="pred"></i>المتوقع</span><span><i class="act"></i>الفعلي</span></div>
-        </div>
-        <svg id="pfSvg" class="pf-svg" viewBox="0 0 1200 230" role="img" aria-label="ساعات التكدس الأسبوعية من يونيو إلى سبتمبر 2025: ما توقعه مرسى قبل 6 ساعات مقابل ما حدث فعلًا"></svg>
-        <div class="pf-cap" id="pfCap"></div>
-      </div>
+      <div class="storylabel"><span class="num">٥</span> رأيك في مرسى</div>
+      <div class="pf-mine" id="pfMine" title="ماذا فعلت بتوصيات مرسى (في هذا المتصفح)."></div>
 
       <div class="fb-card" id="fbCard">
         <div class="fb-title">رأيك يساعدنا نحسّن مرسى</div>
@@ -821,46 +809,6 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
 
 <script>
 (function () {
-  // ===== أداء مرسى: نتائج حقيقية من اختبار نموذج التكدس (+6 ساعات، يونيو – سبتمبر 2025) =====
-  // المصدر: prediction_model/final_proxy/results/fold_predictions.csv
-  // XGBoost +6h: «22 من 60» و«5 ساعات» والرسم الأسبوعي متحقق منها في fold_predictions.csv و
-  // episode_early_warning_results.csv. «63% (22 من 35)» كما كتبها الفريق، ولم نجد طريقة حسابها في
-  // ملفات النتائج (المحسوب: 25 من 37 فترة تنبيه = 68%). تُراجع بعد انتهاء تعديل النموذج.
-  const kpis = [
-    { l:'دقة التنبيهات', v:'63%', u:'', s:'22 من 35 تنبيهًا تحقق فعلًا' },
-    { l:'الإنذار المبكر', v:'5', u:'ساعات', s:'الوسيط قبل بداية التكدس' },
-    { l:'حالات تكدس التقطها', v:'22 من 60', u:'', s:'قبل أن تبدأ' },
-  ];
-  document.getElementById('pfGrid').innerHTML = kpis.map(k =>
-    `<div class="pf-kpi"><div class="l">${k.l}</div><div class="v">${k.v}${k.u ? `<span class="u">${k.u}</span>` : ''}</div><div class="s">${k.s}</div></div>`).join('');
-
-  // ساعات التكدس كل أسبوع: المتوقع (تنبيه مرسى قبل 6 ساعات) مقابل الفعلي — الأقدم على اليمين
-  const WK = [
-    { d:'21 يونيو', p:2,  a:7 },  { d:'28 يونيو', p:19, a:42 }, { d:'5 يوليو',  p:4,  a:23 }, { d:'12 يوليو', p:9,  a:55 },
-    { d:'19 يوليو', p:3,  a:17 }, { d:'26 يوليو', p:23, a:37 }, { d:'2 أغسطس', p:17, a:28 }, { d:'9 أغسطس',  p:9,  a:5 },
-    { d:'16 أغسطس', p:21, a:27 }, { d:'23 أغسطس', p:2,  a:9 },  { d:'30 أغسطس', p:2,  a:8 },  { d:'6 سبتمبر', p:4,  a:4 },
-    { d:'13 سبتمبر', p:0, a:1 },  { d:'20 سبتمبر', p:3, a:3 },
-  ];
-  const PERF = { predicted: WK.map(w => w.p), actual: WK.map(w => w.a) };
-  const W = 1200, H = 230, L = 30, R = W - 76, T = 16, B = H - 38, n = WK.length, MAX = 60;
-  const xAt = i => R - i * (R - L) / (n - 1);
-  const yAt = v => B - v / MAX * (B - T);
-  let s = '';
-  [0, 20, 40, 60].forEach(g => {
-    s += `<line x1="${L}" x2="${R}" y1="${yAt(g)}" y2="${yAt(g)}" stroke="var(--line)" stroke-width="1" opacity="0.6"/>
-          <text x="${R + 38}" y="${yAt(g) + 4}" text-anchor="middle">${g}</text>`;
-  });
-  const path = arr => 'M ' + arr.map((v, i) => xAt(i) + ' ' + yAt(v)).join(' L ');
-  s += `<path d="${path(PERF.predicted)}" fill="none" stroke="var(--sky)" stroke-width="2" stroke-dasharray="6 5"/>
-        <path d="${path(PERF.actual)}" fill="none" stroke="var(--teal)" stroke-width="2.5"/>`;
-  WK.forEach((w, i) => {
-    s += `<circle cx="${xAt(i)}" cy="${yAt(w.p)}" r="4" fill="var(--panel)" stroke="var(--sky)" stroke-width="2"><title>${w.d} · المتوقع: ${w.p} ساعة</title></circle>`;
-    s += `<circle cx="${xAt(i)}" cy="${yAt(w.a)}" r="4.5" fill="var(--teal)"><title>${w.d} · الفعلي: ${w.a} ساعة</title></circle>`;
-    if (i % 2 === 0) s += `<text x="${xAt(i)}" y="${H - 12}" text-anchor="middle">${w.d}</text>`;
-  });
-  document.getElementById('pfSvg').innerHTML = s;
-  document.getElementById('pfCap').textContent = 'مرسى يلتقط أسابيع الذروة نفسها، لكنه يتوقع ساعات أقل من الفعلي.';
-
   // ===== ملاحظات المستخدم =====
   // للاستقبال الفعلي: ضع رابط خدمة الاستقبال هنا (POST بصيغة JSON). بدونه تُحفظ الملاحظة في المتصفح فقط.
   const FEEDBACK_ENDPOINT = '';
@@ -1298,7 +1246,7 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
     (DATA.digital_twin.marker_hours || []).forEach(m => { if (m <= H) g += `<line x1="${x(m)}" y1="16" x2="${x(m)}" y2="44" stroke="var(--sky)" stroke-dasharray="3 3"><title>وقت تنبيه النموذج</title></line>`; });
     g += `<circle cx="${x(0)}" cy="30" r="7" fill="var(--teal)" stroke="var(--panel-2)" stroke-width="2"/><text x="${x(0)}" y="12" text-anchor="middle" style="fill:var(--teal);font-weight:700">ابدأ هنا</text>`;
     svg.innerHTML = g;
-    $('alStartLine').innerHTML = `ابدأ <b>الآن</b> — أثره يظهر بعد ${a} إلى ${b + 1} ساعة، والتأخير أغلى من تنبيه زائد.`;
+    $('alStartLine').innerHTML = `ابدأ <b>الآن</b> — أثره يظهر بعد ${a} إلى ${b + 1} ساعة.`;
   }
 
   // ---------------- الخطة المعتمدة: قرار واحد في اللوحة والتوأم ----------------
@@ -1308,7 +1256,7 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
     const id = DATA.decision_support.highest_ranked_candidate;
     logDecision(where === 'twin' ? 'اعتماد (التوأم)' : 'اعتماد', id);
     PLAN = { ts:DATA.authoritative_timestamp, id, at:new Date() };
-    FB.sent = null; FB.open = false; drawPlan();
+    FB.sent = null; drawPlan();
   }
   function undoPlan() { logDecision('تراجع', PLAN && PLAN.id); PLAN = null; drawPlan(); }
   function drawPlan() {
@@ -1318,7 +1266,7 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
     box.style.borderColor = PLAN ? 'var(--teal)' : (box.dataset.bc || '');
     $('alIcon').textContent = PLAN ? '✓' : '⚠';
     $('alTitle').textContent = PLAN ? 'خطة معتمدة — قيد المتابعة' : (box.dataset.t || $('alTitle').textContent);
-    $('alFollow').textContent = PLAN ? `✓ اعتُمدت ${hhmm(PLAN.at)} · التنفيذ بيد فريق التشغيل · نتابع النتيجة خلال ${num(H)} ساعة` : '';
+    $('alFollow').textContent = PLAN ? `✓ اعتُمدت ${hhmm(PLAN.at)} · التنفيذ بيد فريق التشغيل` : '';
     $('alertButtons').innerHTML = `<button class="b-secondary" id="simBtn" type="button">${PLAN ? 'عرض الخطة في التوأم' : 'افتح التوأم الرقمي'}</button>` +
       (PLAN ? '<button class="b-ghost" id="undoBtn" type="button">تراجع</button>'
             : '<button class="b-primary" id="adoptBtn">اعتماد التوصية</button><button class="b-ghost" id="dismissBtn">غير مناسب</button>');
@@ -1327,7 +1275,7 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
     else {
       $('adoptBtn').onclick = () => adoptPlan('dash');
       $('dismissBtn').onclick = () => {
-        FB.open = true; FB.sent = null; showView('console');
+        objectPlan('dash'); showView('console');
         setTimeout(() => $('twFb').scrollIntoView({ behavior:'smooth', block:'center' }), 80);
       };
     }
@@ -1406,52 +1354,29 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
     $('twB').textContent = num(st.berthed.length) + ' / ' + num(r.kpis.open_berths);
     $('twY').textContent = p && p.yard_occupancy_pct != null ? num(p.yard_occupancy_pct, 1) + '%' : '—';
   }
-  // كل سبب يشير إلى جزء في التوأم يحتاج معايرة لاحقًا
-  const FB_REASONS = [['resource', 'رصيف أو معدّة غير متاحة فعليًا'], ['service_time', 'مدة خدمة السفن غير واقعية'],
-    ['not_feasible', 'الإجراء غير ممكن الآن'], ['priority', 'أولوية لسفينة معيّنة'], ['other', 'سبب آخر']];
-  const fbReady = () => !!FB.reason && (FB.reason !== 'other' || FB.note.trim().length > 0);
+  // «غير مناسب»: يُسجَّل الاعتراض في هذا المتصفح، ويُوجَّه المستخدم للاختبار اليدوي لتجربة قراره
+  // (خيارات الوكيل الأخرى معروضة أصلًا في البطاقات فوق).
+  function objectPlan(where) {
+    logDecision(where === 'dash' ? 'رفض' : 'اعتراض (التوأم)', DATA.decision_support.highest_ranked_candidate);
+    FB.sent = true; drawMine();
+  }
   function renderTwinFeedback(r) {
     const bestId = DATA.decision_support.highest_ranked_candidate, el = $('twFb');
     document.querySelectorAll('#twCards .tw-badge').forEach(b => { b.textContent = PLAN ? 'معتمدة ✓' : 'توصية الوكيل'; });
     if (PLAN) {
-      el.innerHTML = `<div class="tw-fb-done">✓ اعتمدتَ هذه التوصية الساعة ${hhmm(PLAN.at)} — قيد المتابعة.<button type="button" class="tw-fb-undo" id="twUndo">تراجع</button></div>`;
+      el.innerHTML = `<div class="tw-fb-done">✓ اعتمدتَ هذه التوصية الساعة ${hhmm(PLAN.at)}.<button type="button" class="tw-fb-undo" id="twUndo">تراجع</button></div>`;
       $('twUndo').onclick = undoPlan; return;
     }
     if (FB.sent) {
-      el.innerHTML = `<div class="tw-fb-done">✓ سُجّل اعتراضك مع وضع الميناء في هذه الساعة، ويُستخدم لمعايرة التوأم الرقمي.<button type="button" class="tw-fb-undo" id="twAgain">تعديل</button></div>`;
-      $('twAgain').onclick = () => { FB.sent = null; renderTwinFeedback(r); }; return;
+      el.innerHTML = `<div class="tw-fb-q"><span class="grow">✓ سُجّل أن اختيار الوكيل غير مناسب. تقدر تجرّب قرارك في الاختبار اليدوي، والتوأم يحسبه ووكيل الاستراتيجية يقيّمه.</span>
+        <button type="button" class="ok" id="twGoManual">جرّب قرارك</button><button type="button" class="tw-fb-undo" id="twAgain">تراجع</button></div>`;
+      $('twGoManual').onclick = () => $('manualTest').scrollIntoView({ behavior:'smooth', block:'start' });
+      $('twAgain').onclick = () => { logDecision('تراجع', bestId); FB.sent = null; renderTwinFeedback(r); drawMine(); }; return;
     }
-    const opts = allResults().filter(x => x.candidate_id !== bestId).map(x => [x.candidate_id, title(x)])
-      .concat([['manual', 'قراري الخاص — أجرّبه في الاختبار اليدوي'], ['none', 'لن أغيّر شيئًا الآن']]);
     el.innerHTML = `<div class="tw-fb-q"><span class="grow">هل يناسب اختيار الوكيل (<b>${esc(TITLE[bestId] || bestId)}</b>) الوضع على الأرض؟</span>
-        <button type="button" class="ok" id="twOk">نعم، أعتمده</button><button type="button" class="obj" id="twObj" aria-expanded="${FB.open}">غير مناسب</button></div>
-      ${FB.open ? `<div class="tw-fb-form">
-        <div><div class="tw-fb-lbl">لماذا؟</div><div class="tw-fb-chips">${FB_REASONS.map(([k, t]) =>
-          `<button type="button" class="tw-fb-chip ${FB.reason === k ? 'on' : ''}" data-r="${k}" aria-pressed="${FB.reason === k}">${t}</button>`).join('')}</div></div>
-        <label><div class="tw-fb-lbl">ماذا ستفعل بدلًا منه؟</div><select id="twAlt"><option value="">— اختر —</option>${opts.map(([k, t]) =>
-          `<option value="${esc(k)}" ${FB.chosen === k ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
-        <label><div class="tw-fb-lbl">${FB.reason === 'other' ? 'اكتب السبب <span style="color:var(--amber)">(مطلوب)</span>' : 'ملاحظة (اختياري)'}</div>
-          <textarea id="twWhy" maxlength="500" rows="2" placeholder="${FB.reason === 'other' ? 'ما السبب الذي لا يراه التوأم؟' : 'مثال: رصيف في صيانة حتى الغد'}"></textarea></label>
-        <div><button type="button" class="send" id="twSend" ${fbReady() ? '' : 'disabled'}>أرسل الاعتراض</button></div>
-      </div>` : ''}`;
+        <button type="button" class="ok" id="twOk">نعم، أعتمده</button><button type="button" class="obj" id="twObj">غير مناسب</button></div>`;
     $('twOk').onclick = () => adoptPlan('twin');
-    $('twObj').onclick = () => { FB.open = !FB.open; renderTwinFeedback(r); };
-    if (!FB.open) return;
-    el.querySelectorAll('.tw-fb-chip').forEach(b => b.onclick = () => { FB.reason = b.dataset.r; renderTwinFeedback(r); });
-    const why = $('twWhy'); why.value = FB.note;
-    why.oninput = e => { FB.note = e.target.value; $('twSend').disabled = !fbReady(); };
-    if (FB.reason === 'other' && !FB.note) why.focus({ preventScroll:true });
-    $('twAlt').onchange = e => {
-      FB.chosen = e.target.value;
-      if (FB.chosen === 'manual') $('manualTest').scrollIntoView({ behavior:'smooth', block:'start' });
-      else if (FB.chosen && FB.chosen !== 'none' && result(FB.chosen)) { SEL = FB.chosen; TW.h = 0; renderTwin(); }   // اعرض البديل في المحاكاة
-    };
-    $('twSend').onclick = () => {
-      if (!fbReady()) return;
-      const reason = Object.fromEntries(FB_REASONS)[FB.reason];
-      logDecision('اعتراض (التوأم)', bestId, [reason, FB.chosen && 'البديل: ' + FB.chosen, FB.note.trim()].filter(Boolean).join(' · '));
-      FB.sent = true; FB.open = false; renderTwinFeedback(r); drawMine();
-    };
+    $('twObj').onclick = () => { objectPlan('twin'); renderTwinFeedback(r); };
   }
   $('twScrub').addEventListener('input', e => { TW.h = +e.target.value; if (DATA) drawTwinFrame(); });
   $('twPlay').addEventListener('click', () => {
