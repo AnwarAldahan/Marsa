@@ -255,6 +255,13 @@ def _agent_summary(ranked: list[dict]) -> str:
         yard_best = min(yard_runs, key=lambda r: r["kpis"]["yard_peak_occupancy_pct"])
         if yard_best["kpis"]["yard_peak_occupancy_pct"] < base["kpis"]["yard_peak_occupancy_pct"]:
             parts.append(f"وخفّض خيار «{title(yard_best)}» أعلى امتلاء للساحة أكثر من غيره")
+    if base.get("units") == "normalized_service_effort":
+        cargo_best = max(ranked, key=lambda r: r["kpis"]["cargo_unloaded"])
+        gain = cargo_best["kpis"]["cargo_unloaded"] - base["kpis"]["cargo_unloaded"]
+        if gain > 1e-7:
+            parts.append(f"زاد خيار «{title(cargo_best)}» التفريغ المحاكى {gain:.1f} وحدة جهد مطبّعة")
+            if cargo_best["kpis"]["total_wait_vessel_hours"] >= base["kpis"]["total_wait_vessel_hours"]:
+                parts.append("لم يصاحب زيادة التفريغ انخفاض في انتظار السفن؛ يبقى الترتيب قائمًا على الانتظار")
     if not parts:
         return (
             "اختبر التوأم الرقمي الخيارات التي اقترحها الوكيل، ولم يحسّن أيٌّ منها انتظار السفن أو "

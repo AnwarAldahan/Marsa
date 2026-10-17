@@ -50,3 +50,112 @@ Only the existing root HTML bindings, frontend regression tests and this documen
 Focused checks cover JavaScript syntax, scalar/zero KPIs, actual completion-based occupancy, unchanged Main CSS/static component IDs, forecast availability, saved-evaluation parity, stale response/error rejection, causal/conservation tests, Strategy/investigation/adaptive behavior and exact historical-replay compatibility. Desktop browser checks cover March/July/November, navigation, candidates, playback, adoption followed by a new analysis, notifications/factor expansion, manual source separation and a controlled missing-hour response. Live Gemini was not verified in this credential-free worktree; provider/fallback behavior is regression-tested. No separate mobile viewport audit or full-suite run is claimed.
 
 Final focused run: **162 passed**. After the final text-only context-label correction, all ten frontend checks were rerun and passed. Ruff and `git diff --check` passed. Live `/analyze` and `/twin/simulate` returned identical candidate KPIs; replay compatibility was also verified through the API with coupling disabled. The browser showed July's gate scenario unloading 363 normalized units with six completions and no blocking, while the authoritative waiting-ranked winner remained baseline. No commit, push or merge was performed.
+
+
+## Per-call dataset and explicit congestion measurements
+
+The follow-on enhancement materializes the same validated reference-effort formula in
+`data/processed/vessel_cargo_workloads.csv`, keyed uniquely by `call_id` (4,704 records).
+Rebuild using `python scripts/build_vessel_cargo_workloads.py`. Optional `--source` and
+`--output` support validation without touching the original source. The generator rejects
+writing over AIS. CSV output and the companion `.manifest.json` are deterministic; the
+manifest records source/output SHA-256 hashes, method/version, units and row count.
+
+Schema: `call_id`, `vessel_id`, `mmsi`, `imo`, `length_m`, `arrival`, `berth_start`,
+`berth_end`, `estimated_workload`, `units`, `method`, `provenance`, `available_at_utc`.
+The existing AIS extraction includes cargo vessel types 70–79, but the call table has no
+per-call vessel-type column or cargo count. Length and identifiers are retained for traceability;
+length is not a justified conversion to cargo mass, containers or TEU. Using berth duration as
+normalized *reference effort* preserves the validated scenario results. It is a synthetic
+workload proxy, not an empirically calibrated estimate of how much cargo each ship carries.
+
+`estimated_workload = recorded berth_hours × 1 normalized unit/hour`.
+For a vessel already berthed at t0, reference remaining work is
+`max(0, estimated_workload − elapsed berth hours)`. This assumes nominal prior progress;
+there is no observed unloading ledger. It does not reconstruct historical cargo blockage.
+User-added vessels retain Main's earlier-history estimate or explicit service-hours input,
+with a separate provenance, and are not falsely matched to an AIS call.
+
+The derived reference becomes available only at `berth_end`. `reference_workload` rejects
+future reference values by default; the retrospective Twin explicitly opts into hindsight.
+There is no new as-of workload forecast. Existing future AIS arrivals and readiness remain
+retrospective; no leakage-free operational forecast is claimed. XGBoost and its data pipeline
+are untouched. A missing artifact returns a controlled 404; malformed, stale or incomplete
+mappings return 422. No workload is silently invented for a missing call. Turning cargo
+coupling off still uses Main's original independent historical replay without this artifact.
+
+Production scenarios load and validate the derived table once per process, then freeze the
+same call mapping, opening inventory and resource assumptions for all candidates. Restart
+the server after rebuilding the table. `workload_reference` accompanies each simulated vessel;
+`initial_workload` and `remaining_workload` are simulation quantities, not actual container counts.
+The engine's direct synthetic fixtures still accept explicit scenario reference effort.
+
+`twin.cargo_near_capacity_pct: 90` is a labelled configurable demo threshold, not a published
+port standard. `FULL` means yard occupancy is at capacity, `NEAR_CAPACITY` means at least
+this threshold, and `BELOW_THRESHOLD` means below it; these states do not describe the ML
+forecast. `yard_near_capacity_hours` includes time at full capacity. `yard_full_hours` measures
+full-capacity time separately. Durations integrate continuous simulated time, splitting at
+fractional threshold crossings; touching capacity for an instant contributes zero duration.
+Threshold measurement does not alter unloading/clearance rates.
+
+Hourly timeline points expose cumulative unloaded/cleared/blocked effort, total remaining
+vessel workload, completion count, occupancy and congestion status. Flow rows expose each
+hour's blocked/unloaded/cleared effort and near/full durations. KPIs include their horizon
+totals and peak status. Blocking is *foregone nominal unloading effort*, not lost real cargo.
+Actual progress satisfies initial work = unloaded + remaining; yard inventory satisfies
+opening stock + unloaded − cleared = closing stock. Berths release only after work reaches zero.
+Cargo immediately becomes gate-eligible; a physical dwell-time model is still unavailable.
+
+Candidate deltas now include cargo unloading, blocked effort, remaining work, completions and
+near/full durations. Ranking remains total vessel-hours waiting, baseline-first ties. Strategy
+mentions increased unloading without implying reduced waiting. The existing Arabic Twin cards,
+map and replay text display only these backend measures; no controls, CSS or panels were added.
+Typed educational examples retain their separate role.
+
+
+### Follow-on verification results
+
+Live API comparisons at 2025-03-04 10:00 UTC, 2025-07-10 19:00 UTC and
+2025-11-05 12:00 UTC matched Strategy candidate outputs to standalone Twin outputs.
+All three keep baseline as their waiting-ranked winner. The new workload file preserves
+existing results; it makes each call's proxy and temporal limitations explicit.
+
+| Scenario | Waiting (vessel-hours) | Completions | Unloaded effort | Blocked effort | Peak yard % | Near/full hours | Remaining effort |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| March baseline | 0 | 7 | 292 | 0 | 81.77 | 0 / 0 | 662 |
+| July baseline / shortest first / extra berth | 24 | 6 | 322.94 | 40.71 | 100 | 24 / 17.19 | 829.06 |
+| July gate maximum ratio | 24 | 6 | 363 | 0 | 98.14 | 24 / 0 | 789 |
+| November baseline | 0 | 6 | 227 | 0 | 67.06 | 0 / 0 | 429 |
+
+March and November do not generate additional intervention candidates under the unchanged
+Strategy rules. July's three vessel-side candidates tie because the historical readiness floor
+is binding and berth capacity is sufficient; gate improvement changes cargo outcomes, not
+waiting or completions. No intervention effectiveness or predictive cargo accuracy is inferred.
+
+The focused regression run passed 227 tests. A further 37 targeted workload/frontend tests
+passed after malformed-manifest validation and the final label correction, including four
+additional malformed-manifest/downward-threshold cases. Ruff and inline JavaScript syntax
+checks passed. No full-suite rerun is claimed. Existing replay tests run with coupling disabled;
+source data, XGBoost and its saved artifacts remain unchanged.
+
+
+Browser verification used the actual root website at `http://127.0.0.1:8013/` with the new
+backend process. July's existing candidate cards showed the measured near/full hours and
+blocked effort. Selecting the gate candidate retained baseline as the Strategy recommendation;
+scrubbing and playing its timeline reached six completions, two waiting vessels, 15 occupied
+slots, 98.14% yard occupancy and 789 remaining effort units. Playback stopped at hour 24.
+Twin adoption was recorded locally, Escape returned to the dashboard, and reload restored the
+analysis and actions. No application console errors appeared; only two Adobe-extension font
+warnings were present. March/November and missing/invalid hours were checked through real APIs;
+no separate mobile viewport audit or live Gemini success is claimed.
+
+
+### Checkout portability
+
+Provenance hashes use `csv_crlf_to_lf_v1`: CRLF bytes in CSV files are normalized to LF
+in memory before SHA-256 calculation. This applies to both the original AIS source and
+the derived CSV; neither file is rewritten during validation. The manifest records this
+normalization contract explicitly. All other bytes remain significant, and deterministic
+source-to-derived table validation remains in place. Regression tests cover all four LF/CRLF
+source/derived combinations and reject genuinely changed content in either checkout format.
+The portability fix preserves the original and derived CSV bytes and all 4,704 workload values.

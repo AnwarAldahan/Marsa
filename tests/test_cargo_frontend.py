@@ -147,3 +147,26 @@ def test_live_replay_speed_updates_immediately_and_playback_stops_at_horizon():
       handlers.twPlay(e);assert.equal(replayHour,0);assert.equal(replayTimer,7);
       handlers.twPlay(e);assert.equal(replayTimer,null);
     """)
+
+
+def test_cargo_visualization_displays_backend_congestion_and_workload_values():
+    html = (ROOT / "Marsa updated.html").read_text(encoding="utf-8")
+    source = html.split("  const congestionAr =")[1].split("  $('twScrub').addEventListener")[0]
+    node("""
+      const assert=require('node:assert/strict'),nodes={};
+      const $=id=>nodes[id]||=({style:{},querySelectorAll:()=>[],setAttribute(){}});
+      const num=(v,d=0)=>Number(v).toFixed(d),escapeText=String,candAr=r=>r.candidate_id;
+      let replayHour=1,mapped;
+      const live={authoritative_timestamp:'2025-07-10T19:00:00Z',decision_support:{highest_ranked_candidate:'baseline'}};
+      const selected={candidate_id:'gate_max',units:'normalized_service_effort',kpis:{open_berths:23},vessels:[],
+        timeline:[{}, {waiting:2,at_berth:15,completed:6,yard_occupancy_pct:100,cargo_congestion_status:'FULL',remaining_vessel_workload:17.2}],
+        flows:[{unloaded:3.5,blocked_unloading:2.4,gate_cleared:1.1}]};
+      const window={MARSA_NORMALIZE:x=>x,MARSA_DRAWMAP:x=>mapped=x};
+      const congestionAr =
+    """ + source + """
+      drawLiveFrame();assert.equal(mapped.yards[0].occupancy,100);assert.equal(mapped.waiting,2);
+      assert.equal(mapped.berths_occupied,15);assert.equal(mapped.gate_out_6h,1.1);
+      for(const value of ['100.0%','ممتلئة','17.2','3.5','2.4'])assert($('twWx').textContent.includes(value));
+      assert.equal($('twBest').style.display,'none');
+      assert.equal(live.decision_support.highest_ranked_candidate,'baseline');
+    """)

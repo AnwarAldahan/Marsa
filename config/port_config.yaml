@@ -38,6 +38,7 @@ model:                           # LEGACY: used only by src/marsa/data/features.
 
 twin:
   cargo_coupling: true          # Synthetic service-effort yard proxy; false preserves exact AIS/yard replay.
+  cargo_near_capacity_pct: 90   # ASSUMPTION: demo congestion warning threshold; not an operational standard.
   cargo_buffer_hours: 24        # ASSUMPTION: abstract storage = original slots x one day of nominal effort.
   horizon_hours: 24              # CHOICE (agreed, may change): how far ahead the twin simulates; the
                                  # interface marks +6 h, the prediction model's horizon

@@ -2655,6 +2655,7 @@ window.TwinEngine = (function () {
       if(replayHour>=live.digital_twin.simulation_horizon_hours)stopReplay();
     },900/(Number($('twSpeed').value)||1));
   }
+  const congestionAr = value => ({FULL:'ممتلئة',NEAR_CAPACITY:'قرب السعة',BELOW_THRESHOLD:'دون حد القرب'}[value] || 'غير متاح');
   function drawLiveFrame(){
     if(!live || !selected)return;
     $('twSvg').setAttribute('viewBox','0 0 1100 540');
@@ -2666,7 +2667,7 @@ window.TwinEngine = (function () {
     $('twTitle').innerHTML=escapeText(candAr(selected))+' · <bdi dir="ltr">'+escapeText(live.authoritative_timestamp)+'</bdi>';
     $('twBest').style.display=selected.candidate_id===live.decision_support.highest_ranked_candidate?'':'none';
     $('twBest').textContent='اختيار الاستراتيجية';
-    $('twWx').textContent=coupled?'محاكاة بأثر رجعي · أحمال ومخزون بوحدات جهد خدمة مطبّعة، ليست حاويات أو قدرة تشغيلية موثقة. اكتملت '+num(p.completed)+' سفينة.'+(f?' فُرّغ خلال الساعة '+num(f.unloaded,1)+'؛ تعطل بسبب امتلاء الساحة '+num(f.blocked_unloading,1)+'.':''):'إعادة تشغيل AIS وCargo المستقلة؛ لا تربط هذه الحالة التفريغ بانتظار السفن.';
+    $('twWx').textContent=coupled?'محاكاة بأثر رجعي · أحمال ومخزون بوحدات جهد خدمة مطبّعة، ليست حاويات أو قدرة تشغيلية موثقة. اكتملت '+num(p.completed)+' سفينة. إشغال '+num(p.yard_occupancy_pct,1)+'% ('+congestionAr(p.cargo_congestion_status)+')؛ متبقي السيناريو '+num(p.remaining_vessel_workload,1)+' وحدة جهد.'+(f?' فُرّغ خلال الساعة '+num(f.unloaded,1)+'؛ تعطل بسبب امتلاء الساحة '+num(f.blocked_unloading,1)+'.':''):'إعادة تشغيل AIS وCargo المستقلة؛ لا تربط هذه الحالة التفريغ بانتظار السفن.';
     $('twT').textContent='+'+replayHour+' س';$('twQ').textContent=num(p.waiting);$('twB').dir='ltr';$('twB').textContent=num(p.at_berth)+' / '+num(selected.kpis.open_berths);$('twScrub').value=replayHour;
   }
   $('twScrub').addEventListener('input',e=>{if(!live)return;e.stopImmediatePropagation();stopReplay();replayHour=Number(e.target.value);drawLiveFrame();},true);
@@ -2719,6 +2720,7 @@ window.TwinEngine = (function () {
         <div class="tw-tagrow">${r.candidate_id===bestId?'<span class="tw-badge">اختيار الوكيل</span>':''}</div>
         <div class="tw-ct">${escapeText(candAr(r))}</div>
         <div class="tw-cl">#${r.rank} · انتظار ${num(kpi(r,'total_wait_vessel_hours'),1)} ساعة–سفينة · اكتملت ${num(kpi(r,'completed_vessels'))} · فُرّغ ${num(kpi(r,'cargo_unloaded'),1)} وحدة جهد مطبّعة · ذروة الساحة ${num(kpi(r,'yard_peak_occupancy_pct'),1)}%</div>
+        ${r.cargo_congestion_definition?`<div class="tw-side">قرب السعة (افتراض ≥${num(r.cargo_congestion_definition.near_capacity_pct)}%): ${num(kpi(r,'yard_near_capacity_hours'),1)} س · ممتلئة: ${num(kpi(r,'yard_full_hours'),1)} س · تفريغ معطّل: ${num(kpi(r,'blocked_unloading'),1)} وحدة جهد</div>`:''}
       </button>`).join('');
     el.querySelectorAll('[data-result]').forEach(b=>b.onclick=()=>{stopReplay();selected=res.find(r=>r.candidate_id===b.dataset.result);replayHour=0;el.querySelectorAll('[data-result]').forEach(x=>x.classList.toggle('sel',x===b));drawLiveFrame();});
     $('twScrub').max=o.digital_twin.simulation_horizon_hours;

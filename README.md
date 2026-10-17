@@ -9,6 +9,7 @@ Nothing is executed automatically — the port operator takes the final decision
 
 The optional [connected cargo extension](docs/CARGO_COUPLING.md) runs inside the existing Twin and APIs.
 With it enabled, FastAPI also serves Main's root website at `/`; simulated cargo uses labelled normalized service effort, not TEU.
+Generate the separate per-call reference workload table with `python scripts/build_vessel_cargo_workloads.py`. The existing Twin reports simulated near/full-yard duration and cargo progress separately from its waiting-based ranking.
 
 <p align="center"><img src="docs/marsa_flow.png" width="900" alt="Marsa flow"></p>
 
