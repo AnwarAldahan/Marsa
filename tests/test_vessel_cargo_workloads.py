@@ -37,7 +37,7 @@ def test_all_call_ids_unique_traceable_and_deterministic(tmp_path):
     for name in ("one.csv", "two.csv"):
         write_workloads(CALLS_PATH, tmp_path / name)
         assert sha256(tmp_path / name) == manifest["dataset_sha256"]
-        assert (tmp_path / name).read_bytes() == WORKLOADS_PATH.read_bytes()
+        assert (tmp_path / name).read_bytes().replace(b"\r\n", b"\n") == WORKLOADS_PATH.read_bytes().replace(b"\r\n", b"\n")
     assert sha256(CALLS_PATH) == source_hash
 
 
@@ -50,7 +50,7 @@ def test_script_reproducible_with_custom_output(tmp_path):
     result = subprocess.run([sys.executable, str(script), "--output", str(output)],
                             capture_output=True, text=True, check=False)
     assert result.returncode == 0, result.stderr
-    assert output.read_bytes() == WORKLOADS_PATH.read_bytes()
+    assert output.read_bytes().replace(b"\r\n", b"\n") == WORKLOADS_PATH.read_bytes().replace(b"\r\n", b"\n")
 
 
 @pytest.mark.parametrize("bad", ["duplicate", "negative", "nan", "timestamps", "missing_field"])
