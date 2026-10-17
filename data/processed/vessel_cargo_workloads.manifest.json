@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "hash_normalization": "csv_crlf_to_lf_v1",
+  "source_file": "la_cargo_calls_2023_2025.csv",
+  "source_sha256": "867d77fc8008fb20cbeaec0ea66fd5c80ae40c74d1995d4f45c70f2123f21e8b",
+  "dataset_sha256": "f75bc8d2a1db92eab50aec97180db3c4430456d11cd503200ecd8335cd712230",
+  "records": 4704,
+  "units": "normalized_service_effort",
+  "method": "recorded_berth_hours_reference_v1",
+  "formula": "estimated_workload = recorded berth_hours * 1 unit/hour",
+  "temporal_scope": "RETROSPECTIVE; available_at_utc = berth_end; not an as-of forecast",
+  "source_fields_reviewed": [
+    "call_id",
+    "vessel_id",
+    "mmsi",
+    "imo",
+    "length_m",
+    "arrival",
+    "waited",
+    "wait_start",
+    "wait_end",
+    "berth_start",
+    "berth_end",
+    "wait_hours",
+    "berth_hours"
+  ]
+}

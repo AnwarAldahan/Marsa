@@ -12,6 +12,7 @@ import pandas as pd
 from marsa.twin.calls import CALLS_PATH, missing_ranges, scenario_at
 from marsa.twin.engine import Scenario, Vessel
 from marsa.twin.estimates import estimate_stay
+from marsa.twin.workloads import attach_workloads
 from marsa.twin.yard import CARGO_PATH, yard_state
 
 ADDED_KEYS = {"arrival_in_hours", "vessel_id", "length_m", "service_hours"}
@@ -71,7 +72,8 @@ def scenario_summary(sc: Scenario) -> dict:
         "vessels_at_berth_now": len(sc.berthed),
         "vessels_at_berth": [
             {"call_id": v.call_id, "mmsi": v.mmsi, "berthed_since_h": round(v.berth_h, 2),
-             "leaves_in_h": round(v.berth_h + v.service_h, 2)}
+             "leaves_in_h": round(v.berth_h + v.service_h, 2) if sc.cargo is None else None,
+             **({"reference_service_remaining_h": round(v.berth_h + v.service_h, 2)} if sc.cargo is not None else {})}
             for v in sc.berthed],
         "vessels_waiting_now": sum(1 for v in sc.vessels if v.arrival_h <= 0),
         "vessels_arriving_in_horizon": sum(
@@ -83,6 +85,7 @@ def scenario_summary(sc: Scenario) -> dict:
         "yard_capacity": None if sc.yard is None else sc.yard["capacity"],
         "gate_max_recorded": None if sc.yard is None else sc.yard["max_recorded_departures"],
         "vessels_added": sum(1 for v in sc.vessels if v.source == "added"),
+        **({"cargo_coupling": sc.cargo, "vessel_workloads": sc.workloads} if sc.cargo is not None else {}),
     }
 
 
@@ -96,10 +99,36 @@ def build_scenario(ts: pd.Timestamp, cfg: dict, stress: dict | None = None,
                      berths_closed=stress["berths_closed"],
                      arrival_multiplier=stress["arrival_multiplier"])
     sc.yard = yard_state(ts, horizon)
+    if cfg["twin"].get("cargo_coupling", False):
+        if sc.yard is None:
+            raise ValueError("cargo coupling requires an exact-hour Cargo snapshot")
+        from math import isfinite
+
+        buffer_hours = float(cfg["twin"].get("cargo_buffer_hours", 24))
+        source_capacity = sc.yard["capacity"]
+        occupancy = sc.yard["yard"][0] / source_capacity if source_capacity > 0 else float("nan")
+        departures = sc.yard["departures"][0]
+        if (not isfinite(buffer_hours) or buffer_hours <= 0 or not isfinite(occupancy)
+                or not 0 <= occupancy <= 1 or departures is None or not isfinite(departures) or departures < 0):
+            raise ValueError("invalid Cargo proxy initialization")
+        capacity = berths * buffer_hours
+        sc.cargo = {"capacity": capacity, "initial_inventory": occupancy * capacity,
+                    "gate_rate": departures / source_capacity * capacity, "source_capacity": source_capacity,
+                    "units": "normalized_service_effort", "buffer_hours": buffer_hours,
+                    "near_capacity_pct": float(cfg["twin"].get("cargo_near_capacity_pct", 90.)),
+                    "assumption": "Synthetic Cargo occupancy and clearance/capacity ratios proxy an abstract yard; "
+                                  "one nominal berth-service hour is one workload unit; each occupied slot provides one unit/hour. Not TEU, measured unloading, "
+                                  "or verified terminal membership. Historical service durations are retrospective references."}
+        workload_source = attach_workloads(sc, ts)
     sc.gate_closed_hours = stress["gate_closed_hours"]
     sc.container_inflow_multiplier = stress["container_inflow_multiplier"]
     extra = added_vessels(ts, added, horizon, int(cfg["twin"]["similar_vessels_k"]))
     sc.vessels = sc.vessels + extra
+    if sc.workloads is not None:
+        for vessel in extra:
+            sc.workloads[vessel.call_id] = {"total_workload": vessel.service_h,
+                "initial_workload": vessel.service_h, "method": vessel.estimate["method"],
+                "provenance": "USER_INPUT_OR_EARLIER_HISTORY_ESTIMATE", "available_at_utc": ts.isoformat()}
     sources = [
         {"input": "vessels at berth, waiting and arriving; their arrival, berth and service times",
          "source": str(CALLS_PATH.name), "provenance": "OBSERVED (AIS)"},
@@ -107,6 +136,11 @@ def build_scenario(ts: pd.Timestamp, cfg: dict, stress: dict | None = None,
          "source": cfg["capacity"]["container_berths_source"], "provenance": "PUBLIC SOURCE"},
     ]
     if sc.yard is not None:
+        if sc.cargo is not None:
+            sources.append(workload_source)
+            sources.append({"input": "connected cargo scenario", "value": sc.cargo,
+                            "source": "Explicit normalized service-effort proxy using t0 Cargo ratios only",
+                            "provenance": "SYNTHETIC SCENARIO ASSUMPTION"})
         sources.append({"input": "yard and gate", "kind": "yard",
                         "value": {"capacity": sc.yard["capacity"],
                                   "max_recorded_departures": sc.yard["max_recorded_departures"],

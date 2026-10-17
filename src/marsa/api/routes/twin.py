@@ -15,6 +15,7 @@ import pandas as pd
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from marsa.common.exceptions import DataNotReadyError
 from marsa.config import DATA_DIR, load_config
 from marsa.data.load import parse_exact_utc_hour
 from marsa.twin.adapter import build_scenario, scenario_summary
@@ -93,6 +94,8 @@ def simulate(request: SimulateRequest) -> dict:
         baseline = simulate_candidate(scenario, {"id": "baseline", "actions": []})
         tried = simulate_candidate(scenario, {"id": "user_decision", "actions": actions})
         compared = {r["candidate_id"]: r for r in score_results([baseline, tried])}
+    except DataNotReadyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
     except (KeyError, ValueError) as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     return {

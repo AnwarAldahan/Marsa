@@ -1,8 +1,10 @@
 """Active Marsa API with three domain agents and one integrated decision flow."""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 from marsa.api.routes import cargo, decision_support, events_weather, flow, maritime, twin
+from marsa.config import ROOT
 
 app = FastAPI(
     title="Marsa",
@@ -30,3 +32,8 @@ app.include_router(events_weather.router)
 app.include_router(decision_support.router)
 app.include_router(twin.router)
 app.include_router(flow.router)
+
+
+@app.get("/", include_in_schema=False)
+def website():
+    return FileResponse(ROOT / "Marsa updated.html", headers={"Cache-Control": "no-store"})
