@@ -149,6 +149,25 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
 .recotext { font-size:13.5px; line-height:1.7; margin-bottom:12px; }
 .recocompare { display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
 .rc-box { text-align:center; }
+.azone { font-size:12px; color:var(--muted); border:1px solid var(--line); border-radius:20px; padding:2px 10px; }
+.recotext b { font-size:15px; }
+.rc-start { font-size:12.5px; color:var(--muted); margin:-6px 0 4px; cursor:help; }
+.rc-start b { color:var(--teal); }
+.rc-follow { display:none; font-size:12.5px; color:var(--teal); margin:-6px 0 4px; }
+.alertbox.adopted .rc-follow { display:block; }
+.alertbox.adopted .aicon { color:var(--teal); }
+.alertbox.adopted .rc-start { display:none; }
+.awin svg { width:100%; height:62px; display:block; margin:2px 0 8px; }
+.awin svg text { font-family:var(--font); font-size:11px; fill:var(--muted); }
+.rc-why { margin-top:8px; font-size:12.5px; color:var(--muted); line-height:1.7; }
+.rc-why summary { cursor:pointer; color:var(--teal); width:max-content; }
+.pm-plan { display:none; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 10px; padding:8px 14px; border:1px solid var(--teal); border-radius:9px;
+  background:rgba(62,208,182,.08); font-size:13px; }
+.pm-plan.on { display:flex; }
+.pm-plan b { color:var(--teal); }
+.pm-plan .dim { color:var(--muted); font-size:12px; }
+.pf-mine { display:flex; gap:18px; flex-wrap:wrap; align-items:center; font-size:12.5px; color:var(--muted); margin:0 0 12px; }
+.pf-mine b { font-family:var(--font-mono); font-size:15px; color:var(--text); margin-inline-start:4px; }
 .rc-box .l { font-size:11px; color:var(--muted); } .rc-box .v { font-family:var(--font-mono); font-size:17px; font-weight:600; margin-top:2px; }
 .rc-arrow { color:var(--teal); font-size:16px; }
 .rc-improve { font-size:12px; color:var(--teal); margin-inline-start:auto; }
@@ -537,6 +556,7 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
           <div class="pm-status" id="pmStatus" hidden><i></i><span></span></div>
           <div class="pm-hint">مرّر المؤشر أو المس أي عنصر لعرض التفاصيل</div>
         </div>
+        <div class="pm-plan" id="pmPlan" role="status"></div>
         <div class="pm-scroll">
           <svg class="pm-svg" id="pmSvg" viewBox="0 0 1100 420" role="group" aria-label="خريطة الأرصفة والسفن"></svg>
         </div>
@@ -565,7 +585,7 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
           <div class="dstats">
             <div>توقع نموذج التنبؤ<b id="dbModel">—</b></div>
             <div>الساعة التي يتنبأ بها<b id="dbWindow">—</b></div>
-            <div>انتظار السفن بدون تغيير (محاكاة)<b id="dbWait">—</b></div>
+            <div>انتظار السفن بدون تغيير<b id="dbWait">—</b></div>
           </div>
         </div>
       </div>
@@ -580,23 +600,21 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
     <section id="sec4">
       <div class="storylabel"><span class="num">٤</span> ماذا يجب أن نفعل؟</div>
       <div class="alertbox" id="alertBox" style="display:none">
-        <div class="ahead"><span class="aicon">⚠</span><span class="atitle" id="alTitle">إشارة ضغط</span></div>
-        <div class="ameta">
-          <div>أفق التنبؤ<b id="amWhen">—</b></div>
-          <div>المنطقة<b id="amArea">—</b></div>
-        </div>
+        <div class="ahead"><span class="aicon" id="alIcon">⚠</span><span class="atitle" id="alTitle">إشارة ضغط</span><span class="azone" id="amArea">—</span></div>
         <div class="areason" id="alReason"></div>
         <div class="recobox">
           <div class="recolabel" id="alLabel">توصية وكيل الاستراتيجية</div>
           <div class="recotext" id="alText">—</div>
-          <div class="metric-cap">المقياس: إجمالي ساعات انتظار السفن خلال أفق المحاكاة، وأعلى إشغال للساحة بجانبه</div>
-          <div class="recocompare">
+          <div class="rc-start" id="alStartLine"></div>
+          <div class="rc-follow" id="alFollow"></div>
+          <div class="awin" id="alWin"><svg id="alWinSvg" viewBox="0 0 600 62" role="img" aria-label="متى يظهر أثر القرار"></svg></div>
+          <div class="recocompare" title="إجمالي ساعات انتظار السفن خلال أفق المحاكاة. نتيجة محاكاة من التوأم الرقمي، وليست نتيجة مضمونة.">
             <div class="rc-box"><div class="l">بدون تغيير</div><div class="v" id="alBefore">—</div></div>
             <div class="rc-arrow">←</div>
             <div class="rc-box"><div class="l">مع التوصية</div><div class="v" id="alAfter" style="color:var(--teal)">—</div></div>
             <div class="rc-improve" id="alImprove"></div>
           </div>
-          <div class="predicted-note">نتيجة محاكاة من التوأم الرقمي، وليست نتيجة مضمونة. القرار النهائي لمشغّل الميناء.</div>
+          <details class="rc-why" id="alWhy"><summary>لماذا هذا الخيار؟</summary><div id="alWhyText"></div></details>
         </div>
         <div class="abuttons" id="alertButtons">
           <button class="b-secondary" id="simBtn" type="button">افتح التوأم الرقمي</button>
@@ -608,19 +626,8 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
     </section>
 
     <section id="sec5">
-      <div class="storylabel"><span class="num">٥</span> كيف كان أداء مرسى؟</div>
-      <h2 class="stitle">أداء نموذج التنبؤ في اختبار 2025<span class="pf-demo" style="color:var(--teal);border-color:rgba(62,208,182,.45)">من ملف نتائج النموذج</span></h2>
-
-      <div class="pf-grid" id="pfGrid"></div>
-
-      <div class="pf-chart">
-        <div class="pf-chart-head">
-          <div class="pf-chart-title">ساعات التكدس كل أسبوع: توقع مرسى مقابل الفعلي</div>
-          <div class="pf-legend"><span><i class="pred"></i>المتوقع</span><span><i class="act"></i>الفعلي</span></div>
-        </div>
-        <svg id="pfSvg" class="pf-svg" viewBox="0 0 1200 230" role="img" aria-label="ساعات التكدس الأسبوعية من يونيو إلى سبتمبر 2025: ما توقعه مرسى قبل 6 ساعات مقابل ما حدث فعلًا"></svg>
-        <div class="pf-cap" id="pfCap"></div>
-      </div>
+      <div class="storylabel"><span class="num">٥</span> رأيك في مرسى</div>
+      <div class="pf-mine" id="pfMine" title="ماذا فعلت بتوصيات مرسى (في هذا المتصفح)."></div>
 
       <div class="fb-card" id="fbCard">
         <div class="fb-title">رأيك يساعدنا نحسّن مرسى</div>
@@ -740,7 +747,7 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
               <option value="drizzle">رذاذ</option>
               <option value="wind">أقوى رياح</option>
               <option value="wave">أعلى موج</option>
-              <option value="event">حدث خارجي (اصطناعي)</option>
+              <option value="event">حدث خارجي</option>
             </select>
             <select id="mtHour" hidden style="margin-top:6px"></select>
             <div class="hint" id="mtHourHint"></div>
@@ -802,46 +809,6 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
 
 <script>
 (function () {
-  // ===== أداء مرسى: نتائج حقيقية من اختبار نموذج التكدس (+6 ساعات، يونيو – سبتمبر 2025) =====
-  // المصدر: prediction_model/final_proxy/results/fold_predictions.csv
-  // XGBoost +6h: «22 من 60» و«5 ساعات» والرسم الأسبوعي متحقق منها في fold_predictions.csv و
-  // episode_early_warning_results.csv. «63% (22 من 35)» كما كتبها الفريق، ولم نجد طريقة حسابها في
-  // ملفات النتائج (المحسوب: 25 من 37 فترة تنبيه = 68%). تُراجع بعد انتهاء تعديل النموذج.
-  const kpis = [
-    { l:'دقة التنبيهات', v:'63%', u:'', s:'22 من 35 تنبيهًا تحقق فعلًا' },
-    { l:'الإنذار المبكر', v:'5', u:'ساعات', s:'الوسيط قبل بداية التكدس' },
-    { l:'حالات تكدس التقطها', v:'22 من 60', u:'', s:'قبل أن تبدأ' },
-  ];
-  document.getElementById('pfGrid').innerHTML = kpis.map(k =>
-    `<div class="pf-kpi"><div class="l">${k.l}</div><div class="v">${k.v}${k.u ? `<span class="u">${k.u}</span>` : ''}</div><div class="s">${k.s}</div></div>`).join('');
-
-  // ساعات التكدس كل أسبوع: المتوقع (تنبيه مرسى قبل 6 ساعات) مقابل الفعلي — الأقدم على اليمين
-  const WK = [
-    { d:'21 يونيو', p:2,  a:7 },  { d:'28 يونيو', p:19, a:42 }, { d:'5 يوليو',  p:4,  a:23 }, { d:'12 يوليو', p:9,  a:55 },
-    { d:'19 يوليو', p:3,  a:17 }, { d:'26 يوليو', p:23, a:37 }, { d:'2 أغسطس', p:17, a:28 }, { d:'9 أغسطس',  p:9,  a:5 },
-    { d:'16 أغسطس', p:21, a:27 }, { d:'23 أغسطس', p:2,  a:9 },  { d:'30 أغسطس', p:2,  a:8 },  { d:'6 سبتمبر', p:4,  a:4 },
-    { d:'13 سبتمبر', p:0, a:1 },  { d:'20 سبتمبر', p:3, a:3 },
-  ];
-  const PERF = { predicted: WK.map(w => w.p), actual: WK.map(w => w.a) };
-  const W = 1200, H = 230, L = 30, R = W - 76, T = 16, B = H - 38, n = WK.length, MAX = 60;
-  const xAt = i => R - i * (R - L) / (n - 1);
-  const yAt = v => B - v / MAX * (B - T);
-  let s = '';
-  [0, 20, 40, 60].forEach(g => {
-    s += `<line x1="${L}" x2="${R}" y1="${yAt(g)}" y2="${yAt(g)}" stroke="var(--line)" stroke-width="1" opacity="0.6"/>
-          <text x="${R + 38}" y="${yAt(g) + 4}" text-anchor="middle">${g}</text>`;
-  });
-  const path = arr => 'M ' + arr.map((v, i) => xAt(i) + ' ' + yAt(v)).join(' L ');
-  s += `<path d="${path(PERF.predicted)}" fill="none" stroke="var(--sky)" stroke-width="2" stroke-dasharray="6 5"/>
-        <path d="${path(PERF.actual)}" fill="none" stroke="var(--teal)" stroke-width="2.5"/>`;
-  WK.forEach((w, i) => {
-    s += `<circle cx="${xAt(i)}" cy="${yAt(w.p)}" r="4" fill="var(--panel)" stroke="var(--sky)" stroke-width="2"><title>${w.d} · المتوقع: ${w.p} ساعة</title></circle>`;
-    s += `<circle cx="${xAt(i)}" cy="${yAt(w.a)}" r="4.5" fill="var(--teal)"><title>${w.d} · الفعلي: ${w.a} ساعة</title></circle>`;
-    if (i % 2 === 0) s += `<text x="${xAt(i)}" y="${H - 12}" text-anchor="middle">${w.d}</text>`;
-  });
-  document.getElementById('pfSvg').innerHTML = s;
-  document.getElementById('pfCap').textContent = 'مرسى يلتقط أسابيع الذروة نفسها، لكنه يتوقع ساعات أقل من الفعلي.';
-
   // ===== ملاحظات المستخدم =====
   // للاستقبال الفعلي: ضع رابط خدمة الاستقبال هنا (POST بصيغة JSON). بدونه تُحفظ الملاحظة في المتصفح فقط.
   const FEEDBACK_ENDPOINT = '';
@@ -905,10 +872,13 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
   #marsaLive select,#marsaLive input{background:#17304d;color:#fff;border:1px solid #2a4f7a;border-radius:8px;padding:7px 8px;font-family:inherit;width:100%}
   #marsaLive button{background:#3ED0B6;color:#062033;border:0;border-radius:8px;padding:8px 12px;font-weight:700;cursor:pointer;font-family:inherit}
   #marsaLive .st{font-size:12px;opacity:.85}
+  #marsaLive .ml-or{font-size:12px;opacity:.75;text-align:center}
+  #marsaLive .ml-cal{display:grid;grid-template-columns:1.4fr 1fr;gap:8px}
+  #marsaLive input[type=date]{color-scheme:dark;font-family:'IBM Plex Mono',monospace;direction:ltr}
+  #marsaLive .ml-hint{font-size:11.5px;opacity:.75;min-height:15px}
   #marsaLive .st.ok{color:#3ED0B6}#marsaLive .st.err{color:#F6837C}
   .live-tag{display:inline-block;font-size:11px;background:#1c4d3f;color:#8ff0d8;border-radius:6px;padding:2px 6px;margin-inline-start:6px}
 </style>
-<button id="marsaToggle" type="button">⏱ اختر اللحظة الحالية</button>
 <button id="marsaToggle" type="button">⏱ اختر اللحظة الحالية</button>
 <div id="marsaLive">
   <select id="mlPreset">
@@ -919,7 +889,11 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
     <option value="2025-05-14T06:00:00Z">14 مايو 2025 · 06:00 UTC</option>
     <option value="2025-11-02T08:00:00Z">2 نوفمبر 2025 · 08:00 UTC</option>
   </select>
-  <input id="mlCustom" placeholder="أو أي ساعة UTC مثل 2025-08-15T14:00:00Z">
+  <div class="ml-or">أو اختر من التقويم (UTC)</div>
+  <div class="ml-cal"><input type="date" id="mlDay" aria-label="اليوم">
+    <select id="mlHour" aria-label="الساعة" disabled><option value="">الساعة</option></select></div>
+  <div class="ml-hint" id="mlHint"></div>
+  <input id="mlCustom" hidden>
   <button id="mlLoad">تحميل</button>
   <span class="st" id="mlStatus">لم يتم الاتصال بعد</span>
 </div>
@@ -950,7 +924,7 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
                      labor_operational_disruption:'تعطل تشغيلي/عمالي', logistics_disruption:'تعطل لوجستي' };
   const AREA_AR = { maritime:'منطقة الانتظار / الأرصفة', cargo:'الساحة والبوابة', events_weather:'سياق خارجي' };
   const SRC = { ais:'AIS', syn:'اصطناعي', pred:'تنبؤ', sim:'محاكاة', user:'مدخل المستخدم', obs:'مرصود' };
-  const tag = k => `<span class="live-tag">${SRC[k]}</span>`;
+  const tag = k => '';   // source labels hidden on request (SRC kept for reference)
   const title = r => TITLE[r.candidate_id] || r.title || r.candidate_id;
   const VIOLET = '#B9A2F0';
   const PROV = { 'OBSERVED (AIS)':'السفن من AIS (مرصود)', 'PUBLIC SOURCE':'عدد الأرصفة من كتيب الميناء', 'SYNTHETIC (Cargo agent)':'الساحة من ملف وكيل البضائع (اصطناعي)',
@@ -1027,7 +1001,7 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
       const cls = closed ? 'pm-bx' : v ? 'pm-bx busy' : 'pm-bx free';
       const k = 'b' + i;
       tips[k] = closed ? { t:'رصيف مغلق', b:['سيناريو', 'warn'], rows:[], note:'أغلقه المستخدم في السيناريو.' }
-        : v ? { t:vName(v), b:['على الرصيف', 'info'], rows:[['يغادر بعد', hrs(v.leaves)]], note:v.added ? methodAr(v.est) : 'مدة البقاء من AIS.' }
+        : v ? { t:vName(v), b:['على الرصيف', 'info'], rows:[['يغادر بعد', hrs(v.leaves)]], note:v.added ? methodAr(v.est) : '' }
         : { t:extra ? 'رصيف إضافي (قرار)' : 'رصيف متاح', b:['فارغ', 'ok'], rows:[], note:'' };
       s += `<g class="pm-hit" data-k="${k}" tabindex="0"><rect class="${cls}" x="${x}" y="${y}" width="${bw}" height="${bh}" rx="7"
         ${closed ? 'style="fill:rgba(163,180,202,.18);stroke:var(--muted)"' : ''}${v && v.added ? ` style="stroke:${VIOLET};stroke-dasharray:4 3"` : ''}/>
@@ -1035,36 +1009,51 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
               <text x="${x + bw / 2}" y="${y + 46}" text-anchor="middle" class="mono" font-size="11">${hrs(v.leaves)}</text>` : ''}</g>`;
     }
     const rows = Math.ceil(total / cols), yW = 36 + rows * (bh + gap) + 26;
-    s += `<rect class="pm-anch" x="24" y="${yW - 2}" width="${W - 48}" height="66" rx="10"/>
-          <text x="${x0}" y="${yW - 8}" class="dim" font-size="13">منطقة الانتظار (${num(st.waiting.length)})</text>`;
-    st.waiting.slice(0, 18).forEach((v, i) => {
-      const x = x0 - 70 - i * 56, cap = v.cap > 0.01, k = 'w' + i;
+    // map look v2: نفس السفن والبيانات، رسم أوضح
+    s += `<rect class="pm-anch" x="24" y="${yW - 2}" width="${W - 48}" height="78" rx="39"/>
+          <text x="${x0}" y="${yW - 8}" class="dim" font-size="13">منطقة الانتظار — متجهة لأرصفة لوس أنجلوس (${num(st.waiting.length)})</text>`;
+    const WMAX = 8, wRest = st.waiting.length - WMAX;
+    if (wRest > 0) s += `<rect class="pm-tag" x="${x0 - 100 - WMAX * 104}" y="${yW + 22}" width="84" height="28" rx="14"/>
+          <text x="${x0 - 58 - WMAX * 104}" y="${yW + 41}" text-anchor="middle" font-size="12.5" fill="var(--amber)">${num(wRest)} أخرى</text>`;
+    st.waiting.slice(0, WMAX).forEach((v, i) => {
+      const x = x0 - 110 - i * 104, cap = v.cap > 0.01, k = 'w' + i;
       tips[k] = { t:vName(v), b:[cap ? 'تنتظر رصيفًا شاغرًا' : 'تنتظر موعد رسوها', cap ? 'bad' : 'warn'],
         rows:[['تنتظر منذ', hrs(v.waited)], cap ? ['منها بسبب امتلاء الأرصفة', hrs(v.cap)] : ['موعد رسوها المسجل بعد', hrs(Math.max(0, v.sched))]],
-        note:v.added ? methodAr(v.est) : 'وقت الوصول وموعد الرسو من AIS.' };
-      s += `<g class="pm-hit" data-k="${k}" tabindex="0"><use href="#pmShip" x="${x}" y="${yW + 16}" width="48" height="18"
+        note:v.added ? methodAr(v.est) : '' };
+      s += `<g class="pm-hit" data-k="${k}" tabindex="0"><rect x="${x - 4}" y="${yW + 12}" width="92" height="50" rx="8" fill="transparent"/>
+        <use href="#pmShip" x="${x}" y="${yW + 20}" width="84" height="30"
         style="color:${v.added ? VIOLET : cap ? 'var(--red)' : 'var(--amber)'}"/></g>`;
     });
-    if (!st.waiting.length) s += `<text x="${x0 - 20}" y="${yW + 34}" class="tl" font-size="12">لا توجد سفن منتظرة</text>`;
-    const yC = yW + 100, H = DATA ? DATA.digital_twin.simulation_horizon_hours : 24, span = W - 260;
+    if (!st.waiting.length) s += `<text x="${x0 - 20}" y="${yW + 42}" class="tl" font-size="12">لا توجد سفن منتظرة</text>`;
+    const yC = yW + 118, H = DATA ? DATA.digital_twin.simulation_horizon_hours : 24, span = W - 260;
     s += `<text x="${x0}" y="${yC - 8}" class="dim" font-size="13">قادمة حتى نهاية الأفق (${num(st.coming.length)})</text>
           <line x1="${x0 - 30}" y1="${yC + 14}" x2="${x0 - 30 - span}" y2="${yC + 14}" stroke="var(--line)" stroke-dasharray="3 5"/>`;
+    const CMAX = 8, cRest = st.coming.length - CMAX;
+    let lastX = Infinity;
     st.coming.forEach((v, i) => {
       const x = x0 - 30 - Math.min(1, v.eta / Math.max(1, H - h)) * span, k = 'c' + i;
-      tips[k] = { t:vName(v), b:['في الطريق', 'info'], rows:[['تصل بعد', hrs(v.eta)]], note:v.added ? methodAr(v.est) : 'وقت الوصول من AIS.' };
-      s += `<g class="pm-hit" data-k="${k}" tabindex="0"><circle cx="${x}" cy="${yC + 14}" r="8" fill="transparent"
-        stroke="${v.added ? VIOLET : 'var(--muted)'}" stroke-width="1.6"/></g>`;
+      const draw = i < CMAX && lastX - x >= 70;   // لا تتراكب الرسوم؛ الباقي في «أخرى»
+      tips[k] = { t:vName(v), b:['في الطريق', 'info'], rows:[['تصل بعد', hrs(v.eta)]], note:v.added ? methodAr(v.est) : '' };
+      if (draw) {
+        lastX = x;
+        s += `<g class="pm-hit" data-k="${k}" tabindex="0"><rect x="${x - 34}" y="${yC - 8}" width="68" height="52" rx="8" fill="transparent"/>
+          <use href="#pmShip" class="pm-shipa" x="${x - 30}" y="${yC - 4}" width="60" height="22" ${v.added ? `style="color:${VIOLET}"` : ''}/>
+          <rect class="pm-tag" x="${x - 30}" y="${yC + 22}" width="60" height="18" rx="9"/>
+          <text x="${x}" y="${yC + 35}" text-anchor="middle" font-size="11">${hrs(v.eta)}</text></g>`;
+      } else {
+        s += `<g class="pm-hit" data-k="${k}" tabindex="0"><circle cx="${x}" cy="${yC + 14}" r="4" fill="var(--muted)" opacity=".7"/></g>`;
+      }
     });
     const pt = r.timeline[Math.min(h, r.timeline.length - 1)], yo = pt && pt.yard_occupancy_pct;
     if (yo !== undefined) {
-      const yY = yC + 52, bwid = 420, fill = yo === null ? 0 : Math.min(1, yo / 100);
-      tips.yard = { t:'الساحة', b:['اصطناعي', 'warn'], rows:[['الإشغال', yo === null ? 'ساعة ناقصة في الملف' : num(yo, 1) + '%'],
-        ['السعة (مقياس الملف)', num(sc.yard_capacity)]], note:'من ملف وكيل البضائع؛ قرار البوابة والسيناريو يغيّرانها.' };
+      const yY = yC + 70, bwid = 420, fill = yo === null ? 0 : Math.min(1, yo / 100);
+      tips.yard = { t:'الساحة', b:[yo === null ? '—' : num(yo, 1) + '%', 'info'], rows:[['الإشغال', yo === null ? 'ساعة ناقصة في الملف' : num(yo, 1) + '%'],
+        ['السعة', num(sc.yard_capacity)]], note:'قرار البوابة والسيناريو يغيّرانها.' };
       s += `<g class="pm-hit" data-k="yard" tabindex="0"><text x="${x0}" y="${yY}" class="dim" font-size="13">الساحة ${yo === null ? '—' : num(yo, 1) + '%'}</text>
         <rect class="pm-track" x="${x0 - 110 - bwid}" y="${yY - 12}" width="${bwid}" height="12" rx="6"/>
         <rect class="pm-fill ${yo >= 85 ? 'hot' : ''}" x="${x0 - 110 - bwid * fill}" y="${yY - 12}" width="${bwid * fill}" height="12" rx="6"/></g>`;
     }
-    svg.setAttribute('viewBox', `0 0 ${W} ${yC + 80}`);
+    svg.setAttribute('viewBox', `0 0 ${W} ${yC + 98}`);
     svg.innerHTML = s;
     if (!tipEl) return st;
     svg.querySelectorAll('.pm-hit').forEach(g => {
@@ -1084,6 +1073,45 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
   }
 
   // ---------------- القسم ١ ----------------
+  // ---- مرتفع / معتاد / منخفض: مقارنة بساعات البيانات (GET /api/flow/norms) ----
+  let NORMS = null;
+  fetch(API() + '/api/flow/norms').then(r => r.ok ? r.json() : null).then(j => {
+    if (!j) return;
+    NORMS = j;
+    window.MARSA_NORMS = j;
+    if (j.first_hour) $('mlDay').min = j.first_hour.slice(0, 10);
+    if (j.last_hour) $('mlDay').max = j.last_hour.slice(0, 10);
+    if (DATA) renderFlow();
+  }).catch(() => {});
+  const flowVal = k => { if (!DATA) return null; const s = DATA.port_state, sc = DATA.digital_twin.scenario;
+    return { in:s.approaching_vessel_count, wait:s.waiting_vessel_count, berth:sc.vessels_at_berth_now,
+             dep:s.departing_vessel_count, yard:s.yard_occupancy_percent, out:s.container_departures }[k]; };
+  const HIGH_IS_GOOD = { dep:true, out:true };   // مغادرة وخروج أكثر = حركة أسرع
+  function normLevel(k) {
+    const n = NORMS && NORMS.norms[k], v = flowVal(k);
+    if (!n || v == null || isNaN(v)) return null;
+    const lv = v > n.p90 ? 2 : v > n.p75 ? 1 : v < n.p10 ? -2 : v < n.p25 ? -1 : 0;
+    const txt = { 2:'مرتفع جدًا', 1:'أعلى من المعتاد', 0:'معتاد', '-1':'أقل من المعتاد', '-2':'منخفض جدًا' }[lv];
+    const good = HIGH_IS_GOOD[k] ? lv >= 0 : lv <= 0;
+    return { n, lv, txt, cls: lv === 0 ? 'ok' : good ? 'ok' : Math.abs(lv) === 2 ? 'bad' : 'warn' };
+  }
+  function normLine(k) {
+    const L = normLevel(k); if (!L) return '';
+    const u = k === 'yard' ? num(L.n.p50, 1) + '%' : num(L.n.p50);
+    return `<span class="fst ${L.cls}">${L.txt}</span>المعتاد <bdi dir="ltr">${u}</bdi>`;
+  }
+  function flowMeaning(k) {
+    const sc = DATA.digital_twin.scenario;
+    return { in:'السفن المقتربة من الميناء في هذه الساعة.', wait:'السفن في منطقة الانتظار الآن.',
+             berth:`سفن الشحن على الأرصفة من ${num(sc.open_berths)} رصيفًا مفتوحًا.`, dep:'السفن المغادرة في هذه الساعة.',
+             yard:'نسبة إشغال الساحة.', out:'الحاويات التي خرجت في آخر ساعة.' }[k] || '';
+  }
+  function normInfo(k) {
+    const L = normLevel(k); if (!L) return '';
+    const f = x => k === 'yard' ? num(x, 1) + '%' : num(x);
+    return `المعتاد: نصف ساعات ${NORMS.first_hour.slice(0, 4)} بين ${f(L.n.p25)} و${f(L.n.p75)}، و9 من كل 10 ساعات تحت ${f(L.n.p90)}.`;
+  }
+
   function renderFlow() {
     const s = DATA.port_state, sc = DATA.digital_twin.scenario, m = DATA.domain_agents.maritime, c = DATA.domain_agents.cargo;
     const nodes = [
@@ -1103,12 +1131,12 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
     $('flowRow').innerHTML = nodes.map((f, i) => `${i ? '<div class="flowarrow">←</div>' : ''}
       <div class="flownode" data-key="${f.k}" tabindex="0" role="button">
         <div class="flabel">${f.l} ${tag(f.src)}</div><div class="fval">${f.v}</div><div class="fsub">${f.sub}</div>
-        <div class="flim">${f.pill ? `<span class="fst ${LVL(f.pill)}">${ar(f.pill)}</span>حالة الوكيل` : 'اضغط لمعرفة المصدر'}</div></div>`).join('');
+        <div class="flim">${normLine(f.k) || (f.pill ? `<span class="fst ${LVL(f.pill)}">${ar(f.pill)}</span>حالة الوكيل` : 'اضغط لمعرفة المصدر')}</div></div>`).join('');
     document.querySelectorAll('.flownode').forEach(n => n.addEventListener('click', () => {
       const f = nodes.find(x => x.k === n.dataset.key), box = $('flowExpand'), on = n.classList.contains('active');
       document.querySelectorAll('.flownode').forEach(x => x.classList.remove('active'));
       if (on) { box.classList.remove('show'); return; }
-      n.classList.add('active'); box.textContent = f.info; box.classList.add('show');
+      n.classList.add('active'); box.textContent = [flowMeaning(f.k), normInfo(f.k)].filter(Boolean).join(' '); box.classList.add('show');
     }));
     $('flowStamp').textContent = ' · ' + DATA.authoritative_timestamp.replace('+00:00', ' UTC').replace('T', ' ');
     const press = DATA.strategy_synthesis.supported_pressure_areas;
@@ -1172,13 +1200,15 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
     $('noAlert').style.display = 'none'; $('alertBox').style.display = '';
     $('alertBox').style.borderColor = tested ? '' : 'var(--line)';
     $('alTitle').textContent = tested ? 'إشارة ضغط — اختبر الوكيل قرارات في التوأم' : 'لا توجد إشارة تستدعي اختبار قرار';
-    $('amWhen').textContent = ml.status === 'success' ? num(ml.horizon_hours || 6) + ' ساعات' : '—';
     $('amArea').textContent = press.length ? press.map(a => AREA_AR[a]).join('، ') : (ev.active ? 'سياق خارجي' : '—');
     const m = DATA.domain_agents.maritime, c = DATA.domain_agents.cargo, sc = DATA.digital_twin.scenario;
-    $('alReason').innerHTML = `${num(m.evidence.waiting_vessels)} سفينة في منطقة الانتظار (الميناءان)، و${num(sc.vessels_at_berth_now)} من ${num(sc.open_berths)} رصيفًا في لوس أنجلوس مشغولة، وإشغال الساحة ${num(c.evidence.yard_occupancy_percent, 1)}% (اصطناعي). ` +
+    $('alReason').innerHTML = `${num(m.evidence.waiting_vessels)} سفينة في منطقة الانتظار (الميناءان)، و${num(sc.vessels_at_berth_now)} من ${num(sc.open_berths)} رصيفًا في لوس أنجلوس مشغولة، وإشغال الساحة ${num(c.evidence.yard_occupancy_percent, 1)}%. ` +
       (ml.status === 'success' ? `نموذج التنبؤ: <b>${ar(ml.classification)}</b> بعد ${num(ml.horizon_hours || 6)} ساعات.` : 'نموذج التنبؤ غير متاح لهذه الساعة.');
     $('alLabel').textContent = 'توصية وكيل الاستراتيجية' + (ds.reasoning_mode === 'llm_assisted' ? ' (صياغة بمساعدة LLM)' : '');
-    $('alText').innerHTML = `<b>${esc(title(best))}</b><br><span style="opacity:.92">${esc(ds.summary)}</span>`;
+    $('alText').innerHTML = `<b>${esc(title(best))}</b>`;
+    $('alWhyText').textContent = ds.summary || '';
+    $('alWhy').hidden = !ds.summary;
+    drawStartWindow(base, best);
     const k = 'total_wait_vessel_hours';
     $('alBefore').textContent = num(base.kpis[k], 1) + ' س';
     $('alAfter').textContent = num(best.kpis[k], 1) + ' س';
@@ -1191,18 +1221,76 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
     const yardNote = yardBest && yardBest.kpis.yard_peak_occupancy_pct < base.kpis.yard_peak_occupancy_pct && yardBest.candidate_id !== best.candidate_id
       ? `، و«${title(yardBest)}» يخفّض أعلى إشغال للساحة ${num(base.kpis.yard_peak_occupancy_pct - yardBest.kpis.yard_peak_occupancy_pct, 1)} نقطة` : '';
     $('alImprove').textContent = (best.candidate_id === 'baseline' ? 'لا يوجد خيار يخفّض انتظار السفن' : (parts.join('، ') || 'بدون تحسّن ملموس')) + yardNote;
-    $('alertButtons').innerHTML = `<button class="b-secondary" id="simBtn" type="button">افتح التوأم الرقمي</button>
-      <button class="b-primary" id="adoptBtn">اعتماد التوصية</button><button class="b-ghost" id="dismissBtn">غير مناسب</button>`;
+    if (PLAN && PLAN.ts !== DATA.authoritative_timestamp) PLAN = null;           // ساعة جديدة = لا خطة معتمدة بعد
+    if (FB.ts !== DATA.authoritative_timestamp) FB = { ts:DATA.authoritative_timestamp, open:false, reason:null, chosen:'', note:'', sent:null };
+    $('amArea').hidden = !$('amArea').textContent.trim() || $('amArea').textContent.trim() === '—';
+    $('alertBox').dataset.t = $('alTitle').textContent; $('alertBox').dataset.bc = $('alertBox').style.borderColor;
+    drawPlan();
+  }
+
+  // ---------------- «ابدأ الآن»: الساعات التي يخفّض فيها القرار الطابور (من خطّي التوأم) ----------------
+  function drawStartWindow(base, best) {
+    const svg = $('alWinSvg'), tl = base.timeline, bt = best.timeline || [];
+    let a = null, b = null;
+    tl.forEach((p, i) => { if (bt[i] && bt[i].waiting < p.waiting) { if (a === null) a = p.hour; b = p.hour; } });
+    const show = best.candidate_id !== 'baseline' && a !== null;
+    $('alWin').hidden = !show; $('alStartLine').hidden = !show;
+    if (!show) return;
+    const H = tl[tl.length - 1].hour, W = Math.max(320, Math.round(svg.getBoundingClientRect().width) || 600);
+    svg.setAttribute('viewBox', '0 0 ' + W + ' 62');
+    const L = 24, R = W - 24, x = h => R - (h / H) * (R - L), step = H > 24 ? 12 : 6;
+    let g = `<line x1="${L}" y1="30" x2="${R}" y2="30" stroke="var(--line)" stroke-width="2"/>`;
+    for (let h = 0; h <= H; h += step) g += `<line x1="${x(h)}" y1="26" x2="${x(h)}" y2="34" stroke="var(--line)"/><text x="${x(h)}" y="52" text-anchor="middle">${h ? h + ' س' : 'الآن'}</text>`;
+    const x1 = x(b + 1 > H ? H : b + 1), x0 = x(a);
+    g += `<rect x="${x1}" y="22" width="${Math.max(8, x0 - x1)}" height="16" rx="8" fill="rgba(243,182,87,0.35)" stroke="var(--amber)"><title>القرار يخفّض الطابور بين ${a} و${b + 1} ساعة (التوأم الرقمي)</title></rect>`;
+    (DATA.digital_twin.marker_hours || []).forEach(m => { if (m <= H) g += `<line x1="${x(m)}" y1="16" x2="${x(m)}" y2="44" stroke="var(--sky)" stroke-dasharray="3 3"><title>وقت تنبيه النموذج</title></line>`; });
+    g += `<circle cx="${x(0)}" cy="30" r="7" fill="var(--teal)" stroke="var(--panel-2)" stroke-width="2"/><text x="${x(0)}" y="12" text-anchor="middle" style="fill:var(--teal);font-weight:700">ابدأ هنا</text>`;
+    svg.innerHTML = g;
+    $('alStartLine').innerHTML = `ابدأ <b>الآن</b> — أثره يظهر بعد ${a} إلى ${b + 1} ساعة.`;
+  }
+
+  // ---------------- الخطة المعتمدة: قرار واحد في اللوحة والتوأم ----------------
+  let PLAN = null, FB = { ts:null, open:false, reason:null, chosen:'', note:'', sent:null };
+  const hhmm = d => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  function adoptPlan(where) {
+    const id = DATA.decision_support.highest_ranked_candidate;
+    logDecision(where === 'twin' ? 'اعتماد (التوأم)' : 'اعتماد', id);
+    PLAN = { ts:DATA.authoritative_timestamp, id, at:new Date() };
+    FB.sent = null; drawPlan();
+  }
+  function undoPlan() { logDecision('تراجع', PLAN && PLAN.id); PLAN = null; drawPlan(); }
+  function drawPlan() {
+    const ds = DATA.decision_support, base = result('baseline'), best = result(ds.highest_ranked_candidate) || base, box = $('alertBox');
+    const H = DATA.digital_twin.simulation_horizon_hours, k = 'total_wait_vessel_hours';
+    box.classList.toggle('adopted', !!PLAN);
+    box.style.borderColor = PLAN ? 'var(--teal)' : (box.dataset.bc || '');
+    $('alIcon').textContent = PLAN ? '✓' : '⚠';
+    $('alTitle').textContent = PLAN ? 'خطة معتمدة — قيد المتابعة' : (box.dataset.t || $('alTitle').textContent);
+    $('alFollow').textContent = PLAN ? `✓ اعتُمدت ${hhmm(PLAN.at)} · التنفيذ بيد فريق التشغيل` : '';
+    $('alertButtons').innerHTML = `<button class="b-secondary" id="simBtn" type="button">${PLAN ? 'عرض الخطة في التوأم' : 'افتح التوأم الرقمي'}</button>` +
+      (PLAN ? '<button class="b-ghost" id="undoBtn" type="button">تراجع</button>'
+            : '<button class="b-primary" id="adoptBtn">اعتماد التوصية</button><button class="b-ghost" id="dismissBtn">غير مناسب</button>');
     $('simBtn').onclick = () => showView('console');
-    $('adoptBtn').onclick = () => { logDecision('اعتماد', best.candidate_id); $('alertButtons').innerHTML = '<div class="adopted-msg">✓ سُجّل الاعتماد في هذا المتصفح. التنفيذ بيد فريق التشغيل.</div>'; };
-    $('dismissBtn').onclick = () => {
-      const WHY = ['الأرقام لا تطابق ما أراه', 'القرار غير ممكن تشغيليًا', 'أفضّل قرارًا آخر'];
-      $('alertButtons').innerHTML = `<div class="why-chips"><div class="q">لماذا لا توافق؟ يُسجَّل في هذا المتصفح.</div>${WHY.map(w => `<button type="button" data-why="${w}">${w}</button>`).join('')}</div>`;
-      $('alertButtons').querySelectorAll('[data-why]').forEach(b => b.onclick = () => {
-        logDecision('رفض', best.candidate_id, b.dataset.why);
-        $('alertButtons').innerHTML = `<div class="adopted-msg">تم تسجيل الرفض: ${esc(b.dataset.why)}${b.dataset.why === 'أفضّل قرارًا آخر' ? ' — جرّبه في «اختبار يدوي» داخل التوأم الرقمي.' : ''}</div>`;
-      });
-    };
+    if (PLAN) $('undoBtn').onclick = undoPlan;
+    else {
+      $('adoptBtn').onclick = () => adoptPlan('dash');
+      $('dismissBtn').onclick = () => {
+        objectPlan('dash'); showView('console');
+        setTimeout(() => $('twFb').scrollIntoView({ behavior:'smooth', block:'center' }), 80);
+      };
+    }
+    $('pmPlan').classList.toggle('on', !!PLAN);
+    $('pmPlan').innerHTML = PLAN ? `<b>خطة معتمدة</b> ${esc(title(best))}
+      <span class="dim">في التوأم: ${num(best.kpis[k], 1)} ساعة انتظار للسفن بدل ${num(base.kpis[k], 1)} · منذ ${hhmm(PLAN.at)}</span>` : '';
+    drawMine();
+    if (!$('consoleView').hidden) renderTwin();
+  }
+  function drawMine() {
+    let d = [];
+    try { d = JSON.parse(localStorage.getItem('marsa_decisions') || '[]'); } catch (e) {}
+    const cnt = f => d.filter(x => f(String(x.decision))).length;
+    const ok = cnt(x => x.startsWith('اعتماد')) - cnt(x => x === 'تراجع'), obj = cnt(x => x.startsWith('اعتراض') || x === 'رفض');
+    $('pfMine').innerHTML = `قراراتك: <span>اعتمدت<b>${Math.max(0, ok)}</b></span><span>اعترضت<b>${obj}</b></span><span>قيد المتابعة<b>${PLAN ? 1 : 0}</b></span>`;
   }
   function logDecision(decision, candidate, reason) {
     try { const all = JSON.parse(localStorage.getItem('marsa_decisions') || '[]');
@@ -1218,7 +1306,7 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
     if (m.maritime_status !== 'NORMAL') n.push({ type:LVL(m.maritime_status) === 'bad' ? 'warn' : 'watch', text:'الوكيل البحري: ' + ar(m.maritime_status), target:'sec3' });
     if (c.cargo_status !== 'NORMAL') n.push({ type:LVL(c.cargo_status) === 'bad' ? 'warn' : 'watch', text:'وكيل البضائع: ' + ar(c.cargo_status), target:'sec3' });
     if (ml.status === 'success' && ml.alert_active) n.push({ type:'warn', text:'نموذج التنبؤ: تنبيه بعد ' + num(ml.horizon_hours || 6) + ' ساعات', target:'sec2' });
-    if (ev.active) n.push({ type:'info', text:'حدث خارجي نشط (اصطناعي): ' + (EVENT_AR[ev.type] || ev.type), target:'sec3' });
+    if (ev.active) n.push({ type:'info', text:'حدث خارجي نشط: ' + (EVENT_AR[ev.type] || ev.type), target:'sec3' });
     if (DATA.digital_twin.results.length > 1) n.push({ type:'info', text:'وكيل الاستراتيجية اختبر ' + (DATA.digital_twin.results.length - 1) + ' قرارات في التوأم', target:'sec4' });
     $('bellCount').textContent = n.length;
     $('bellPanel').innerHTML = n.length ? n.map(x => `<div class="notif type-${x.type}" data-target="${x.target}"><div class="ntype">${x.type === 'warn' ? 'تحذير' : x.type === 'watch' ? 'مراقبة' : 'معلومة'}</div><div class="ntext">${esc(x.text)}</div></div>`).join('')
@@ -1252,7 +1340,7 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
     $('twTitle').textContent = 'محاكاة: ' + title(r) + ' — ' + DATA.authoritative_timestamp.replace('+00:00', ' UTC').replace('T', ' ');
     $('twBest').style.display = SEL === bestId ? '' : 'none';
     const e = DATA.domain_agents.events_weather, s = DATA.port_state;
-    $('twWx').textContent = `الطقس (مرصود): ${ar(e.weather_assessment.level)} · رياح ${num(s.wind_speed_10m, 1)} · موج ${num(s.wave_height, 2)} م — لا يدخل حساب التوأم`;
+    $('twWx').textContent = `الطقس: ${ar(e.weather_assessment.level)} · رياح ${num(s.wind_speed_10m, 1)} · موج ${num(s.wave_height, 2)} م — لا يدخل حساب التوأم`;
     $('twScrub').max = DATA.digital_twin.simulation_horizon_hours;
     $('twScrub').value = TW.h;
     drawTwinFrame();
@@ -1266,16 +1354,29 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
     $('twB').textContent = num(st.berthed.length) + ' / ' + num(r.kpis.open_berths);
     $('twY').textContent = p && p.yard_occupancy_pct != null ? num(p.yard_occupancy_pct, 1) + '%' : '—';
   }
+  // «غير مناسب»: يُسجَّل الاعتراض في هذا المتصفح، ويُوجَّه المستخدم للاختبار اليدوي لتجربة قراره
+  // (خيارات الوكيل الأخرى معروضة أصلًا في البطاقات فوق).
+  function objectPlan(where) {
+    logDecision(where === 'dash' ? 'رفض' : 'اعتراض (التوأم)', DATA.decision_support.highest_ranked_candidate);
+    FB.sent = true; drawMine();
+  }
   function renderTwinFeedback(r) {
-    const bestId = DATA.decision_support.highest_ranked_candidate;
-    $('twFb').innerHTML = `<div class="tw-fb-q"><span class="grow">هل توافق على اختيار الوكيل «${esc(TITLE[bestId] || bestId)}»؟</span>
-      <button type="button" class="ok" id="twOk">نعم، أعتمده</button><button type="button" class="obj" id="twObj">اعتراض</button></div>`;
-    $('twOk').onclick = () => { logDecision('اعتماد (التوأم)', bestId); $('twFb').innerHTML = '<div class="tw-fb-done">✓ سُجّل الاعتماد في هذا المتصفح.</div>'; };
-    $('twObj').onclick = () => {
-      $('twFb').innerHTML = `<div class="tw-fb-q">اعتراضك يُسجَّل، وتقدر تجرّب قرارك في «اختبار يدوي» تحت.</div>
-        <div class="tw-fb-form"><textarea id="twWhy" placeholder="لماذا؟ (اختياري)"></textarea><button type="button" class="send" id="twSend">أرسل الاعتراض</button></div>`;
-      $('twSend').onclick = () => { logDecision('اعتراض (التوأم)', bestId, $('twWhy').value.trim()); $('twFb').innerHTML = '<div class="tw-fb-done">✓ سُجّل الاعتراض في هذا المتصفح.</div>'; $('manualTest').scrollIntoView({ behavior:'smooth' }); };
-    };
+    const bestId = DATA.decision_support.highest_ranked_candidate, el = $('twFb');
+    document.querySelectorAll('#twCards .tw-badge').forEach(b => { b.textContent = PLAN ? 'معتمدة ✓' : 'توصية الوكيل'; });
+    if (PLAN) {
+      el.innerHTML = `<div class="tw-fb-done">✓ اعتمدتَ هذه التوصية الساعة ${hhmm(PLAN.at)}.<button type="button" class="tw-fb-undo" id="twUndo">تراجع</button></div>`;
+      $('twUndo').onclick = undoPlan; return;
+    }
+    if (FB.sent) {
+      el.innerHTML = `<div class="tw-fb-q"><span class="grow">✓ سُجّل أن اختيار الوكيل غير مناسب. تقدر تجرّب قرارك في الاختبار اليدوي، والتوأم يحسبه ووكيل الاستراتيجية يقيّمه.</span>
+        <button type="button" class="ok" id="twGoManual">جرّب قرارك</button><button type="button" class="tw-fb-undo" id="twAgain">تراجع</button></div>`;
+      $('twGoManual').onclick = () => $('manualTest').scrollIntoView({ behavior:'smooth', block:'start' });
+      $('twAgain').onclick = () => { logDecision('تراجع', bestId); FB.sent = null; renderTwinFeedback(r); drawMine(); }; return;
+    }
+    el.innerHTML = `<div class="tw-fb-q"><span class="grow">هل يناسب اختيار الوكيل (<b>${esc(TITLE[bestId] || bestId)}</b>) الوضع على الأرض؟</span>
+        <button type="button" class="ok" id="twOk">نعم، أعتمده</button><button type="button" class="obj" id="twObj">غير مناسب</button></div>`;
+    $('twOk').onclick = () => adoptPlan('twin');
+    $('twObj').onclick = () => { objectPlan('twin'); renderTwinFeedback(r); };
   }
   $('twScrub').addEventListener('input', e => { TW.h = +e.target.value; if (DATA) drawTwinFrame(); });
   $('twPlay').addEventListener('click', () => {
@@ -1320,7 +1421,7 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
     try {
       const out = await get('/api/twin/hours?limit=100&condition=' + c);
       $('mtHour').innerHTML = out.hours.map(h => `<option value="${h.timestamp_utc}">${h.timestamp_utc.slice(0, 16).replace('T', ' ')} · رياح ${num(h.wind_speed_10m, 1)} · موج ${num(h.wave_height, 2)}${h.event_type ? ' · ' + (EVENT_AR[h.event_type] || h.event_type) : ''}</option>`).join('');
-      $('mtHourHint').textContent = `${num(out.hours_found)} ساعة في 2025 (${out.provenance === 'SYNTHETIC' ? 'الأحداث اصطناعية' : 'طقس مرصود من Open-Meteo'})` +
+      $('mtHourHint').textContent = `${num(out.hours_found)} ساعة في 2025` +
         (c === 'wind' || c === 'wave' ? '، مرتبة من الأقوى' : '') + '. الطقس لا يدخل حساب التوأم؛ النتيجة هي ما حدث في تلك الساعة.';
     } catch (e) { $('mtHourHint').textContent = e.message; }
   };
@@ -1362,7 +1463,7 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
       <div class="pm-card" id="mtWrap" style="margin-top:14px"><div class="pm-scroll"><svg class="pm-svg" id="mtSvg"></svg></div><div class="pm-tip" id="mtTip"></div></div>
       <div class="transport" style="display:flex"><span class="clock">قرارك عبر الساعات:</span>
         <input type="range" id="mtScrub" min="0" max="${MT.digital_twin.simulation_horizon_hours}" step="1" value="0"><span class="clock" id="mtH">الآن</span></div>
-      <div class="hint">مصادر هذا التشغيل: ${[...new Set(MT.digital_twin.sources.map(s => PROV[s.provenance] || s.provenance))].join(' · ')}</div>`;
+      `;
     const draw = () => { drawPort($('mtSvg'), $('mtTip'), $('mtWrap'), sc, user, MT.h); $('mtH').textContent = MT.h ? '+' + MT.h + ' س' : 'الآن'; };
     $('mtScrub').oninput = e => { MT.h = +e.target.value; draw(); };
     draw();
@@ -1396,8 +1497,20 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
     if (!$('consoleView').hidden) renderTwin();
   }
 
-  $('mlLoad').onclick = () => { load(($('mlCustom').value || $('mlPreset').value).trim()); $('marsaLive').classList.remove('open'); };
-  $('mlPreset').onchange = () => { $('mlCustom').value = ''; $('mlLoad').click(); };
+  // التقويم: يوم ثم ساعة موجودة فعلًا في البيانات (الساعات الناقصة لا تظهر)
+  const calTs = () => ($('mlDay').value && $('mlHour').value !== '') ? $('mlDay').value + 'T' + $('mlHour').value + ':00:00Z' : '';
+  $('mlLoad').onclick = () => { load((calTs() || $('mlPreset').value).trim()); $('marsaLive').classList.remove('open'); };
+  $('mlDay').onchange = () => {
+    const d = $('mlDay').value, sel = $('mlHour');
+    if (!d) { sel.disabled = true; sel.innerHTML = '<option value="">الساعة</option>'; $('mlHint').textContent = ''; return; }
+    const miss = new Set((window.MARSA_NORMS && window.MARSA_NORMS.missing_hours) || []);
+    const hrs = Array.from({ length:24 }, (_, h) => String(h).padStart(2, '0')).filter(h => !miss.has(d + 'T' + h));
+    sel.innerHTML = '<option value="">الساعة</option>' + hrs.map(h => `<option value="${h}">${h}:00</option>`).join('');
+    sel.disabled = !hrs.length;
+    $('mlHint').textContent = !hrs.length ? 'لا توجد بيانات لهذا اليوم.' : hrs.length < 24 ? `متاح ${hrs.length} من 24 ساعة في هذا اليوم.` : '';
+  };
+  $('mlHour').onchange = () => { if (calTs()) $('mlLoad').click(); };
+  $('mlPreset').onchange = () => { $('mlDay').value = ''; $('mlDay').onchange(); $('mlLoad').click(); };
   $('marsaToggle').onclick = () => $('marsaLive').classList.toggle('open');
   load($('mlPreset').value);
 })();
