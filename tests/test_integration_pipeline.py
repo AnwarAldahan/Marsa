@@ -137,3 +137,37 @@ def test_integrated_api_success_and_timestamp_errors():
         assert outside.status_code == 422
         offset = client.post("/api/decision-support/analyze", json={"timestamp_utc": "2025-01-01T03:00:00+03:00"})
         assert offset.status_code == 422
+
+
+# The user's own decision is evaluated by the Strategy agent next to its own options.
+def test_user_decision_evaluated_by_strategy_agent():
+    stress = {"berths_closed": 6, "arrival_multiplier": 2.5}
+    out = run("2025-07-10T19:00:00Z", stress=stress,
+              user_actions=[{"type": "add_berths", "value": 2}])
+    ids = [r["candidate_id"] for r in out["digital_twin"]["results"]]
+    assert "user_decision" in ids
+    assessment = out["decision_support"]["user_decision_assessment"]
+    assert assessment["vs_baseline"]["total_wait_vessel_hours"] < 0
+    assert assessment["agent_best_candidate"] == "extra_berth"
+    assert out["decision_support"]["highest_ranked_candidate"] != "user_decision"
+    assert "قرار المستخدم" in out["decision_support"]["summary"]
+
+
+def test_no_user_decision_keeps_output_unchanged():
+    out = run("2025-07-10T19:00:00Z")
+    assert out["decision_support"]["user_decision_assessment"] is None
+    assert "user_decision" not in [r["candidate_id"] for r in out["digital_twin"]["results"]]
+
+
+def test_api_user_actions():
+    with TestClient(app) as client:
+        ok = client.post("/api/decision-support/analyze", json={
+            "timestamp_utc": "2025-07-10T19:00:00Z",
+            "user_actions": [{"type": "gate_capacity", "value": "max_recorded"}]})
+        bad = client.post("/api/decision-support/analyze", json={
+            "timestamp_utc": "2025-07-10T19:00:00Z",
+            "user_actions": [{"type": "fly", "value": 1}]})
+    assert ok.status_code == 200
+    assert ok.json()["decision_support"]["user_decision_assessment"]["vs_baseline"][
+        "yard_peak_occupancy_pct"] < 0
+    assert bad.status_code == 422

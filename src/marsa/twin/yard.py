@@ -8,6 +8,11 @@ Gate decision: the gate clears up to a chosen number of containers per hour. The
 the highest hourly container_departures the file recorded up to the chosen hour (no future values);
 the user may type another number. Extra containers cleared each hour lower the yard from then on.
 The yard does not change vessel waiting: there is no data on how a full yard slows unloading.
+
+User stress on the yard (assumptions typed by the user, shown as such in the interface):
+  gate_closed_hours: the gate clears nothing during the first N hours of the horizon
+  container_inflow_multiplier: containers arriving in the yard are multiplied (x1 = the file)
+The occupancy is not capped at 100 %: a value above 100 shows the yard would overflow its scale.
 """
 from __future__ import annotations
 
@@ -39,27 +44,37 @@ def yard_state(ts: pd.Timestamp, horizon_hours: int) -> dict | None:
     return {
         "capacity": float(rows[0]["yard_capacity"]),
         "yard": [None if r is None else float(r["containers_in_yard"]) for r in rows],
+        "arrivals": [None if r is None else float(r["container_arrivals"]) for r in rows],
         "departures": [None if r is None else float(r["container_departures"]) for r in rows],
         "max_recorded_departures": float(cargo.loc[:ts, "container_departures"].max()),
         "max_recorded_at": cargo.loc[:ts, "container_departures"].idxmax().isoformat(),
     }
 
 
-# Yard path for one candidate: replay of the file, minus the extra containers a faster gate clears.
-def simulate_yard(state: dict | None, gate_per_hour: float | None) -> dict | None:
+# Yard path for one candidate: replay of the file, adjusted by the gate decision and the user's
+# yard stress. The adjustment to the recorded yard accumulates hour by hour:
+#   + (multiplier - 1) x recorded arrivals      (more or fewer containers coming in)
+#   + recorded departures while the gate is closed (they stay in the yard)
+#   - extra containers a faster gate clears      (never more than the yard holds)
+def simulate_yard(state: dict | None, gate_per_hour: float | None,
+                  gate_closed_hours: int = 0, inflow_multiplier: float = 1.0) -> dict | None:
     if state is None:
         return None
-    path, extra_total, cleared = [], 0.0, 0.0
-    for h, (yard, out) in enumerate(zip(state["yard"], state["departures"], strict=True)):
+    path, adjust, cleared = [], 0.0, 0.0
+    for h, (yard, arr, out) in enumerate(zip(state["yard"], state["arrivals"],
+                                             state["departures"], strict=True)):
         if yard is None:
             path.append(None)
             continue
-        if h > 0 and gate_per_hour is not None and out is not None:
-            extra = max(0.0, gate_per_hour - out)
-            extra = min(extra, max(0.0, yard - extra_total))   # cannot clear more than is there
-            extra_total += extra
-            cleared += extra
-        path.append(max(0.0, yard - extra_total))
+        if h > 0 and arr is not None and out is not None:
+            adjust += (inflow_multiplier - 1.0) * arr
+            if h <= gate_closed_hours:
+                adjust += out
+            elif gate_per_hour is not None:
+                extra = min(max(0.0, gate_per_hour - out), max(0.0, yard + adjust))
+                adjust -= extra
+                cleared += extra
+        path.append(max(0.0, yard + adjust))
     known = [p for p in path if p is not None]
     cap = state["capacity"]
     return {

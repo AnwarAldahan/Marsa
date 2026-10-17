@@ -7,609 +7,1399 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<!--
-  Marsa dashboard. Every number on this page comes from the Marsa API response
-  (POST /api/decision-support/analyze, POST /api/twin/simulate, GET /api/twin/vessels).
-  There is no demo data and no fallback data: if the API is not reachable the page says so
-  and shows nothing else.
-  Source badges: AIS = observed vessel data, اصطناعي = synthetic cargo/events,
-  تنبؤ = XGBoost model, محاكاة = Digital Twin, مدخل المستخدم = values typed here,
-  تقدير من التاريخ = stay of an added vessel estimated from earlier stays.
--->
 <style>
 :root {
-  --navy:#12263F; --navy-2:#17304D; --panel:#1B3654; --panel-2:#234264; --line:#38597F;
-  --text:#F1F5FA; --muted:#A3B4CA; --teal:#3ED0B6; --teal-dim:#2A8F7C; --amber:#F3B657;
-  --red:#F6837C; --sky:#7FB2E5; --violet:#B9A2F0;
-  --font:'Tajawal', system-ui, sans-serif; --mono:'IBM Plex Mono', monospace; color-scheme:dark;
+  --navy: #12263F; --navy-2: #17304D; --panel: #1B3654; --panel-2: #234264; --line: #38597F;
+  --text: #F1F5FA; --muted: #A3B4CA; --teal: #3ED0B6; --teal-dim: #2A8F7C;
+  --amber: #F3B657; --red: #F6837C; --cyan-glow: rgba(62,208,182,0.07);
+  --font: 'Tajawal', system-ui, sans-serif; color-scheme: dark; --font-mono: 'IBM Plex Mono', monospace;
 }
-* { box-sizing:border-box; }
+* { box-sizing: border-box; }
 html,body { margin:0; background:var(--navy); color:var(--text); font-family:var(--font); }
-.content { max-width:1360px; margin:0 auto; padding:24px 32px 70px; }
-.topbar { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:26px; flex-wrap:wrap; }
+.stage { position:relative; width:1440px; max-width:100%; margin:0 auto; min-height:100vh; overflow:hidden; }
+
+.bgfx { position:absolute; inset:0; z-index:0; overflow:hidden; pointer-events:none; }
+.bgfx svg { position:absolute; inset:0; width:100%; height:100%; opacity:0.12; }
+.bgfx .glow { position:absolute; top:-200px; left:50%; transform:translateX(-50%); width:900px; height:900px;
+  background:radial-gradient(circle, var(--cyan-glow) 0%, transparent 70%); }
+.radar { position:absolute; width:220px; height:220px; border-radius:50%; border:1px solid rgba(62,208,182,0.18);
+  animation:radarPulse 4s ease-out infinite; }
+@keyframes radarPulse { 0%{ transform:scale(0.3); opacity:0.6; } 100%{ transform:scale(1.6); opacity:0; } }
+.trackline { stroke:rgba(62,208,182,0.5); stroke-width:1; stroke-dasharray:3 5; fill:none;
+  animation:dashMove 22s linear infinite; }
+@keyframes dashMove { to { stroke-dashoffset:-400; } }
+
+.content { position:relative; z-index:1; padding:26px 32px 70px; }
+
+.topbar { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:28px; flex-wrap:wrap; }
 .brand { display:flex; align-items:center; gap:10px; }
-.brand .word { font-size:24px; font-weight:800; }
+.brand .word { font-size:24px; font-weight:800; letter-spacing:0.5px; }
 .brand .sub { font-size:12px; color:var(--muted); margin-top:2px; }
-.controls { display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; }
-.ctl { display:flex; flex-direction:column; gap:4px; font-size:11.5px; color:var(--muted); }
-.ctl input { background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:8px;
-  padding:8px 10px; font-family:var(--mono); font-size:12.5px; width:190px; direction:ltr; }
-.ctl input.small { width:90px; }
-.ctl.stress input { border-color:var(--violet); }
-button { font-family:var(--font); cursor:pointer; }
-.b-primary { background:var(--teal); color:#062033; border:0; border-radius:8px; padding:9px 18px; font-weight:700; font-size:13px; }
-.b-secondary { background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px 14px; font-size:12.5px; }
-.status { font-size:12px; color:var(--muted); min-height:18px; margin-top:6px; }
-.status.err { color:var(--red); } .status.ok { color:var(--teal); }
+.topmeta { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+select.portsel { background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:8px;
+  padding:8px 12px; font-family:var(--font); font-size:13px; }
+.clockbit { font-family:var(--font-mono); font-size:12px; color:var(--muted); }
+.conn { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--teal); }
+.conn .dot { width:7px; height:7px; border-radius:50%; background:var(--teal); animation:pulseDot 2s infinite; }
+@keyframes pulseDot { 0%,100%{ opacity:1;} 50%{ opacity:0.3;} }
+.bellwrap { position:relative; }
+.bellbtn { background:var(--panel-2); border:1px solid var(--line); color:var(--text); width:36px; height:36px;
+  border-radius:8px; cursor:pointer; position:relative; font-size:15px; }
+.bellbtn .n { position:absolute; top:-4px; left:-4px; background:var(--red); color:#fff; font-size:10px;
+  font-family:var(--font-mono); width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+.bellpanel { position:absolute; left:0; top:44px; width:300px; background:var(--panel); border:1px solid var(--line);
+  border-radius:10px; padding:8px; display:none; z-index:20; box-shadow:0 12px 30px rgba(8,20,36,0.35); }
+.bellpanel.open { display:block; }
+.notif { padding:10px 10px; border-radius:7px; cursor:pointer; font-size:12.5px; }
+.notif:hover { background:var(--panel-2); }
+.notif .ntype { font-size:10px; font-weight:700; margin-bottom:3px; }
+.notif.type-warn .ntype{ color:var(--red);} .notif.type-watch .ntype{ color:var(--amber);} .notif.type-info .ntype{ color:var(--teal);}
+.notif .ntext { color:var(--text); }
+
 section { margin-bottom:34px; }
 .storylabel { font-size:12px; color:var(--muted); font-weight:500; margin-bottom:6px; display:flex; align-items:center; gap:8px; }
 .storylabel .num { width:20px; height:20px; border-radius:50%; background:var(--panel-2); border:1px solid var(--line);
-  color:var(--teal); font-family:var(--mono); font-size:11px; display:flex; align-items:center; justify-content:center; }
-h2.stitle { font-size:18px; font-weight:700; margin:0 0 14px; }
-.note { font-size:12px; color:var(--muted); line-height:1.7; }
-.badge { display:inline-block; font-size:10.5px; font-weight:700; border-radius:20px; padding:1px 8px; margin-inline-start:6px;
-  border:1px solid currentColor; vertical-align:middle; white-space:nowrap; }
-.b-ais { color:var(--teal); } .b-syn { color:var(--amber); } .b-pred { color:var(--sky); }
-.b-sim { color:var(--violet); } .b-user { color:var(--violet); } .b-pub { color:var(--muted); }
-.grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; }
-.card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 14px; }
-.card .lbl { font-size:12px; color:var(--muted); margin-bottom:6px; line-height:1.5; }
-.card .val { font-family:var(--mono); font-size:20px; font-weight:600; }
-.card .sub { font-size:11.5px; color:var(--muted); margin-top:4px; line-height:1.5; }
-.val.amber { color:var(--amber); } .val.red { color:var(--red); } .val.teal { color:var(--teal); }
-.panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px 20px; }
-.empty { text-align:center; padding:60px 20px; color:var(--muted); font-size:14px; }
-/* map */
-.map-head { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px; }
-.map-title { font-size:14px; font-weight:700; }
-.scrub { display:flex; align-items:center; gap:10px; font-size:12px; color:var(--muted); }
-.scrub input[type=range] { width:260px; accent-color:var(--teal); }
-.scrub .hh { font-family:var(--mono); color:var(--text); min-width:70px; }
-.map-svg { width:100%; height:auto; display:block; }
-.legend { display:flex; gap:16px; flex-wrap:wrap; font-size:11.5px; color:var(--muted); margin-top:8px; }
-.legend i { display:inline-block; width:12px; height:12px; border-radius:3px; margin-inline-end:5px; vertical-align:-2px; border:1.5px solid; }
-.tip { position:fixed; z-index:50; background:var(--navy-2); border:1px solid var(--teal); border-radius:8px; padding:9px 12px;
-  font-size:12px; line-height:1.7; pointer-events:none; display:none; max-width:280px; }
-/* chart */
-.chart-svg { width:100%; height:auto; display:block; }
-/* agents */
-.agents { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:12px; }
-.agent h3 { font-size:14px; margin:0 0 10px; display:flex; align-items:center; justify-content:space-between; gap:8px; }
-.pill { font-size:11.5px; font-weight:700; border-radius:20px; padding:2px 10px; background:var(--panel-2); }
-.pill.NORMAL,.pill.LOW,.pill.low { color:var(--teal); } .pill.MODERATE,.pill.MEDIUM,.pill.moderate,.pill.ELEVATED,.pill.elevated { color:var(--amber); }
-.pill.CONGESTED,.pill.CRITICAL,.pill.HIGH,.pill.severe { color:var(--red); }
-.row { display:flex; justify-content:space-between; gap:10px; font-size:12.5px; padding:5px 0; border-bottom:1px solid rgba(56,89,127,.45); }
-.row:last-child { border-bottom:0; } .row b { font-family:var(--mono); font-weight:600; }
-/* decision */
-.decision { border-inline-start:4px solid var(--teal); }
-.decision.alert { border-inline-start-color:var(--amber); }
-.summary { font-size:14px; line-height:1.9; margin:0 0 14px; }
-.cands { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px; margin-top:6px; }
-.cand { background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:14px; cursor:pointer; }
-.cand.sel { border-color:var(--teal); }
-.cand .ct { font-size:13.5px; font-weight:700; margin-bottom:6px; display:flex; gap:8px; align-items:center; }
-.cand .rank { font-family:var(--mono); color:var(--teal); }
-.cand .delta { font-size:12px; margin-top:8px; }
-.delta.good { color:var(--teal); } .delta.none { color:var(--muted); }
-.sources { margin-top:14px; font-size:12px; color:var(--muted); line-height:1.8; }
-.sources li { margin-bottom:4px; }
-.human { margin-top:12px; font-size:12.5px; color:var(--muted); }
-.b-est { color:var(--violet); border-style:dashed; }
-.try { margin-top:10px; width:100%; }
-.cand.custom { border-color:var(--violet); }
-.addv { margin-top:4px; }
-.addv summary { cursor:pointer; font-size:12.5px; color:var(--muted); }
-.addv-row { display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; margin-top:8px; }
-.addv-row input, .custom-form input, .custom-form select { background:var(--panel-2); color:var(--text); border:1px solid var(--line);
-  border-radius:8px; padding:7px 9px; font-family:var(--mono); font-size:12px; width:120px; direction:ltr; }
-.custom-form { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin-top:10px; }
-.custom-form select { font-family:var(--font); width:190px; direction:rtl; }
-.showing { font-size:12.5px; color:var(--violet); margin-bottom:8px; }
-@media (max-width:720px) { .content { padding:16px; } .ctl input { width:150px; } .scrub input[type=range] { width:160px; } }
+  color:var(--teal); font-family:var(--font-mono); font-size:11px; display:flex; align-items:center; justify-content:center; }
+h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
+
+/* section 1 — flow */
+.flowrow { display:flex; align-items:stretch; gap:0; }
+.flownode { flex:1; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 12px;
+  cursor:pointer; transition:border-color .15s; position:relative; }
+.flownode:hover, .flownode.active { border-color:var(--teal); }
+.flownode .flabel { font-size:12px; color:var(--muted); margin-bottom:6px; }
+.flownode .fval { font-family:var(--font-mono); font-size:19px; font-weight:600; }
+.flownode .fsub { font-size:11px; color:var(--muted); margin-top:2px; }
+.flownode .fval.amber { color:var(--amber); } .flownode .fval.red { color:var(--red); } .flownode .fval.teal { color:var(--teal); }
+.flownode[data-key="berth"] .fval { direction:ltr; unicode-bidi:isolate; text-align:right; }
+.flownode .syn { color:var(--amber); font-weight:700; cursor:help; }
+.flownode .flim { font-size:11px; color:var(--muted); margin-top:6px; padding-top:6px; border-top:1px dashed var(--line); line-height:1.5; }
+.flownode .fst { display:inline-block; font-weight:600; padding:1px 7px; border-radius:6px; margin-inline-end:4px; }
+.flownode .fst.ok { color:var(--teal); background:rgba(62,208,182,0.12); }
+.flownode .fst.warn { color:var(--amber); background:rgba(243,182,87,0.14); }
+.flownode .fst.bad { color:var(--red); background:rgba(246,131,124,0.14); }
+.rolechip { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--text); background:var(--panel); border:1px solid var(--line); border-radius:999px; padding:4px 12px; margin-inline-start:14px; }
+.rolechip svg { flex:none; }
+.pf-real { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:14px; }
+.pf-real .h { font-size:13px; color:var(--muted); margin-bottom:10px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.pf-real .row { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
+.pf-real .row b { display:block; font-family:var(--font-mono); font-size:22px; color:var(--text); }
+.pf-real .row span { font-size:12px; color:var(--muted); }
+.pf-tag { font-size:11px; padding:2px 8px; border-radius:6px; }
+.pf-tag.real { color:var(--teal); background:rgba(62,208,182,0.12); }
+.pf-tag.local { color:var(--amber); background:rgba(243,182,87,0.14); }
+.why-chips { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.why-chips .q { font-size:13px; color:var(--muted); width:100%; }
+.why-chips button { font-family:inherit; font-size:13px; padding:8px 14px; border-radius:999px; border:1px solid var(--line); background:var(--panel-2); color:var(--text); cursor:pointer; min-height:40px; }
+.why-chips button:hover { border-color:var(--teal); }
+.flowarrow { width:26px; display:flex; align-items:center; justify-content:center; color:var(--teal); font-size:16px; }
+.flowexpand { grid-column:1/-1; background:var(--panel-2); border:1px solid var(--line); border-radius:10px;
+  margin-top:12px; padding:14px 16px; font-size:12.5px; color:var(--muted); display:none; }
+.flowexpand.show { display:block; }
+.spark { display:block; margin-top:8px; }
+
+/* section 2 — prediction timeline */
+.timeline-wrap { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:26px 30px 20px; }
+.tline { position:relative; height:70px; }
+.tline svg { width:100%; height:100%; overflow:visible; }
+.tnode-labels { display:flex; justify-content:space-between; margin-top:6px; }
+.tnode-labels div { flex:1; text-align:center; font-size:12px; }
+.tnode-labels .tt { color:var(--text); font-weight:500; }
+.tnode-labels .ts { color:var(--muted); font-size:11px; margin-top:2px; }
+.tooltip { position:absolute; background:var(--navy-2); border:1px solid var(--teal); border-radius:8px; padding:10px 12px;
+  font-size:12px; width:190px; display:none; z-index:10; pointer-events:none; bottom:80px; }
+.tooltip .tt-row { display:flex; justify-content:space-between; margin:3px 0; }
+.tooltip .tt-row b { font-family:var(--font-mono); color:var(--teal); }
+.delayband { margin-top:18px; background:var(--panel-2); border:1px solid var(--amber); border-radius:8px; padding:12px 16px;
+  display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; }
+.delayband .dtitle { font-size:13px; color:var(--amber); font-weight:600; }
+.delayband .dstats { display:flex; gap:22px; }
+.delayband .dstats div { font-size:12px; color:var(--muted); }
+.delayband .dstats b { display:block; font-family:var(--font-mono); font-size:14px; color:var(--text); margin-top:2px; }
+
+/* section 3 — why */
+.factors { display:flex; flex-direction:column; gap:8px; }
+.factor { background:var(--panel); border:1px solid var(--line); border-radius:9px; padding:12px 16px; cursor:pointer; }
+.factor-top { display:flex; align-items:center; justify-content:space-between; gap:14px; }
+.factor-name { font-size:13.5px; flex:1.4; }
+.factor-vals { font-family:var(--font-mono); font-size:12px; color:var(--muted); flex:0.9; text-align:center; }
+.factor-vals b { color:var(--text); }
+.factor-bar-wrap { flex:1.2; height:6px; background:var(--panel-2); border-radius:3px; overflow:hidden; }
+.factor-bar { height:100%; background:var(--teal); border-radius:3px; }
+.factor-trend { width:20px; text-align:center; font-size:13px; }
+.trend-up { color:var(--red); } .trend-down { color:var(--teal); }
+.factor-detail { display:none; margin-top:10px; padding-top:10px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); }
+.factor.open .factor-detail { display:block; }
+.showall-btn { background:none; border:none; color:var(--teal); font-size:12.5px; cursor:pointer; margin-top:10px; padding:0; }
+.hidden-factor { display:none; }
+.hidden-factor.show { display:block; }
+
+/* section 4 — alert */
+.alertbox { background:var(--panel); border:1px solid var(--red); border-inline-start:4px solid var(--red); border-radius:12px; padding:22px 26px; }
+.alertbox.dismissed { display:none; }
+.ahead { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+.aicon { color:var(--red); font-size:18px; }
+.atitle { font-size:16px; font-weight:700; }
+.ameta { display:flex; gap:26px; margin:10px 0 14px; flex-wrap:wrap; }
+.ameta div { font-size:12px; color:var(--muted); }
+.ameta b { display:block; font-family:var(--font-mono); font-size:14px; color:var(--text); margin-top:2px; }
+.areason { font-size:13px; color:var(--muted); line-height:1.7; margin-bottom:16px; }
+.recobox { background:var(--panel-2); border:1px solid var(--line); border-radius:9px; padding:14px 18px; margin-bottom:16px; }
+.recolabel { font-size:11px; color:var(--teal); font-weight:700; margin-bottom:6px; }
+.recotext { font-size:13.5px; line-height:1.7; margin-bottom:12px; }
+.recocompare { display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
+.rc-box { text-align:center; }
+.rc-box .l { font-size:11px; color:var(--muted); } .rc-box .v { font-family:var(--font-mono); font-size:17px; font-weight:600; margin-top:2px; }
+.rc-arrow { color:var(--teal); font-size:16px; }
+.rc-improve { font-size:12px; color:var(--teal); margin-inline-start:auto; }
+.predicted-note { font-size:10.5px; color:var(--muted); margin-top:4px; }
+.abuttons { display:flex; gap:10px; }
+.b-primary { background:var(--teal); color:#062F29; border:none; font-weight:700; font-family:var(--font); font-size:13.5px; padding:10px 20px; border-radius:7px; cursor:pointer; }
+.b-secondary { background:transparent; color:var(--text); border:1px solid var(--line); font-family:var(--font); font-size:13.5px; padding:10px 20px; border-radius:7px; cursor:pointer; }
+.b-secondary:hover { border-color:var(--muted); }
+.b-secondary:focus-visible, .b-primary:focus-visible, .b-ghost:focus-visible { outline:2px solid var(--teal); outline-offset:2px; }
+.b-ghost { background:none; border:none; color:var(--muted); font-family:var(--font); font-size:13.5px; cursor:pointer; }
+.adopted-msg { display:flex; align-items:center; gap:8px; color:var(--teal); font-size:13.5px; }
+.no-alert { background:var(--panel); border:1px dashed var(--line); border-radius:12px; padding:30px; text-align:center; color:var(--muted); font-size:13.5px; }
+
+.hl-flash { animation:flashHL 1.4s ease; }
+@keyframes flashHL { 0%,100%{ box-shadow:none; } 30%{ box-shadow:0 0 0 3px var(--teal); } }
+
+/* ---- views (dashboard / simulator inside the same page) ---- */
+#dashView[hidden], #consoleView[hidden] { display:none; }
+#consoleView { --bg:var(--navy); --coral:var(--red); --font-ui:var(--font); }
+#consoleView .cv-bar { max-width:1180px; margin:0 auto; padding:22px 20px 0; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+#consoleView .cv-back { background:transparent; color:var(--text); border:1px solid var(--line); border-radius:7px; padding:9px 18px; font-size:13.5px; font-weight:500; }
+#consoleView .cv-back:hover { border-color:var(--muted); }
+
+/* ---- interactive port map ---- */
+:root { --sky:#7FB2E5; }
+.flownode.linked { border-color:var(--teal); background:var(--panel-2); }
+.flownode:focus-visible { outline:2px solid var(--teal); outline-offset:2px; }
+.pm-card { position:relative; margin-top:14px; background:var(--panel); border:1px solid var(--line); border-radius:12px; }
+.pm-head { display:flex; align-items:center; justify-content:space-between; gap:10px 20px; flex-wrap:wrap; padding:14px 20px; border-bottom:1px solid var(--line); }
+.pm-title { display:flex; align-items:center; gap:8px; font-size:15px; font-weight:700; }
+.pm-title .ld { width:7px; height:7px; border-radius:50%; background:var(--teal); animation:pulseDot 2s infinite; }
+.pm-status { display:flex; align-items:center; gap:7px; font-size:12px; color:var(--amber); background:rgba(243,182,87,0.10); border:1px solid rgba(243,182,87,0.35); padding:4px 12px; border-radius:20px; }
+.pm-status i { width:6px; height:6px; border-radius:50%; background:var(--amber); }
+.pm-hint { font-size:12px; color:var(--muted); }
+.pm-scroll { overflow-x:auto; }
+.pm-svg { display:block; width:100%; min-width:860px; height:auto; direction:rtl; }
+.pm-svg text { font-family:var(--font); fill:var(--text); pointer-events:none; }
+.pm-svg .mono { font-family:var(--font-mono); }
+.pm-svg .dim { fill:var(--muted); }
+.pm-svg .amb { fill:var(--amber); }
+.pm-svg .tl  { fill:var(--teal); }
+.pm-svg .rd  { fill:var(--red); }
+.pm-svg .sk  { fill:var(--sky); }
+.pm-land { fill:var(--navy-2); opacity:0.55; }
+.pm-wave { fill:none; stroke:var(--sky); stroke-width:1.2; opacity:0.10; pointer-events:none; }
+.pm-route { fill:none; stroke:var(--sky); stroke-width:1.3; stroke-dasharray:3 5; opacity:0.6; animation:dashMove 22s linear infinite; pointer-events:none; }
+.pm-anch { fill:rgba(127,178,229,0.05); stroke:var(--sky); stroke-width:1.2; stroke-dasharray:5 6; opacity:0.85; }
+.pm-tag { fill:var(--navy-2); stroke:var(--line); }
+.pm-quay { fill:var(--panel-2); stroke:var(--line); }
+.pm-crane { color:var(--muted); }
+.pm-crane.hot { color:var(--amber); }
+.pm-shipa { color:var(--muted); }
+.pm-shipw { color:var(--amber); }
+.pm-shipb { color:var(--sky); }
+.pm-bx { fill:var(--panel-2); stroke:var(--line); stroke-width:1.4; }
+.pm-bx.busy { stroke:var(--sky); fill:rgba(127,178,229,0.10); }
+.pm-bx.free { stroke:var(--teal); stroke-dasharray:5 5; fill:rgba(62,208,182,0.06); }
+.pm-bx.hot  { stroke:var(--amber); fill:rgba(243,182,87,0.10); stroke-width:1.8; }
+.pm-pulse { fill:none; stroke:var(--amber); stroke-width:2; pointer-events:none; animation:pmPulse 2.4s ease-in-out infinite; }
+@keyframes pmPulse { 0%,100%{ opacity:0.85; } 50%{ opacity:0.15; } }
+.pm-track { fill:var(--navy); }
+.pm-fill { fill:var(--sky); }
+.pm-fill.hot { fill:var(--amber); }
+.pm-yb { fill:var(--panel-2); stroke:var(--line); stroke-width:1.2; }
+.pm-yb.warn { stroke:rgba(243,182,87,0.6); }
+.pm-yb.bad  { stroke:var(--red); fill:rgba(246,131,124,0.08); }
+.pm-cell { fill:var(--navy); }
+.pm-cell.on { fill:var(--teal); opacity:0.7; }
+.pm-cell.on.warn { fill:var(--amber); opacity:0.75; }
+.pm-cell.on.bad  { fill:var(--red); opacity:0.85; }
+.pm-g { transition:opacity .18s; }
+.pm-svg.has-focus .pm-g { opacity:0.22; }
+.pm-svg.has-focus .pm-g.on { opacity:1; }
+.pm-hit { cursor:pointer; outline:none; transition:filter .12s; }
+.pm-hit:hover, .pm-hit:focus-visible { filter:brightness(1.3); }
+.pm-hit:hover > .pm-bx, .pm-hit:focus-visible > .pm-bx { stroke-width:2.4; }
+.pm-hit:focus-visible { outline:2px solid var(--teal); outline-offset:3px; }
+
+.pm-tip { position:absolute; z-index:15; width:240px; background:var(--navy-2); border:1px solid var(--line); border-radius:10px; padding:12px 14px; box-shadow:0 12px 30px rgba(8,20,36,0.4); pointer-events:none; opacity:0; transform:translateY(4px); transition:opacity .12s, transform .12s; font-size:12.5px; top:0; left:0; }
+.pm-tip.show { opacity:1; transform:none; }
+.pm-tip .t { display:flex; align-items:center; justify-content:space-between; gap:8px; font-weight:700; font-size:13.5px; margin-bottom:8px; }
+.pm-badge { font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; border:1px solid; white-space:nowrap; }
+.pm-badge.ok   { color:var(--teal);  border-color:rgba(62,208,182,0.45);  background:rgba(62,208,182,0.10); }
+.pm-badge.warn { color:var(--amber); border-color:rgba(243,182,87,0.45);  background:rgba(243,182,87,0.10); }
+.pm-badge.bad  { color:var(--red);   border-color:rgba(246,131,124,0.5);  background:rgba(246,131,124,0.10); }
+.pm-badge.info { color:var(--sky);   border-color:rgba(127,178,229,0.45); background:rgba(127,178,229,0.10); }
+.pm-row { display:flex; justify-content:space-between; gap:12px; margin:5px 0; color:var(--muted); }
+.pm-row b { color:var(--text); font-family:var(--font-mono); font-weight:500; text-align:end; }
+.pm-bar { height:5px; border-radius:3px; background:var(--navy); overflow:hidden; margin:9px 0 2px; }
+.pm-bar i { display:block; height:100%; border-radius:3px; background:var(--sky); margin-inline-start:auto; }
+.pm-bar i.warn { background:var(--amber); } .pm-bar i.bad { background:var(--red); } .pm-bar i.ok { background:var(--teal); }
+.pm-note { margin-top:8px; padding-top:8px; border-top:1px solid var(--line); font-size:11.5px; color:var(--muted); line-height:1.7; }
+.pm-legend { display:flex; flex-wrap:wrap; gap:8px 20px; padding:10px 20px 14px; border-top:1px solid var(--line); font-size:11.5px; color:var(--muted); }
+.pm-legend span { display:inline-flex; align-items:center; gap:6px; }
+.pm-legend i { display:inline-block; width:14px; height:10px; border-radius:3px; border:1.5px solid; }
+@media (prefers-reduced-motion: reduce) { .pm-route, .pm-pulse, .pm-title .ld { animation:none; } .pm-tip, .pm-g { transition:none; } }
+
+
+/* ---- التوأم الرقمي ---- */
+#dashView[hidden], #consoleView[hidden] { display:none; }
+#consoleView { background:var(--navy); color:var(--text); font-family:var(--font); min-height:100vh; }
+#consoleView .cv-bar { max-width:1180px; margin:0 auto; padding:22px 20px 0; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+#consoleView .cv-back { font-family:var(--font); background:transparent; color:var(--text); border:1px solid var(--line); border-radius:7px; padding:9px 18px; font-size:13.5px; font-weight:500; cursor:pointer; }
+#consoleView .cv-back:hover { border-color:var(--muted); }
+#consoleView button:focus-visible, #consoleView select:focus-visible { outline:2px solid var(--teal); outline-offset:2px; }
+#consoleView .tw-wrap { max-width:1180px; margin:0 auto; padding:22px 20px 60px; }
+#consoleView .tw-h1 { font-size:24px; font-weight:800; margin:0 0 6px; }
+#consoleView .tw-sub { font-size:14px; color:var(--muted); margin:0 0 16px; max-width:64ch; line-height:1.8; }
+#consoleView .tw-steps { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:20px; }
+#consoleView .tw-step { display:flex; align-items:center; gap:8px; font-size:12.5px; background:var(--panel); border:1px solid var(--line); border-radius:20px; padding:5px 12px; }
+#consoleView .tw-step i { font-style:normal; width:20px; height:20px; border-radius:50%; background:var(--panel-2); border:1px solid var(--line); color:var(--teal); font-family:var(--font-mono); font-size:11px; display:flex; align-items:center; justify-content:center; }
+#consoleView .tw-arr { color:var(--teal); }
+
+#consoleView .tw-cards { display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; }
+@media (max-width: 980px) { #consoleView .tw-cards { grid-template-columns:repeat(2, 1fr); } }
+@media (max-width: 560px) { #consoleView .tw-cards { grid-template-columns:1fr; } }
+#consoleView .tw-card { font-family:var(--font); text-align:start; color:var(--text); background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; display:flex; flex-direction:column; gap:8px; cursor:pointer; }
+#consoleView .tw-card:hover { border-color:var(--muted); }
+#consoleView .tw-card.sel { border-color:var(--teal); background:var(--panel-2); }
+#consoleView .tw-tagrow { min-height:22px; }
+#consoleView .tw-badge { display:inline-block; font-size:10.5px; font-weight:700; color:var(--teal); border:1px solid rgba(62,208,182,0.5); background:rgba(62,208,182,0.10); border-radius:20px; padding:2px 10px; }
+#consoleView .tw-ct { font-size:14.5px; font-weight:700; line-height:1.55; }
+#consoleView .tw-cl { font-size:12.5px; color:var(--muted); line-height:1.7; }
+#consoleView .tw-gain { margin-top:auto; padding-top:6px; font-size:12px; color:var(--muted); }
+#consoleView .tw-gain b { font-family:var(--font-mono); font-size:21px; font-weight:600; color:var(--teal); margin-inline-end:3px; }
+#consoleView .tw-bar { height:5px; border-radius:3px; background:var(--navy); overflow:hidden; }
+#consoleView .tw-bar i { display:block; height:100%; border-radius:3px; background:var(--teal); margin-inline-start:auto; }
+
+#consoleView .tw-fb { margin:18px 0; background:var(--panel); border:1px solid var(--line); border-inline-start:3px solid var(--teal); border-radius:10px; padding:12px 16px; }
+#consoleView .tw-fb-q { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:14px; }
+#consoleView .tw-fb-q .grow { flex:1; min-width:200px; }
+#consoleView .tw-fb button { font-family:var(--font); cursor:pointer; }
+#consoleView .tw-fb .ok { background:var(--teal); color:#062033; border:0; border-radius:8px; padding:8px 16px; font-weight:700; font-size:13px; }
+#consoleView .tw-fb .obj { background:transparent; color:var(--amber); border:1px solid var(--amber); border-radius:8px; padding:8px 16px; font-weight:700; font-size:13px; }
+#consoleView .tw-fb-form { display:grid; gap:12px; margin-top:12px; padding-top:12px; border-top:1px solid var(--line); }
+#consoleView .tw-fb-lbl { font-size:12.5px; color:var(--muted); margin-bottom:6px; }
+#consoleView .tw-fb-chips { display:flex; flex-wrap:wrap; gap:6px; }
+#consoleView .tw-fb-chip { background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:20px; padding:6px 13px; font-size:12.5px; }
+#consoleView .tw-fb-chip.on { border-color:var(--amber); color:var(--amber); background:rgba(243,182,87,0.08); }
+#consoleView .tw-fb select, #consoleView .tw-fb textarea { width:100%; background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-family:var(--font); font-size:13px; }
+#consoleView .tw-fb textarea { resize:vertical; min-height:40px; }
+#consoleView .tw-fb .send { background:var(--teal); color:#062033; border:0; border-radius:8px; padding:8px 18px; font-weight:700; font-size:13px; }
+#consoleView .tw-fb .send:disabled { opacity:.45; cursor:default; }
+#consoleView .tw-fb-done { font-size:13.5px; color:var(--teal); }
+#consoleView .tw-fb-stats { font-size:12px; color:var(--muted); margin-top:6px; }
+#consoleView .tw-fb-undo { background:none; border:0; color:var(--muted); text-decoration:underline; font-size:12px; padding:0; margin-inline-start:8px; }
+#consoleView .tw-side { font-size:11.5px; color:var(--amber); min-height:18px; }
+
+#consoleView .tw-sim { margin-top:18px; background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+#consoleView .tw-sim-head { display:flex; justify-content:space-between; align-items:center; gap:10px 16px; flex-wrap:wrap; padding:14px 18px; border-bottom:1px solid var(--line); }
+#consoleView .tw-sim-title { display:flex; align-items:center; gap:10px; font-size:15px; font-weight:700; flex-wrap:wrap; }
+#consoleView .tw-wx { font-size:12px; color:var(--muted); border:1px solid var(--line); border-radius:20px; padding:3px 12px; }
+#consoleView .tw-wx.on { color:var(--amber); border-color:rgba(243,182,87,0.5); background:rgba(243,182,87,0.08); }
+#consoleView .tw-scroll { overflow-x:auto; padding:6px 0 0; }
+#consoleView .tw-svg { min-width:760px; }
+#consoleView .tw-stats { display:flex; gap:10px; flex-wrap:wrap; padding:8px 18px 14px; }
+#consoleView .tw-stats div { background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:6px 16px; font-size:12px; color:var(--muted); }
+#consoleView .tw-stats b { display:block; font-family:var(--font-mono); font-size:16px; font-weight:600; color:var(--text); margin-top:1px; }
+#consoleView .tw-ctl { display:flex; align-items:center; gap:12px; padding:12px 18px; border-top:1px solid var(--line); }
+#consoleView .tw-ctl button { font-family:var(--font); width:40px; background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:7px; padding:7px 0; font-size:13px; cursor:pointer; }
+#consoleView .tw-ctl button:hover { border-color:var(--teal); }
+#consoleView .tw-ctl input[type=range] { flex:1; accent-color:var(--teal); }
+#consoleView .tw-ctl select { font-family:var(--font-mono); background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:7px; padding:6px 8px; font-size:12.5px; }
+.metric-cap { font-size:11px; color:var(--muted); margin-bottom:8px; }
+
+
+/* ---- الأداء والملاحظات ---- */
+.pf-demo { font-size:11px; font-weight:500; color:var(--muted); border:1px solid var(--line); border-radius:20px; padding:2px 10px; margin-inline-start:12px; vertical-align:middle; }
+.pf-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:12px; }
+@media (max-width: 900px) { .pf-grid { grid-template-columns:repeat(2, 1fr); } }
+.pf-kpi { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+.pf-kpi .l { font-size:12px; color:var(--muted); }
+.pf-kpi .v { font-family:var(--font-mono); font-size:23px; font-weight:600; margin:5px 0 3px; }
+.pf-kpi .v .u { font-family:var(--font); font-size:12.5px; font-weight:500; color:var(--muted); margin-inline-start:5px; }
+.pf-kpi .s { font-size:11.5px; color:var(--muted); line-height:1.7; }
+.pf-chart { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px 20px 12px; }
+.pf-chart-head { display:flex; justify-content:space-between; align-items:center; gap:8px 16px; flex-wrap:wrap; margin-bottom:6px; }
+.pf-chart-title { font-size:14px; font-weight:700; }
+.pf-legend { display:flex; gap:18px; font-size:12px; color:var(--muted); }
+.pf-legend span { display:inline-flex; align-items:center; gap:7px; }
+.pf-legend i { display:inline-block; width:18px; height:0; border-top:2.5px solid var(--teal); }
+.pf-legend i.pred { border-top:2px dashed var(--sky); }
+.pf-svg { display:block; width:100%; height:auto; direction:rtl; }
+.pf-svg text { font-family:var(--font); fill:var(--muted); font-size:13px; }
+.pf-cap { font-size:12px; color:var(--muted); margin-top:4px; }
+
+.fb-card { margin-top:18px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:20px 22px; }
+.fb-title { font-size:16px; font-weight:700; margin-bottom:4px; }
+.fb-sub { font-size:12.5px; color:var(--muted); margin-bottom:18px; }
+.fb-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 36px; }
+@media (max-width: 820px) { .fb-grid { grid-template-columns:1fr; } }
+.fb-q { margin-bottom:18px; }
+.fb-ql { display:block; font-size:13px; margin-bottom:9px; }
+.fb-opt-note { font-size:11px; color:var(--muted); margin-inline-start:6px; }
+.fb-stars { display:flex; gap:4px; }
+.fb-star { background:none; border:none; padding:2px; cursor:pointer; color:var(--line); line-height:0; border-radius:6px; }
+.fb-star svg { width:30px; height:30px; fill:currentColor; }
+.fb-star.on { color:var(--amber); }
+.fb-q[hidden] { display:none !important; }
+#fbText { min-height:64px; height:64px; }
+.fb-star:focus-visible, .fb-opt:focus-visible, .fb-text:focus-visible { outline:2px solid var(--teal); outline-offset:2px; }
+.fb-opts { display:flex; flex-wrap:wrap; gap:8px; }
+.fb-opt { font-family:var(--font); font-size:12.5px; background:var(--panel-2); color:var(--muted); border:1px solid var(--line); border-radius:20px; padding:6px 14px; cursor:pointer; }
+.fb-opt:hover { border-color:var(--muted); }
+.fb-opt.on { color:var(--teal); border-color:var(--teal); background:rgba(62,208,182,0.12); }
+.fb-text { width:100%; min-height:136px; resize:vertical; background:var(--panel-2); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-family:var(--font); font-size:13px; line-height:1.8; }
+.fb-actions { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-top:12px; }
+.fb-msg { font-size:12.5px; color:var(--amber); }
+.fb-thanks { display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:4px 0 2px; }
+.fb-thanks[hidden] { display:none; }
+.fb-thanks .ok { color:var(--teal); font-size:14px; }
+
+
+/* ---- الاختبار اليدوي (الأصلي) ---- */
+#manualTest {
+  margin: 0; background: var(--bg); color: var(--text);
+  font-family: var(--font-ui); min-height: 100vh;
+}
+#manualTest .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 60px; }
+#manualTest header { margin-bottom: 22px; }
+#manualTest header .eyebrow { font-family: var(--font-mono); font-size: 12px; color: var(--teal); letter-spacing: 0.02em; }
+#manualTest h1 { font-size: 22px; font-weight: 700; margin: 4px 0 6px; }
+#manualTest header p { color: var(--muted); font-size: 14px; max-width: 62ch; margin: 0; line-height: 1.6; }
+#manualTest .layout { display: grid; grid-template-columns: 260px 1fr; gap: 18px; align-items: start; }
+@media (max-width: 820px) {
+#manualTest .layout { grid-template-columns: 1fr; }
+}
+#manualTest .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+#manualTest .panel + .panel { margin-top: 14px; }
+#manualTest .panel h2 { font-size: 12px; text-transform: none; color: var(--muted); margin: 0 0 12px; font-weight: 500; }
+#manualTest label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+#manualTest label:first-child { margin-top: 0; }
+#manualTest input[type=number], #manualTest select {
+  width: 100%; background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+  border-radius: 6px; padding: 7px 8px; font-family: var(--font-mono); font-size: 13px;
+}
+#manualTest .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+#manualTest .hint { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+#manualTest button {
+  font-family: var(--font-ui); font-weight: 500; font-size: 13px; cursor: pointer;
+  border-radius: 6px; border: 1px solid var(--line); padding: 9px 12px; background: var(--panel-2); color: var(--text);
+}
+#manualTest button:hover { border-color: var(--teal); }
+#manualTest button:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
+#manualTest .btn-run { width: 100%; margin-top: 14px; background: var(--teal); color: #062F29; border: none; font-weight: 700; padding: 11px; }
+#manualTest .btn-run:hover { opacity: 0.92; }
+#manualTest .presets { display: flex; flex-direction: column; gap: 6px; }
+#manualTest .presets button { text-align: start; font-size: 12px; }
+#manualTest .canvas-panel { min-height: 420px; display: flex; flex-direction: column; }
+#manualTest .canvas-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 14px; }
+#manualTest .clock { font-family: var(--font-mono); font-size: 13px; color: var(--muted); }
+#manualTest .clock b { color: var(--text); }
+#manualTest .banner { display: none; background: rgba(246,131,124,0.12); border: 1px solid var(--coral); color: var(--coral);
+  border-radius: 6px; padding: 8px 12px; font-size: 12px; margin-bottom: 12px; font-family: var(--font-mono); }
+#manualTest .banner.show { display: block; }
+#manualTest .berth-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+#manualTest .berth {
+  flex: 1 1 90px; min-width: 90px; height: 78px; border-radius: 8px; border: 1.5px dashed var(--line);
+  display: flex; align-items: center; justify-content: center; position: relative; background: var(--panel-2);
+  transition: border-color 0.15s;
+}
+#manualTest .berth.occ { border-style: solid; border-color: var(--teal); background: rgba(62,208,182,0.10); }
+#manualTest .berth .label { position: absolute; top: 5px; inset-inline-start: 7px; font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+#manualTest .berth .vessel { width: 30px; height: 30px; border-radius: 5px; background: var(--teal); }
+#manualTest .berth .svc { position: absolute; bottom: 5px; inset-inline-end: 7px; font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+#manualTest .queue-label { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+#manualTest .queue { display: flex; gap: 6px; flex-wrap: wrap; min-height: 34px; margin-bottom: 20px; }
+#manualTest .chip {
+  width: 26px; height: 26px; border-radius: 5px; background: var(--amber); opacity: 0.9;
+  display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 9px; color: #3A2600;
+}
+#manualTest .transport { display: flex; align-items: center; gap: 10px; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); }
+#manualTest .transport button { padding: 7px 10px; }
+#manualTest .transport input[type=range] { flex: 1; accent-color: var(--teal); }
+#manualTest .speed-select { width: 74px; }
+#manualTest .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 14px; }
+@media (max-width: 560px) {
+#manualTest .kpis { grid-template-columns: repeat(2, 1fr); }
+}
+#manualTest .kpi { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+#manualTest .kpi .v { font-family: var(--font-mono); font-size: 19px; font-weight: 600; }
+#manualTest .kpi .l { font-size: 11px; color: var(--muted); margin-top: 2px; }
+#manualTest .empty { color: var(--muted); font-size: 13px; padding: 40px 0; text-align: center; }
+#manualTest .tabbar { display: flex; gap: 8px; margin-bottom: 16px; }
+#manualTest .tab-btn { background: transparent; border: 1px solid var(--line); color: var(--muted); }
+#manualTest .tab-btn.active { background: var(--panel-2); color: var(--text); border-color: var(--teal); }
+#manualTest #contractInput {
+  width: 100%; height: 320px; background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+  border-radius: 6px; padding: 10px; font-family: var(--font-mono); font-size: 12px; line-height: 1.5; resize: vertical;
+  direction: ltr; text-align: left;
+}
+#manualTest .ctable { width: 100%; border-collapse: collapse; font-size: 13px; }
+#manualTest .ctable th, #manualTest .ctable td { text-align: start; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+#manualTest .ctable th { color: var(--muted); font-weight: 500; font-size: 11px; }
+#manualTest .ctable td.mono, #manualTest .ctable th.mono { font-family: var(--font-mono); }
+#manualTest .ctable tr.best { background: rgba(62,208,182,0.10); }
+#manualTest .ctable tr.best td:first-child::before { content: "★ "; color: var(--teal); }
+#manualTest .ctable button { padding: 5px 9px; font-size: 12px; }
+#manualTest .errbox { color: var(--coral); font-family: var(--font-mono); font-size: 12px; white-space: pre-wrap; direction: ltr; text-align: left; }
+#manualTest { --bg:var(--navy); --coral:var(--red); --font-ui:var(--font); min-height:0; background:transparent; margin-top:44px; padding-top:26px; border-top:1px solid var(--line); }
+#manualTest .mt-src { display:flex; gap:0; border:1px solid var(--line); border-radius:8px; overflow:hidden; margin-bottom:6px; }
+#manualTest .mt-src button { flex:1; border:0; border-radius:0; background:var(--panel-2); color:var(--muted); padding:8px 6px; font-size:12.5px; margin:0; }
+#manualTest .mt-src button.on { background:var(--teal); color:#062F29; font-weight:700; }
+#manualTest .mt-own { margin-top:12px; padding:12px; border:1px dashed var(--teal); border-radius:8px; }
+#manualTest .mt-own h3 { font-size:12.5px; margin:0 0 8px; color:var(--text); font-weight:700; }
+#manualTest .mt-q { display:flex; flex-direction:column; gap:5px; margin-bottom:12px; }
+#manualTest .mt-qi { display:flex; align-items:center; gap:6px; background:var(--panel-2); border:1px solid var(--line); border-radius:7px; padding:5px 8px; font-size:11.5px; }
+#manualTest .mt-qi .n { font-family:var(--font-mono); color:var(--teal); width:16px; }
+#manualTest .mt-qi .t { flex:1; line-height:1.4; }
+#manualTest .mt-qi button { padding:2px 7px; font-size:11px; margin:0; }
+#manualTest .mt-chk { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text); margin:6px 0; }
+#manualTest .mt-chk input { accent-color:var(--teal); }
+#manualTest .mt-chk select { width:auto; padding:3px 6px; }
+#manualTest .mt-cmp { grid-column:1 / -1; font-size:12.5px; color:var(--muted); background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:9px 12px; line-height:1.7; }
+#manualTest .mt-cmp b { color:var(--text); font-family:var(--font-mono); }
+#manualTest .mt-cmp .good { color:var(--teal); } #manualTest .mt-cmp .bad { color:var(--amber); }
+#manualTest .mt-title { font-size:18px; font-weight:700; margin:0 0 4px; }
+#manualTest .mt-sub { font-size:13.5px; color:var(--muted); margin:0 0 16px; }
+
 </style>
 </head>
 <body>
-<div class="content">
-
-  <div class="topbar">
-    <div class="brand">
-      <svg width="34" height="34" viewBox="0 0 40 40" fill="none" aria-hidden="true">
-        <path d="M6 26 Q13 20 20 26 T34 26" stroke="#3ED0B6" stroke-width="2" fill="none" stroke-linecap="round"/>
-        <path d="M6 31 Q13 25 20 31 T34 31" stroke="#2A8F7C" stroke-width="2" fill="none" stroke-linecap="round"/>
-        <rect x="18" y="6" width="4" height="18" rx="2" fill="#3ED0B6"/>
-        <circle cx="20" cy="6" r="3.4" fill="#3ED0B6"/>
-      </svg>
-      <div>
-        <div class="word">مرسَى</div>
-        <div class="sub">Marsa — AI Port Intelligence · ميناء لوس أنجلوس (بديل تجريبي)</div>
-      </div>
-    </div>
-    <div>
-      <form class="controls" id="ctlForm">
-        <label class="ctl">الساعة (UTC، سنة 2025)
-          <input id="inTs" value="2025-07-10T19:00:00Z" required>
-        </label>
-        <label class="ctl stress">أرصفة مغلقة <span class="badge b-user">سيناريو</span>
-          <input id="inClosed" class="small" type="number" min="0" step="1" value="0">
-        </label>
-        <label class="ctl stress">مضاعف السفن القادمة (×1 = الجدول الفعلي) <span class="badge b-user">سيناريو</span>
-          <input id="inSurge" class="small" type="number" min="0.1" step="0.1" value="1">
-        </label>
-        <label class="ctl">عنوان الخادم
-          <input id="inApi" value="http://127.0.0.1:8000">
-        </label>
-        <button class="b-primary" type="submit">تحليل</button>
-      </form>
-      <details class="addv" id="addvBox">
-        <summary>إضافة سفن للتجربة <span class="badge b-user">مدخل المستخدم</span> <span id="addvCount"></span></summary>
-        <div class="note">لكل سفينة: رقمها (IMO أو MMSI) إن كانت معروفة، أو طولها بالمتر، أو مدة إقامتها بالساعات. إن لم تُكتب المدة تُقدَّر من إقامات سابقة قبل الساعة المختارة: من تاريخ نفس السفينة أولًا، وإلا من أقرب السفن طولًا.</div>
-        <div id="addvRows"></div>
-        <button class="b-secondary" type="button" id="addvAdd" style="margin-top:8px">+ سفينة</button>
-        <datalist id="knownVessels"></datalist>
-      </details>
-      <div class="status" id="status"></div>
-    </div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs><symbol id="pmShip" viewBox="0 0 100 36">
+        <path d="M3 22 H97 L88 34 H14 Z" fill="currentColor"/>
+        <rect x="10" y="12" width="15" height="10" rx="1.5" fill="currentColor" opacity=".55"/>
+        <rect x="27" y="12" width="15" height="10" rx="1.5" fill="currentColor" opacity=".8"/>
+        <rect x="44" y="12" width="15" height="10" rx="1.5" fill="currentColor" opacity=".55"/>
+        <rect x="61" y="12" width="15" height="10" rx="1.5" fill="currentColor" opacity=".8"/>
+        <rect x="18" y="3" width="15" height="9" rx="1.5" fill="currentColor" opacity=".7"/>
+        <rect x="80" y="4" width="11" height="18" rx="1.5" fill="currentColor"/>
+      </symbol><symbol id="pmCrane" viewBox="0 0 28 34">
+        <path d="M6 33 L9 8 M22 33 L19 8 M8 20 H20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+        <path d="M1 8 H27" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+        <path d="M14 8 V1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </symbol><symbol id="pmTruck" viewBox="0 0 44 22">
+        <rect x="0" y="3" width="28" height="13" rx="2" fill="currentColor"/>
+        <path d="M30 7 H38 L43 12 V16 H30 Z" fill="currentColor" opacity=".8"/>
+        <circle cx="8" cy="18" r="3" fill="currentColor"/><circle cx="22" cy="18" r="3" fill="currentColor"/><circle cx="37" cy="18" r="3" fill="currentColor"/>
+      </symbol></defs></svg>
+<div class="stage" id="dashView">
+  <div class="bgfx" id="bgfx">
+    <svg viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice">
+      <path class="trackline" d="M -50 620 C 300 560, 600 680, 950 600 S 1400 500, 1500 540"/>
+      <path class="trackline" d="M -50 300 C 250 340, 500 260, 800 320 S 1300 260, 1500 300" style="animation-delay:-6s"/>
+      <path class="trackline" d="M -50 780 C 350 760, 700 820, 1050 770 S 1400 720, 1500 760" style="animation-delay:-12s"/>
+      <path d="M0 850 L60 850 L60 820 L160 820 L160 850 L260 850 L260 800 L360 800 L360 850" stroke="rgba(62,208,182,0.18)" stroke-width="1" fill="none"/>
+    </svg>
+    <div class="glow"></div>
+    <div class="radar" style="top:180px; right:220px;"></div>
   </div>
 
-  <div id="app"><div class="empty">اختر ساعة واضغط «تحليل». تُعرض البيانات بعد وصول رد الخادم فقط.</div></div>
+  <div class="content">
+
+    <div class="topbar">
+      <div class="brand">
+        <svg width="34" height="34" viewBox="0 0 40 40" fill="none">
+          <path d="M6 26 Q13 20 20 26 T34 26" stroke="#3ED0B6" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <path d="M6 31 Q13 25 20 31 T34 31" stroke="#2A8F7C" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <rect x="18" y="6" width="4" height="18" rx="2" fill="#3ED0B6"/>
+          <circle cx="20" cy="6" r="3.4" fill="#3ED0B6"/>
+        </svg>
+        <div>
+          <div class="word">مرسَى</div>
+          <div class="sub">لوحة مشرف العمليات · ميناء لوس أنجلوس (بديل تجريبي)</div>
+        </div>
+      </div>
+      <div class="topmeta">
+        <div class="clockbit" id="clockNow"></div>
+        <div class="conn"><span class="dot"></span><span id="connText">غير متصل بالخادم</span></div>
+        <div class="clockbit" id="lastUpdate">لم تُحمّل ساعة بعد</div>
+        <div class="bellwrap">
+          <button class="bellbtn" id="bellBtn">🔔<span class="n" id="bellCount">0</span></button>
+          <div class="bellpanel" id="bellPanel"></div>
+        </div>
+      </div>
+    </div>
+
+    <section id="sec1">
+      <div class="storylabel"><span class="num">١</span> ماذا يحدث الآن؟ — تحليل حركة الميناء<span id="flowStamp"></span></div>
+      <div class="flowrow" id="flowRow"><div class="no-alert" style="flex:1">اختر ساعة من زر «اختر اللحظة الحالية». كل رقم في الصفحة يأتي من خادم مرسى.</div></div>
+      <div class="flowexpand" id="flowExpand"></div>
+
+      <div class="pm-card" id="pmWrap">
+        <div class="pm-head">
+          <div class="pm-title"><span class="ld"></span>الميناء الآن — أرصفة لوس أنجلوس وسفن الشحن</div>
+          <div class="pm-status" id="pmStatus" hidden><i></i><span></span></div>
+          <div class="pm-hint">مرّر المؤشر أو المس أي عنصر لعرض التفاصيل</div>
+        </div>
+        <div class="pm-scroll">
+          <svg class="pm-svg" id="pmSvg" viewBox="0 0 1100 420" role="group" aria-label="خريطة الأرصفة والسفن"></svg>
+        </div>
+        <div class="pm-legend">
+          <span><i style="border-color:var(--sky);background:rgba(127,178,229,.2)"></i>رصيف مشغول</span>
+          <span><i style="border-color:var(--teal);border-style:dashed"></i>رصيف متاح</span>
+          <span><i style="border-color:var(--muted);background:rgba(163,180,202,.25)"></i>رصيف مغلق (سيناريو)</span>
+          <span><i style="border-color:var(--amber)"></i>سفينة منتظرة</span>
+          <span><i style="border-color:var(--muted)"></i>سفينة قادمة</span>
+          <span><i style="border-color:var(--violet,#B9A2F0);border-style:dashed"></i>سفينة مضافة (مدة تقديرية)</span>
+        </div>
+        <div class="pm-tip" id="pmTip" role="tooltip"></div>
+      </div>
+    </section>
+
+    <section id="sec2">
+      <div class="storylabel"><span class="num">٢</span> ماذا سيحدث؟ — التنبؤ المبكر</div>
+      <h2 class="stitle">ماذا سيحدث خلال الساعات القادمة؟</h2>
+      <div class="timeline-wrap">
+        <div class="tline">
+          <svg id="tlineSvg" viewBox="0 0 1000 120" preserveAspectRatio="none"></svg>
+        </div>
+        <div class="tnode-labels" id="tlLabels"></div>
+        <div class="delayband">
+          <div class="dtitle">ما يقوله النموذج والتوأم</div>
+          <div class="dstats">
+            <div>توقع نموذج التنبؤ<b id="dbModel">—</b></div>
+            <div>الساعة التي يتنبأ بها<b id="dbWindow">—</b></div>
+            <div>انتظار السفن بدون تغيير (محاكاة)<b id="dbWait">—</b></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="sec3">
+      <div class="storylabel"><span class="num">٣</span> لماذا؟ — ما يراه كل وكيل</div>
+      <h2 class="stitle">على ماذا يعتمد مرسَى؟</h2>
+      <div class="factors" id="factorsList"></div>
+    </section>
+
+    <section id="sec4">
+      <div class="storylabel"><span class="num">٤</span> ماذا يجب أن نفعل؟</div>
+      <div class="alertbox" id="alertBox" style="display:none">
+        <div class="ahead"><span class="aicon">⚠</span><span class="atitle" id="alTitle">إشارة ضغط</span></div>
+        <div class="ameta">
+          <div>أفق التنبؤ<b id="amWhen">—</b></div>
+          <div>المنطقة<b id="amArea">—</b></div>
+        </div>
+        <div class="areason" id="alReason"></div>
+        <div class="recobox">
+          <div class="recolabel" id="alLabel">توصية وكيل الاستراتيجية</div>
+          <div class="recotext" id="alText">—</div>
+          <div class="metric-cap">المقياس: إجمالي ساعات انتظار السفن خلال أفق المحاكاة، وأعلى إشغال للساحة بجانبه</div>
+          <div class="recocompare">
+            <div class="rc-box"><div class="l">بدون تغيير</div><div class="v" id="alBefore">—</div></div>
+            <div class="rc-arrow">←</div>
+            <div class="rc-box"><div class="l">مع التوصية</div><div class="v" id="alAfter" style="color:var(--teal)">—</div></div>
+            <div class="rc-improve" id="alImprove"></div>
+          </div>
+          <div class="predicted-note">نتيجة محاكاة من التوأم الرقمي، وليست نتيجة مضمونة. القرار النهائي لمشغّل الميناء.</div>
+        </div>
+        <div class="abuttons" id="alertButtons">
+          <button class="b-secondary" id="simBtn" type="button">افتح التوأم الرقمي</button>
+          <button class="b-primary" id="adoptBtn">اعتماد التوصية</button>
+          <button class="b-ghost" id="dismissBtn">غير مناسب</button>
+        </div>
+      </div>
+      <div class="no-alert" id="noAlert">اختر ساعة لعرض توصية وكيل الاستراتيجية.</div>
+    </section>
+
+    <section id="sec5">
+      <div class="storylabel"><span class="num">٥</span> كيف كان أداء مرسى؟</div>
+      <h2 class="stitle">أداء نموذج التنبؤ في اختبار 2025<span class="pf-demo" style="color:var(--teal);border-color:rgba(62,208,182,.45)">من ملف نتائج النموذج</span></h2>
+
+      <div class="pf-grid" id="pfGrid"></div>
+
+      <div class="pf-chart">
+        <div class="pf-chart-head">
+          <div class="pf-chart-title">ساعات التكدس كل أسبوع: توقع مرسى مقابل الفعلي</div>
+          <div class="pf-legend"><span><i class="pred"></i>المتوقع</span><span><i class="act"></i>الفعلي</span></div>
+        </div>
+        <svg id="pfSvg" class="pf-svg" viewBox="0 0 1200 230" role="img" aria-label="ساعات التكدس الأسبوعية من يونيو إلى سبتمبر 2025: ما توقعه مرسى قبل 6 ساعات مقابل ما حدث فعلًا"></svg>
+        <div class="pf-cap" id="pfCap"></div>
+      </div>
+
+      <div class="fb-card" id="fbCard">
+        <div class="fb-title">رأيك يساعدنا نحسّن مرسى</div>
+        <div id="fbForm">
+          <div class="fb-grid">
+            <div>
+              <div class="fb-q">
+                <div class="fb-ql" id="fbRateL">كيف تقيّم أداء مرسى؟</div>
+                <div class="fb-stars" role="radiogroup" aria-labelledby="fbRateL" id="fbStars"></div>
+              </div>
+              <div class="fb-q" hidden>
+                <div class="fb-ql">هل كانت توصية مرسى مفيدة؟</div>
+                <div class="fb-opts" id="fbUseful" role="radiogroup" aria-label="فائدة التوصية">
+                  <button type="button" class="fb-opt" role="radio" aria-checked="false" data-v="yes">نعم</button>
+                  <button type="button" class="fb-opt" role="radio" aria-checked="false" data-v="some">إلى حد ما</button>
+                  <button type="button" class="fb-opt" role="radio" aria-checked="false" data-v="no">لا</button>
+                </div>
+              </div>
+              <div class="fb-q" hidden>
+                <div class="fb-ql">ما الذي تحب أن نحسّنه؟ <span class="fb-opt-note">اختياري</span></div>
+                <div class="fb-opts" id="fbTopics">
+                  <button type="button" class="fb-opt" aria-pressed="false" data-v="accuracy">دقة التوقعات</button>
+                  <button type="button" class="fb-opt" aria-pressed="false" data-v="clarity">وضوح التوصيات</button>
+                  <button type="button" class="fb-opt" aria-pressed="false" data-v="twin">التوأم الرقمي</button>
+                  <button type="button" class="fb-opt" aria-pressed="false" data-v="speed">سرعة التحديث</button>
+                  <button type="button" class="fb-opt" aria-pressed="false" data-v="ease">سهولة الاستخدام</button>
+                </div>
+              </div>
+            </div>
+            <div>
+              <label class="fb-ql" for="fbText">ملاحظات إضافية <span class="fb-opt-note">اختياري</span></label>
+              <textarea id="fbText" class="fb-text" maxlength="500" placeholder="ما الذي نحسّنه؟" rows="2"></textarea>
+              <div class="fb-actions">
+                <button type="button" class="b-primary" id="fbSend">إرسال الملاحظات</button>
+                <span class="fb-msg" id="fbMsg" role="status" aria-live="polite"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="fb-thanks" id="fbThanks" hidden>
+          <span class="ok">✓ شكرًا لك، سجّلنا ملاحظتك في هذا المتصفح.</span>
+          <button type="button" class="b-secondary" id="fbAgain">إرسال ملاحظة أخرى</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
 </div>
-<div class="tip" id="tip" role="tooltip"></div>
+
+<div id="consoleView" hidden>
+  <div class="cv-bar">
+    <div class="brand">
+      <svg width="34" height="34" viewBox="0 0 40 40" fill="none">
+          <path d="M6 26 Q13 20 20 26 T34 26" stroke="#3ED0B6" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <path d="M6 31 Q13 25 20 31 T34 31" stroke="#2A8F7C" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <rect x="18" y="6" width="4" height="18" rx="2" fill="#3ED0B6"/>
+          <circle cx="20" cy="6" r="3.4" fill="#3ED0B6"/>
+        </svg>
+      <div>
+        <div class="word">مرسَى</div>
+        <div class="sub">Marsa — AI Port Intelligence</div>
+      </div>
+    </div>
+    <button class="cv-back" id="cvBack" type="button">العودة إلى لوحة مرسى</button>
+  </div>
+
+  <div class="tw-wrap">
+    <h1 class="tw-h1">التوأم الرقمي</h1>
+    <p class="tw-sub">وكيل الاستراتيجية يقرر ما يُختبر، والتوأم يحسب نتيجة كل اقتراح على حالة الميناء في الساعة المختارة، ثم ترجع النتائج إلى الوكيل ليقيّمها.</p>
+    <div class="tw-steps">
+      <div class="tw-step"><i>1</i>الوكيل يقترح</div><span class="tw-arr">←</span>
+      <div class="tw-step"><i>2</i>التوأم يحسب</div><span class="tw-arr">←</span>
+      <div class="tw-step"><i>3</i>الوكيل يقيّم ويوصي</div>
+    </div>
+
+    <div class="tw-cards" id="twCards"></div>
+
+    <div class="tw-sim">
+      <div class="tw-sim-head">
+        <div class="tw-sim-title"><span id="twTitle"></span><span class="tw-badge" id="twBest" style="display:none">توصية الوكيل</span></div>
+        <div class="tw-wx" id="twWx"></div>
+      </div>
+      <div class="tw-scroll"><svg class="pm-svg tw-svg" id="twSvg" viewBox="0 0 1100 420" role="img" aria-label="محاكاة حركة السفن والأرصفة"></svg></div>
+      <div class="tw-stats">
+        <div><span>الزمن</span><b id="twT">الآن</b></div>
+        <div><span>بالانتظار</span><b id="twQ">—</b></div>
+        <div><span>الأرصفة المشغولة</span><b id="twB">—</b></div>
+        <div><span>إشغال الساحة</span><b id="twY">—</b></div>
+      </div>
+      <div class="tw-ctl">
+        <button id="twPlay" type="button" aria-label="تشغيل / إيقاف">▶</button>
+        <input type="range" id="twScrub" min="0" max="24" step="1" value="0" aria-label="الساعة">
+        <select id="twSpeed" aria-label="السرعة">
+          <option value="0.5">0.5×</option>
+          <option value="1" selected>1×</option>
+          <option value="2">2×</option>
+          <option value="4">4×</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="tw-fb" id="twFb"></div>
+
+    <section id="manualTest">
+      <div class="mt-head">
+        <h2 class="mt-title">اختبار يدوي</h2>
+        <p class="mt-sub">جرّب قرارك على ساعة حقيقية من البيانات. التوأم يحسبه، ووكيل الاستراتيجية يقيّمه بجانب خياراته.</p>
+      </div>
+      <div class="layout" id="manualView">
+        <div>
+          <div class="panel">
+            <h2>الساعة</h2>
+            <label for="mtCond">اختر ساعة حسب الظرف (من البيانات)</label>
+            <select id="mtCond">
+              <option value="">الساعة المحمّلة في اللوحة</option>
+              <option value="rain">مطر</option>
+              <option value="drizzle">رذاذ</option>
+              <option value="wind">أقوى رياح</option>
+              <option value="wave">أعلى موج</option>
+              <option value="event">حدث خارجي (اصطناعي)</option>
+            </select>
+            <select id="mtHour" hidden style="margin-top:6px"></select>
+            <div class="hint" id="mtHourHint"></div>
+          </div>
+
+          <div class="panel">
+            <h2>السيناريو <span class="hint">(افتراض المستخدم)</span></h2>
+            <div class="row2">
+              <div><label for="mtClosed">أرصفة مغلقة</label><input type="number" id="mtClosed" value="0" min="0" step="1"></div>
+              <div><label for="mtMult">مضاعف السفن القادمة</label><input type="number" id="mtMult" value="1" min="0.1" step="0.1"></div>
+            </div>
+            <div class="row2">
+              <div><label for="mtGateClosed">إغلاق البوابة (ساعات)</label><input type="number" id="mtGateClosed" value="0" min="0" step="1"></div>
+              <div><label for="mtInflow">الحاويات الداخلة ×</label><input type="number" id="mtInflow" value="1" min="0.1" step="0.1"></div>
+            </div>
+            <div class="hint">×1 = كما في البيانات. البوابة والحاويات تغيّر الساحة فقط.</div>
+            <label>سفن مضافة</label>
+            <div id="mtAdded"></div>
+            <button type="button" id="mtAddV" style="margin-top:6px;width:100%">+ إضافة سفينة</button>
+            <datalist id="mtKnown"></datalist>
+            <div class="hint">رقم السفينة (IMO/MMSI) أو طولها أو مدة بقائها. بدون مدة تُقدَّر من زيارات سابقة.</div>
+          </div>
+
+          <div class="panel">
+            <h2>قراري الخاص</h2>
+            <label for="mtPolicy">ترتيب الطابور</label>
+            <select id="mtPolicy">
+              <option value="fcfs">الأول فالأول (FCFS)</option>
+              <option value="shortest_service_first">الأقصر خدمة أولاً</option>
+            </select>
+            <label for="mtBerths">أرصفة إضافية</label>
+            <input type="number" id="mtBerths" value="0" min="0" step="1">
+            <label for="mtGate">البوابة (حاوية/ساعة)</label>
+            <select id="mtGate">
+              <option value="none">كما في ملف البضائع</option>
+              <option value="max_recorded">أعلى ما سجّله الملف</option>
+              <option value="number">رقم أكتبه</option>
+            </select>
+            <input type="number" id="mtGateN" min="1" step="1" hidden style="margin-top:6px">
+            <button class="btn-run" id="runBtn">جرّب القرار</button>
+          </div>
+        </div>
+
+        <div class="panel canvas-panel">
+          <div class="canvas-top">
+            <div class="clock" id="clockVal">—</div>
+            <div class="clock" id="statusVal">خامل</div>
+          </div>
+          <div class="banner" id="banner"></div>
+          <div id="stageContent">
+            <div class="empty">اضبط القرار واضغط <b>جرّب القرار</b>.</div>
+          </div>
+          <div class="kpis" id="kpis" style="display:none;"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
 
 <script>
 (function () {
+  // ===== أداء مرسى: نتائج حقيقية من اختبار نموذج التكدس (+6 ساعات، يونيو – سبتمبر 2025) =====
+  // المصدر: prediction_model/final_proxy/results/fold_predictions.csv
+  // XGBoost +6h: «22 من 60» و«5 ساعات» والرسم الأسبوعي متحقق منها في fold_predictions.csv و
+  // episode_early_warning_results.csv. «63% (22 من 35)» كما كتبها الفريق، ولم نجد طريقة حسابها في
+  // ملفات النتائج (المحسوب: 25 من 37 فترة تنبيه = 68%). تُراجع بعد انتهاء تعديل النموذج.
+  const kpis = [
+    { l:'دقة التنبيهات', v:'63%', u:'', s:'22 من 35 تنبيهًا تحقق فعلًا' },
+    { l:'الإنذار المبكر', v:'5', u:'ساعات', s:'الوسيط قبل بداية التكدس' },
+    { l:'حالات تكدس التقطها', v:'22 من 60', u:'', s:'قبل أن تبدأ' },
+  ];
+  document.getElementById('pfGrid').innerHTML = kpis.map(k =>
+    `<div class="pf-kpi"><div class="l">${k.l}</div><div class="v">${k.v}${k.u ? `<span class="u">${k.u}</span>` : ''}</div><div class="s">${k.s}</div></div>`).join('');
+
+  // ساعات التكدس كل أسبوع: المتوقع (تنبيه مرسى قبل 6 ساعات) مقابل الفعلي — الأقدم على اليمين
+  const WK = [
+    { d:'21 يونيو', p:2,  a:7 },  { d:'28 يونيو', p:19, a:42 }, { d:'5 يوليو',  p:4,  a:23 }, { d:'12 يوليو', p:9,  a:55 },
+    { d:'19 يوليو', p:3,  a:17 }, { d:'26 يوليو', p:23, a:37 }, { d:'2 أغسطس', p:17, a:28 }, { d:'9 أغسطس',  p:9,  a:5 },
+    { d:'16 أغسطس', p:21, a:27 }, { d:'23 أغسطس', p:2,  a:9 },  { d:'30 أغسطس', p:2,  a:8 },  { d:'6 سبتمبر', p:4,  a:4 },
+    { d:'13 سبتمبر', p:0, a:1 },  { d:'20 سبتمبر', p:3, a:3 },
+  ];
+  const PERF = { predicted: WK.map(w => w.p), actual: WK.map(w => w.a) };
+  const W = 1200, H = 230, L = 30, R = W - 76, T = 16, B = H - 38, n = WK.length, MAX = 60;
+  const xAt = i => R - i * (R - L) / (n - 1);
+  const yAt = v => B - v / MAX * (B - T);
+  let s = '';
+  [0, 20, 40, 60].forEach(g => {
+    s += `<line x1="${L}" x2="${R}" y1="${yAt(g)}" y2="${yAt(g)}" stroke="var(--line)" stroke-width="1" opacity="0.6"/>
+          <text x="${R + 38}" y="${yAt(g) + 4}" text-anchor="middle">${g}</text>`;
+  });
+  const path = arr => 'M ' + arr.map((v, i) => xAt(i) + ' ' + yAt(v)).join(' L ');
+  s += `<path d="${path(PERF.predicted)}" fill="none" stroke="var(--sky)" stroke-width="2" stroke-dasharray="6 5"/>
+        <path d="${path(PERF.actual)}" fill="none" stroke="var(--teal)" stroke-width="2.5"/>`;
+  WK.forEach((w, i) => {
+    s += `<circle cx="${xAt(i)}" cy="${yAt(w.p)}" r="4" fill="var(--panel)" stroke="var(--sky)" stroke-width="2"><title>${w.d} · المتوقع: ${w.p} ساعة</title></circle>`;
+    s += `<circle cx="${xAt(i)}" cy="${yAt(w.a)}" r="4.5" fill="var(--teal)"><title>${w.d} · الفعلي: ${w.a} ساعة</title></circle>`;
+    if (i % 2 === 0) s += `<text x="${xAt(i)}" y="${H - 12}" text-anchor="middle">${w.d}</text>`;
+  });
+  document.getElementById('pfSvg').innerHTML = s;
+  document.getElementById('pfCap').textContent = 'مرسى يلتقط أسابيع الذروة نفسها، لكنه يتوقع ساعات أقل من الفعلي.';
+
+  // ===== ملاحظات المستخدم =====
+  // للاستقبال الفعلي: ضع رابط خدمة الاستقبال هنا (POST بصيغة JSON). بدونه تُحفظ الملاحظة في المتصفح فقط.
+  const FEEDBACK_ENDPOINT = '';
+  const starSvg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.1 6.9 7.5.7-5.7 5 1.7 7.4L12 18.1 5.4 22l1.7-7.4-5.7-5 7.5-.7z"/></svg>';
+  const starsEl = document.getElementById('fbStars');
+  const labels = ['ضعيف', 'مقبول', 'جيد', 'جيد جدًا', 'ممتاز'];
+  starsEl.innerHTML = labels.map((t, i) => `<button type="button" class="fb-star" role="radio" aria-checked="false" aria-label="${i + 1} من 5 — ${t}" title="${t}">${starSvg}</button>`).join('');
+  const stars = [...starsEl.children], msg = document.getElementById('fbMsg');
+  let rating = 0, useful = null;
+  const paint = k => stars.forEach((b, i) => b.classList.toggle('on', i < k));
+  stars.forEach((b, i) => {
+    b.addEventListener('click', () => { rating = i + 1; paint(rating); stars.forEach((x, j) => x.setAttribute('aria-checked', String(j === i))); msg.textContent = ''; });
+    b.addEventListener('mouseenter', () => paint(i + 1));
+    b.addEventListener('mouseleave', () => paint(rating));
+  });
+  const usefulEl = document.getElementById('fbUseful');
+  usefulEl.addEventListener('click', e => {
+    const b = e.target.closest('.fb-opt'); if (!b) return;
+    useful = b.dataset.v;
+    usefulEl.querySelectorAll('.fb-opt').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', String(x === b)); });
+  });
+  const topicsEl = document.getElementById('fbTopics'), topics = new Set();
+  topicsEl.addEventListener('click', e => {
+    const b = e.target.closest('.fb-opt'); if (!b) return;
+    const on = !topics.has(b.dataset.v);
+    on ? topics.add(b.dataset.v) : topics.delete(b.dataset.v);
+    b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
+  });
+
+  document.getElementById('fbSend').addEventListener('click', () => {
+    if (!rating) { msg.textContent = 'اختر تقييمًا أولًا.'; starsEl.firstElementChild.focus(); return; }
+    let rec = null;
+    try { rec = window.MARSA_LAST ? window.MARSA_LAST.decision_support.highest_ranked_candidate : null; } catch (e) {}
+    const payload = { rating, useful, topics:[...topics], comment:document.getElementById('fbText').value.trim(), recommendation:rec, at:new Date().toISOString() };
+    try {
+      const all = JSON.parse(localStorage.getItem('marsa_feedback') || '[]'); all.push(payload);
+      localStorage.setItem('marsa_feedback', JSON.stringify(all));
+    } catch (e) {}
+    if (FEEDBACK_ENDPOINT) { try { fetch(FEEDBACK_ENDPOINT, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(payload) }); } catch (e) {} }
+    document.getElementById('fbForm').hidden = true;
+    document.getElementById('fbThanks').hidden = false;
+  });
+  document.getElementById('fbAgain').addEventListener('click', () => {
+    rating = 0; useful = null; topics.clear(); paint(0);
+    stars.forEach(x => x.setAttribute('aria-checked', 'false'));
+    usefulEl.querySelectorAll('.fb-opt').forEach(x => { x.classList.remove('on'); x.setAttribute('aria-checked', 'false'); });
+    topicsEl.querySelectorAll('.fb-opt').forEach(x => { x.classList.remove('on'); x.setAttribute('aria-pressed', 'false'); });
+    document.getElementById('fbText').value = ''; msg.textContent = '';
+    document.getElementById('fbForm').hidden = false;
+    document.getElementById('fbThanks').hidden = true;
+  });
+})();
+</script>
+<style>
+  #marsaToggle{position:fixed;top:84px;left:14px;z-index:10000;background:#3ED0B6;color:#062033;border:0;border-radius:999px;
+    padding:9px 16px;font-weight:700;cursor:pointer;font-family:Tajawal,system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.35)}
+  #marsaLive{position:fixed;top:130px;left:14px;z-index:9999;background:#0f2238;border:1px solid #2a4f7a;border-radius:12px;
+    padding:12px 14px;display:none;flex-direction:column;gap:8px;font-family:Tajawal,system-ui,sans-serif;color:#dbe7f5;
+    box-shadow:0 6px 24px rgba(0,0,0,.35);direction:rtl;width:min(92vw,420px)}
+  #marsaLive.open{display:flex}
+  #marsaLive select,#marsaLive input{background:#17304d;color:#fff;border:1px solid #2a4f7a;border-radius:8px;padding:7px 8px;font-family:inherit;width:100%}
+  #marsaLive button{background:#3ED0B6;color:#062033;border:0;border-radius:8px;padding:8px 12px;font-weight:700;cursor:pointer;font-family:inherit}
+  #marsaLive .st{font-size:12px;opacity:.85}
+  #marsaLive .st.ok{color:#3ED0B6}#marsaLive .st.err{color:#F6837C}
+  .live-tag{display:inline-block;font-size:11px;background:#1c4d3f;color:#8ff0d8;border-radius:6px;padding:2px 6px;margin-inline-start:6px}
+</style>
+<button id="marsaToggle" type="button">⏱ اختر اللحظة الحالية</button>
+<button id="marsaToggle" type="button">⏱ اختر اللحظة الحالية</button>
+<div id="marsaLive">
+  <select id="mlPreset">
+    <option value="2025-07-10T19:00:00Z">10 يوليو 2025 · 19:00 UTC</option>
+    <option value="2025-07-07T22:00:00Z">7 يوليو 2025 · 22:00 UTC</option>
+    <option value="2025-01-13T18:00:00Z">13 يناير 2025 · 18:00 UTC</option>
+    <option value="2025-01-05T10:00:00Z">5 يناير 2025 · 10:00 UTC</option>
+    <option value="2025-05-14T06:00:00Z">14 مايو 2025 · 06:00 UTC</option>
+    <option value="2025-11-02T08:00:00Z">2 نوفمبر 2025 · 08:00 UTC</option>
+  </select>
+  <input id="mlCustom" placeholder="أو أي ساعة UTC مثل 2025-08-15T14:00:00Z">
+  <button id="mlLoad">تحميل</button>
+  <span class="st" id="mlStatus">لم يتم الاتصال بعد</span>
+</div>
+<script>
+// =====================================================================
+// مرسى — طبقة العرض. كل رقم في الصفحة من خادم مرسى (لا بيانات تجريبية ولا احتياطية).
+//   POST /api/decision-support/analyze   الوكلاء + النموذج + الاستراتيجية + التوأم (+ قرار المستخدم)
+//   GET  /api/twin/vessels               سفن معروفة قبل الساعة (لإضافة سفينة)
+//   GET  /api/twin/hours                 ساعات حقيقية حسب الظرف (مطر، رياح، حدث...)
+// مصدر كل رقم يُكتب بجانبه: AIS (مرصود) · اصطناعي (ملفات الوكلاء) · تنبؤ · محاكاة · مدخل المستخدم.
+// =====================================================================
+(function () {
+  const API = () => (window.MARSA_API_BASE || 'http://127.0.0.1:8000').replace(/\/+$/, '');
   const $ = id => document.getElementById(id);
-  const AR = { NORMAL:'طبيعي', ELEVATED:'مرتفع', CONGESTED:'مزدحم', MODERATE:'متوسط', CRITICAL:'حرج',
-               LOW:'منخفض', MEDIUM:'متوسط', HIGH:'مرتفع', low:'منخفض', moderate:'متوسط', elevated:'مرتفع', severe:'شديد' };
-  const TITLES = { baseline:'عدم إجراء تغيير تشغيلي', shortest_first:'الأولوية للسفن ذات مدة الخدمة الأقصر',
-                   extra_berth:'فتح رصيف إضافي مؤقت', gate_max:'تشغيل البوابة بأعلى طاقة سجّلها ملف البضائع',
-                   user_decision:'قرارك المخصص' };
-  const TRIGGER_AR = { 'maritime.maritime_status':'حالة الوكيل البحري',
-    'digital_twin.baseline.kpis.capacity_wait_vessel_hours':'انتظار بسبب امتلاء الأرصفة في المحاكاة',
-    'cargo.cargo_status':'حالة وكيل البضائع', 'ml_forecast.alert_active':'تنبيه نموذج التنبؤ',
-    'events_weather.external_event_assessment.active':'حدث خارجي نشط' };
-  const METHOD_AR = e => !e ? '' : e.method === 'user_input' ? 'مدة كتبها المستخدم'
-    : e.method === 'own_history' ? `وسيط ${num(e.based_on)} إقامة سابقة لنفس السفينة`
-    : `وسيط إقامات ${num(e.based_on)} سفن هي الأقرب طولًا إلى ${num(e.length_m)} م`;
+  const num = (v, d = 0) => (v === null || v === undefined || isNaN(v)) ? '—'
+    : Number(v).toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: 0 });
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+  const hrs = h => h === null || h === undefined ? '—' : num(h, Math.abs(h) < 10 ? 1 : 0) + ' س';
+  const AR = { NORMAL:'طبيعي', ELEVATED:'مرتفع', CONGESTED:'مزدحم', CRITICAL:'حرج', MODERATE:'متوسط',
+               LOW:'منخفض', MEDIUM:'متوسط', HIGH:'مرتفع', low:'منخفض', moderate:'متوسط', elevated:'مرتفع',
+               severe:'شديد', minor:'بسيط', unknown:'غير معروف' };
+  const ar = v => AR[v] || v || '—';
+  const LVL = v => ({ NORMAL:'ok', LOW:'ok', low:'ok', ELEVATED:'warn', MODERATE:'warn', MEDIUM:'warn', moderate:'warn',
+                      elevated:'warn', CONGESTED:'bad', CRITICAL:'bad', HIGH:'bad', severe:'bad' }[v] || 'info');
+  const TITLE = { baseline:'بدون تغيير', shortest_first:'الأولوية للأقصر خدمة', extra_berth:'فتح رصيف إضافي مؤقت',
+                  gate_max:'البوابة بأعلى طاقة سجّلها ملف البضائع', user_decision:'قرار المستخدم' };
   const EVENT_AR = { demand_surge:'زيادة طلب', landside_access_disruption:'تعطل الوصول البري',
                      labor_operational_disruption:'تعطل تشغيلي/عمالي', logistics_disruption:'تعطل لوجستي' };
-  const BADGE = { ais:['b-ais','AIS'], syn:['b-syn','اصطناعي'], pred:['b-pred','تنبؤ النموذج'],
-                  sim:['b-sim','محاكاة'], obs:['b-ais','مرصود'], est:['b-est','تقدير من التاريخ'], note:['b-pub','ملاحظة'], user:['b-user','مدخل المستخدم'], pub:['b-pub','مصدر عام'] };
-  const badge = k => `<span class="badge ${BADGE[k][0]}">${BADGE[k][1]}</span>`;
-  const num = (v, d = 0) => (v === null || v === undefined || Number.isNaN(+v)) ? '—'
-    : (+v).toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: d });
-  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
-  const hrs = h => h === null || h === undefined ? '—' : `${num(h, Math.abs(h) < 10 && h % 1 ? 1 : 0)} س`;
-  let DATA = null, SEL = null, HOUR = 0, LAST = null, CU = null;
+  const AREA_AR = { maritime:'منطقة الانتظار / الأرصفة', cargo:'الساحة والبوابة', events_weather:'سياق خارجي' };
+  const SRC = { ais:'AIS', syn:'اصطناعي', pred:'تنبؤ', sim:'محاكاة', user:'مدخل المستخدم', obs:'مرصود' };
+  const tag = k => `<span class="live-tag">${SRC[k]}</span>`;
+  const title = r => TITLE[r.candidate_id] || r.title || r.candidate_id;
+  const VIOLET = '#B9A2F0';
+  const PROV = { 'OBSERVED (AIS)':'السفن من AIS (مرصود)', 'PUBLIC SOURCE':'عدد الأرصفة من كتيب الميناء', 'SYNTHETIC (Cargo agent)':'الساحة من ملف وكيل البضائع (اصطناعي)',
+                 'USER INPUT':'مدخلات المستخدم', 'LIMITATION':'ملاحظة: ساعات ناقصة أو نهاية البيانات' };
 
-  // ---------- API ----------
-  async function analyze(ev) {
-    if (ev) ev.preventDefault();
-    const base = $('inApi').value.replace(/\/+$/, '');
-    const body = { timestamp_utc: $('inTs').value.trim() };
-    const closed = +$('inClosed').value || 0, mult = $('inSurge').value === '' ? 1 : +$('inSurge').value;
-    if (closed || mult !== 1) body.stress = { berths_closed: closed, arrival_multiplier: mult };
-    const added = readAdded();
-    if (added === null) return;
-    if (added.length) body.added = added;
-    setStatus('جاري التحليل…', '');
-    try {
-      const res = await fetch(base + '/api/decision-support/analyze', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      const out = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const detail = typeof out.detail === 'string' ? out.detail : JSON.stringify(out.detail || out);
-        throw new Error(`رفض الخادم الطلب (${res.status}): ${detail}`);
-      }
-      DATA = out; SEL = out.digital_twin.results[0].candidate_id; HOUR = 0; CU = null;
-      LAST = { base, body };
-      render();
-      setStatus('تم التحليل', 'ok');
-      loadKnownVessels(base, body.timestamp_utc);
-    } catch (e) {
-      console.error(e);
-      DATA = null;
-      $('app').innerHTML = '<div class="empty">لا توجد بيانات لعرضها.</div>';
-      setStatus(e.message.startsWith('رفض') ? e.message : 'تعذّر الاتصال بالخادم. شغّلي الـ API ثم أعيدي المحاولة.', 'err');
-    }
-  }
-  // Run the user's own decision on the same hour, stress and added vessels as the last analysis.
-  async function tryCustom() {
-    const actions = [];
-    const policy = $('cuPolicy').value, berths = +$('cuBerths').value || 0, gate = $('cuGate').value;
-    if (policy !== 'fcfs') actions.push({ type: 'queue_policy', value: policy });
-    if (berths) actions.push({ type: 'add_berths', value: berths });
-    if (gate === 'max_recorded') actions.push({ type: 'gate_capacity', value: 'max_recorded' });
-    if (gate === 'number') actions.push({ type: 'gate_capacity', value: +$('cuGateN').value });
-    const body = { ...LAST.body, actions };
-    CU = { cuPolicy: $('cuPolicy').value, cuBerths: $('cuBerths').value, cuGate: gate, cuGateN: $('cuGateN').value };
-    $('cuStatus').textContent = 'جاري المحاكاة…'; $('cuStatus').className = 'status';
-    try {
-      const res = await fetch(LAST.base + '/api/twin/simulate', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      const out = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(`رفض الخادم القرار (${res.status}): ${typeof out.detail === 'string' ? out.detail : JSON.stringify(out.detail || out)}`);
-      DATA.custom = { ...out.result, title: TITLES.user_decision };
-      showOnTop('user_decision');
-    } catch (e) {
-      $('cuStatus').textContent = e.message.startsWith('رفض') ? e.message : 'تعذّر الاتصال بالخادم.';
-      $('cuStatus').className = 'status err';
-    }
-  }
+  let DATA = null, SEL = null, MT = null;
 
-  // Show one decision's result in the map and charts at the top of the page.
-  function showOnTop(id) {
-    SEL = id; HOUR = 0; render();
-    $('twinTop').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
-  // ---------- added vessels ----------
-  function addRow(v = {}) {
-    const row = document.createElement('div');
-    row.className = 'addv-row';
-    row.innerHTML = `<label class="ctl">رقم السفينة (IMO/MMSI)<input data-k="vessel_id" list="knownVessels" value="${esc(v.vessel_id || '')}"></label>
-      <label class="ctl">الطول (م)<input data-k="length_m" type="number" min="1" step="1" value="${esc(v.length_m || '')}"></label>
-      <label class="ctl">مدة الإقامة (س)<input data-k="service_hours" type="number" min="0.5" step="0.5" value="${esc(v.service_hours || '')}"></label>
-      <label class="ctl">تصل بعد (س)<input data-k="arrival_in_hours" type="number" min="0" step="1" value="${esc(v.arrival_in_hours ?? 0)}"></label>
-      <button class="b-secondary" type="button">حذف</button>`;
-    row.querySelector('button').addEventListener('click', () => { row.remove(); countAdded(); });
-    $('addvRows').appendChild(row); countAdded();
-  }
-  function countAdded() { const n = $('addvRows').children.length; $('addvCount').textContent = n ? `(${n})` : ''; }
-  // Read the added-vessel rows; returns null (and says why) if a row has nothing to estimate from.
-  function readAdded() {
-    const out = [];
-    for (const row of $('addvRows').children) {
-      const v = {};
-      row.querySelectorAll('input').forEach(i => { if (i.value.trim() !== '') v[i.dataset.k] = i.dataset.k === 'vessel_id' ? i.value.trim() : +i.value; });
-      if (!v.vessel_id && !v.length_m && !v.service_hours) {
-        setStatus('كل سفينة مضافة تحتاج رقمها أو طولها أو مدة إقامتها.', 'err'); return null;
-      }
-      v.arrival_in_hours = v.arrival_in_hours || 0;
-      out.push(v);
-    }
+  // ---------------- الاتصال ----------------
+  async function post(path, body) {
+    const res = await fetch(API() + path, { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(body) });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(`رفض الخادم الطلب (${res.status}): ${typeof out.detail === 'string' ? out.detail : JSON.stringify(out.detail || out)}`);
     return out;
   }
-  // Fill the vessel-number suggestions with vessels that had stays before the chosen hour.
-  async function loadKnownVessels(base, ts) {
+  async function get(path) {
+    const res = await fetch(API() + path);
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(`رفض الخادم الطلب (${res.status})`);
+    return out;
+  }
+  const status = (t, cls) => { const e = $('mlStatus'); e.textContent = t; e.className = 'st ' + (cls || ''); };
+
+  async function load(ts) {
+    status('جارٍ التحليل…');
     try {
-      const res = await fetch(`${base}/api/twin/vessels?timestamp_utc=${encodeURIComponent(ts)}`);
-      if (!res.ok) return;
-      const out = await res.json();
-      $('knownVessels').innerHTML = out.vessels.map(v =>
-        `<option value="${esc(v.vessel_id)}">MMSI ${esc(v.mmsi)} · ${num(v.length_m)} م · ${num(v.stays)} زيارة · وسيط الإقامة ${num(v.median_stay_hours, 1)} س</option>`).join('');
-    } catch (e) { /* suggestions are optional */ }
+      DATA = await post('/api/decision-support/analyze', { timestamp_utc: ts });
+      SEL = DATA.decision_support.highest_ranked_candidate;
+      renderAll();
+      status('✓ ' + ts, 'ok');
+      $('connText').textContent = 'متصل بخادم مرسى';
+      loadKnown(ts);
+    } catch (e) {
+      DATA = null;
+      status(e.message.startsWith('رفض') ? e.message : 'تعذّر الاتصال بالخادم على ' + API() + ' — شغّلي الـ API ثم أعيدي المحاولة.', 'err');
+      $('connText').textContent = 'غير متصل بالخادم';
+    }
+  }
+  async function loadKnown(ts) {
+    try {
+      const out = await get('/api/twin/vessels?timestamp_utc=' + encodeURIComponent(ts));
+      $('mtKnown').innerHTML = out.vessels.map(v => `<option value="${esc(v.vessel_id)}">MMSI ${esc(v.mmsi)} · ${num(v.length_m)} م · ${num(v.stays)} زيارة</option>`).join('');
+    } catch (e) { /* الاقتراحات اختيارية */ }
   }
 
-  function setStatus(t, cls) { const s = $('status'); s.textContent = t; s.className = 'status ' + cls; }
-
-  // ---------- helpers on twin results ----------
-  const result = id => id === 'user_decision' ? DATA.custom : DATA.digital_twin.results.find(r => r.candidate_id === id);
-  const baseline = () => result('baseline');
-
-  // State of every vessel at hour h of the selected candidate (all from the twin vessel lists).
-  function stateAt(r, h) {
-    const sc = DATA.digital_twin.scenario;
+  // ---------------- حالة كل سفينة في ساعة h (من نتيجة التوأم) ----------------
+  function stateAt(sc, r, h) {
     const berthed = sc.vessels_at_berth.filter(v => v.leaves_in_h > h)
-      .map(v => ({ id: v.call_id, mmsi: v.mmsi, kind: 'now', leaves: v.leaves_in_h - h }));
+      .map(v => ({ id:v.call_id, mmsi:v.mmsi, leaves:v.leaves_in_h - h }));
     const waiting = [], coming = [];
     r.vessels.forEach(v => {
-      const b = v.berth_h;
-      const who = { id: v.call_id, mmsi: v.mmsi, added: v.source === 'added', est: v.estimate };
-      if (b !== null && b <= h && h < b + v.service_h) berthed.push({ ...who, kind: 'sim', leaves: b + v.service_h - h });
-      else if (v.arrival_h <= h && (b === null || b > h)) waiting.push({ ...who, waited: h - v.arrival_h,
-        sched: v.scheduled_berth_h - h, cap: Math.max(0, h - Math.max(v.arrival_h, v.scheduled_berth_h)) });
-      else if (v.arrival_h > h) coming.push({ ...who, eta: v.arrival_h - h });
+      const b = v.berth_h, who = { id:v.call_id, mmsi:v.mmsi, added:v.source === 'added', est:v.estimate };
+      if (b !== null && b <= h && h < b + v.service_h) berthed.push({ ...who, leaves:b + v.service_h - h });
+      else if (v.arrival_h <= h && (b === null || b > h))
+        waiting.push({ ...who, waited:h - v.arrival_h, cap:Math.max(0, h - Math.max(v.arrival_h, v.scheduled_berth_h)), sched:v.scheduled_berth_h - h });
+      else if (v.arrival_h > h) coming.push({ ...who, eta:v.arrival_h - h });
     });
     return { berthed, waiting, coming };
   }
+  const methodAr = e => !e ? '' : e.method === 'user_input' ? 'مدة كتبها المستخدم'
+    : e.method === 'own_history' ? `وسيط ${num(e.based_on)} زيارة سابقة لنفس السفينة`
+    : `وسيط زيارات ${num(e.based_on)} سفن هي الأقرب طولًا (${num(e.length_m)} م)`;
+  const vName = v => v.added ? `سفينة مضافة ${esc(v.id)}${v.est && v.est.vessel_id ? ' (' + esc(v.est.vessel_id) + ')' : ''}` : `سفينة MMSI ${esc(v.mmsi)}`;
 
-  // ---------- render ----------
-  function render() {
-    const d = DATA, sc = d.digital_twin.scenario, m = d.domain_agents.maritime, c = d.domain_agents.cargo,
-          ew = d.domain_agents.events_weather, s = d.port_state, ml = d.ml_forecast;
-    const best = d.digital_twin.results[0];
-    const shortage = baseline().kpis.capacity_wait_vessel_hours > 0;
-    $('app').innerHTML = `
-    <section>
-      <div class="storylabel"><span class="num">١</span> ماذا يحدث الآن؟</div>
-      <h2 class="stitle">حالة الميناء في <bdi dir="ltr">${esc(d.authoritative_timestamp.replace('+00:00', ' UTC').replace('T', ' '))}</bdi></h2>
-      <div class="grid">
-        <div class="card"><div class="lbl">السفن في منطقة الميناءين (لوس أنجلوس ولونق بيتش) ${badge('ais')}</div>
-          <div class="val">${num(m.evidence.vessels)}</div>
-          <div class="sub">منها ${num(m.evidence.waiting_vessels)} في منطقة الانتظار المشتركة · حالة الوكيل البحري: <span class="pill ${m.maritime_status}">${AR[m.maritime_status] || m.maritime_status}</span></div></div>
-        <div class="card"><div class="lbl">أرصفة لوس أنجلوس المشغولة بسفن شحن ${badge('ais')}</div>
-          <div class="val">${num(sc.vessels_at_berth_now)} <span style="font-size:14px;color:var(--muted)">/ ${num(sc.open_berths)}</span></div>
-          <div class="sub">${sc.berths_closed ? `${num(sc.berths_closed)} رصيف مغلق في السيناريو ${badge('user')}` : `عدد الأرصفة ${num(sc.container_berths)} ${badge('pub')}`}</div></div>
-        <div class="card"><div class="lbl">سفن شحن متجهة للوس أنجلوس تنتظر الآن ${badge('ais')}</div>
-          <div class="val ${sc.vessels_waiting_now ? 'amber' : 'teal'}">${num(sc.vessels_waiting_now)}</div>
-          <div class="sub">حُددت وجهتها من مسارها في AIS بعد الانتظار</div></div>
-        <div class="card"><div class="lbl">سفن شحن قادمة خلال ${num(d.digital_twin.simulation_horizon_hours)} ساعة ${badge('ais')}</div>
-          <div class="val">${num(sc.vessels_arriving_in_horizon)}</div>
-          <div class="sub">${sc.arrival_multiplier !== 1 ? `بمضاعف ×${num(sc.arrival_multiplier, 1)} ${badge('user')}` : 'جدول الوصول الفعلي'}</div></div>
-        <div class="card"><div class="lbl">إشغال الساحة ${badge('syn')}</div>
-          <div class="val ${c.evidence.yard_occupancy_percent >= 85 ? 'red' : c.evidence.yard_occupancy_percent >= 75 ? 'amber' : ''}">${num(c.evidence.yard_occupancy_percent, 1)}%</div>
-          <div class="sub">نسبة من مقياس افتراضي في ملف وكيل البضائع (${num(sc.yard_capacity)} وحدة)، وليست سعة حقيقية · حالة وكيل البضائع: <span class="pill ${c.cargo_status}">${AR[c.cargo_status] || c.cargo_status}</span></div></div>
-        <div class="card"><div class="lbl">الرياح والموج ${badge('obs')}</div>
-          <div class="row"><span>سرعة الرياح (الوحدة غير مؤكدة، يُفترض كم/س)</span><b>${num(s.wind_speed_10m, 1)}</b></div>
-          <div class="row"><span>ارتفاع الموج (م)</span><b>${num(s.wave_height, 2)}</b></div>
-          <div class="sub">من Open-Meteo داخل ملف AIS · ${ew.external_event_assessment.active
-            ? `حدث نشط: ${EVENT_AR[ew.external_event_assessment.type] || esc(ew.external_event_assessment.type)} (${AR[ew.external_event_assessment.severity] || esc(ew.external_event_assessment.severity)}) ${badge('syn')}`
-            : 'لا يوجد حدث نشط'}</div></div>
-      </div>
-      <div class="panel" style="margin-top:14px" id="twinTop">
-        <div class="showing">المعروض في الخريطة والرسوم: ${esc(TITLES[SEL] || result(SEL).title)}${SEL === 'user_decision' ? ' ' + badge('user') : ''}</div>
-        <div class="map-head">
-          <div class="map-title">أرصفة لوس أنجلوس وسفن الشحن ${badge('ais')} ${badge('sim')}</div>
-          <div class="scrub">
-            <span>إعادة تشغيل المحاكاة:</span>
-            <input type="range" id="hourSlider" min="0" max="${d.digital_twin.simulation_horizon_hours}" step="1" value="${HOUR}">
-            <span class="hh" id="hourLbl"></span>
-          </div>
-        </div>
-        <svg class="map-svg" id="mapSvg" viewBox="0 0 1100 330" role="img" aria-label="خريطة الأرصفة والسفن"></svg>
-        <div class="legend">
-          <span><i style="border-color:var(--sky);background:rgba(127,178,229,.25)"></i>رصيف مشغول</span>
-          <span><i style="border-color:var(--teal);border-style:dashed"></i>رصيف متاح</span>
-          <span><i style="border-color:var(--muted);background:repeating-linear-gradient(45deg,transparent 0 3px,rgba(163,180,202,.35) 3px 5px)"></i>رصيف مغلق (سيناريو)</span>
-          <span><i style="border-color:var(--amber);background:rgba(243,182,87,.25)"></i>سفينة تنتظر موعد رسوها</span>
-          <span><i style="border-color:var(--red);background:rgba(246,131,124,.25)"></i>سفينة تنتظر رصيفًا شاغرًا</span>
-          <span><i style="border-color:var(--muted)"></i>سفينة قادمة</span>
-          <span><i style="border-color:var(--violet);border-style:dashed"></i>سفينة مضافة (مدة إقامتها تقديرية)</span>
-        </div>
-        <div class="note" style="margin-top:8px">الخريطة تعرض الخيار المحدد في القسم ٤. الساعة صفر هي حالة AIS الفعلية؛ ما بعدها نتيجة محاكاة. مرّري المؤشر على أي سفينة لرؤية بياناتها.</div>
-      </div>
-    </section>
-
-    <section>
-      <div class="storylabel"><span class="num">٢</span> ماذا سيحدث؟</div>
-      <h2 class="stitle">خلال الساعات القادمة</h2>
-      <div class="grid" style="grid-template-columns:minmax(260px,1fr) minmax(320px,2.2fr)">
-        <div class="card"><div class="lbl">مؤشر ضغط البضائع بعد ${num(ml.horizon_hours)} ساعات ${badge('pred')}</div>
-          ${ml.status === 'success' ? `
-          <div class="val ${ml.classification === 'HIGH' ? 'red' : ml.classification === 'MEDIUM' ? 'amber' : 'teal'}">${AR[ml.classification] || ml.classification}</div>
-          <div class="sub">درجة النموذج ${num(ml.congestion_score, 3)} (حد «مرتفع» ${num(ml.threshold_metadata.high, 3)} · حد التنبيه ${num(ml.threshold_metadata.alert, 3)})</div>
-          <div class="sub">الدرجة ليست احتمالًا. الهدف مؤشر تقريبي مبني من بيانات البضائع ${badge('syn')}</div>`
-          : `<div class="val">—</div><div class="sub">النموذج غير متاح لهذه الساعة: ${esc(ml.reason)}</div>`}
-        </div>
-        <div class="card"><div class="lbl">السفن على الأرصفة والسفن المنتظرة خلال ${num(d.digital_twin.simulation_horizon_hours)} ساعة — ${esc(TITLES[SEL] || SEL)} ${badge('sim')}</div>
-          <svg class="chart-svg" id="chartSvg" viewBox="0 0 700 190" role="img" aria-label="السفن على الأرصفة والمنتظرة عبر الساعات"></svg>
-          <div class="legend"><span><i style="border-color:var(--sky);background:var(--sky)"></i>على الأرصفة</span>
-            <span><i style="border-color:var(--amber);background:var(--amber)"></i>منتظرة</span>
-            <span><i style="border-color:var(--muted);border-style:dashed"></i>الأرصفة المفتوحة</span>
-            <span><i style="border-color:var(--sky);border-style:dotted"></i>أفق نموذج التنبؤ (+${num(d.digital_twin.marker_hours[0])} س)</span></div>
-        </div>
-      </div>
-      ${result(SEL).timeline[0].yard_occupancy_pct !== undefined ? `
-      <div class="card" style="margin-top:12px"><div class="lbl">إشغال الساحة خلال ${num(d.digital_twin.simulation_horizon_hours)} ساعة — ${esc(TITLES[SEL] || result(SEL).title)} ${badge('syn')} ${badge('sim')}</div>
-        <svg class="chart-svg" id="yardSvg" viewBox="0 0 700 170" role="img" aria-label="إشغال الساحة عبر الساعات"></svg>
-        <div class="legend"><span><i style="border-color:var(--amber);background:var(--amber)"></i>الخيار المعروض</span>
-          <span><i style="border-color:var(--muted);border-style:dashed"></i>بدون تغيير (إعادة ملف البضائع)</span>
-          <span><i style="border-color:var(--sky);border-style:dotted"></i>أفق نموذج التنبؤ</span></div>
-        <div class="note">الساحة تُعاد من ملف وكيل البضائع كما هو؛ قرار البوابة يُخرج حاويات إضافية كل ساعة. الساحة لا تؤثر على انتظار السفن في المحاكاة لعدم وجود بيانات عن هذا الأثر.</div></div>` : ''}
-    </section>
-
-    <section>
-      <div class="storylabel"><span class="num">٣</span> لماذا؟ — ما يراه كل وكيل</div>
-      <div class="agents">
-        <div class="card agent"><h3>الوكيل البحري ${badge('ais')}<span class="pill ${m.maritime_status}">${AR[m.maritime_status] || m.maritime_status}</span></h3>
-          <div class="row"><span>السفن في المنطقة</span><b>${num(m.evidence.vessels)}</b></div>
-          <div class="row"><span>المنتظرة</span><b>${num(m.evidence.waiting_vessels)}</b></div>
-          <div class="row"><span>نسبة الانتظار</span><b>${num(m.evidence.waiting_ratio * 100, 1)}%</b></div>
-          <div class="row"><span>القادمة / المغادرة</span><b>${num(m.evidence.approaching_vessels)} / ${num(m.evidence.departing_vessels)}</b></div>
-          <div class="row"><span>انتقلت من الانتظار للرصيف (آخر 4 ساعات)</span><b>${num(m.evidence.port_throughput_value)}</b></div>
-          <div class="note" style="margin-top:6px">يشمل الميناءين وسفن الشحن والناقلات.</div></div>
-        <div class="card agent"><h3>وكيل البضائع ${badge('syn')}<span class="pill ${c.cargo_status}">${AR[c.cargo_status] || c.cargo_status}</span></h3>
-          <div class="row"><span>إشغال الساحة</span><b>${num(c.evidence.yard_occupancy_percent, 1)}%</b></div>
-          <div class="row"><span>دخول / خروج الحاويات (آخر ساعة)</span><b>${num(c.evidence.container_arrivals_last_1h)} / ${num(c.evidence.container_departures_last_1h)}</b></div>
-          <div class="row"><span>متوسط بقاء الحاوية</span><b>${num(c.evidence.average_dwell_time_hours, 1)} س</b></div>
-          <div class="row"><span>انتظار الشاحنات</span><b>${num(c.evidence.truck_waiting_time_minutes, 1)} د</b></div>
-          <div class="row"><span>حركات البوابة (آخر ساعة)</span><b>${num(c.evidence.gate_throughput_last_1h)}</b></div>
-          <div class="note" style="margin-top:6px">بيانات مولّدة ومعايرة على أرقام الميناء الشهرية، وليست قياسات فعلية.</div></div>
-        <div class="card agent"><h3>وكيل الأحداث والطقس<span class="pill ${ew.contextual_pressure.level}">${AR[ew.contextual_pressure.level] || ew.contextual_pressure.level}</span></h3>
-          <div class="row"><span>الطقس ${badge('obs')}</span><b>${AR[ew.weather_assessment.level] || esc(ew.weather_assessment.level)}</b></div>
-          <div class="row"><span>حدث خارجي ${badge('syn')}</span><b>${ew.external_event_assessment.active ? (EVENT_AR[ew.external_event_assessment.type] || esc(ew.external_event_assessment.type)) : 'لا يوجد'}</b></div>
-          <div class="row"><span>عطلة أو نهاية أسبوع (بتوقيت لوس أنجلوس)</span><b>${ew.calendar_context.is_public_holiday_local ? 'عطلة' : ew.calendar_context.is_weekend_local ? 'نهاية أسبوع' : 'لا'}</b></div></div>
-      </div>
-    </section>
-
-    <section>
-      <div class="storylabel"><span class="num">٤</span> ماذا نفعل؟</div>
-      <div class="panel decision ${shortage ? 'alert' : ''}">
-        <div class="lbl" style="font-size:12px;color:var(--teal);font-weight:700;margin-bottom:6px">توصية وكيل الاستراتيجية ${badge('sim')}${d.decision_support.reasoning_mode === 'llm_assisted' ? ' <span class="badge b-pub">صياغة بمساعدة LLM</span>' : ''}</div>
-        <p class="summary">${esc(d.decision_support.summary)}</p>
-        <div class="cands">${d.digital_twin.results.map(r => candCard(r)).join('')}${d.custom ? candCard(d.custom) : ''}</div>
-        <div class="card" style="margin-top:14px"><div class="lbl">جرّب قرارك الخاص ${badge('user')} ${badge('sim')}</div>
-          <div class="note">يُشغَّل على نفس الساعة والسيناريو والسفن المضافة في آخر تحليل، ويُقارن بعدم التغيير.</div>
-          <div class="custom-form">
-            <label class="ctl">ترتيب الطابور<select id="cuPolicy"><option value="fcfs">الأسبق وصولًا أولًا</option><option value="shortest_service_first">الأقصر خدمة أولًا</option></select></label>
-            <label class="ctl">أرصفة إضافية<input id="cuBerths" type="number" min="0" step="1" value="0"></label>
-            <label class="ctl">البوابة (حاوية/ساعة)<select id="cuGate">${sc.gate_max_recorded === null ? '<option value="none">لا توجد بيانات ساحة</option>'
-              : `<option value="none">كما في ملف البضائع</option><option value="max_recorded">أعلى ما سُجّل: ${num(sc.gate_max_recorded, 1)}</option><option value="number">رقم أكتبه</option>`}</select></label>
-            <label class="ctl">الرقم<input id="cuGateN" type="number" min="1" step="1" value="${sc.gate_max_recorded === null ? '' : Math.round(sc.gate_max_recorded)}"></label>
-            <button class="b-primary" type="button" id="cuRun">جرّب</button>
-          </div>
-          <div class="status" id="cuStatus"></div></div>
-        <ul class="sources">${d.digital_twin.sources.map(src => `<li>${sourceLine(src)}</li>`).join('')}
-          <li>ترتيب الخيارات حسب إجمالي ساعات انتظار السفن خلال الأفق، بدون أوزان. إشغال الساحة يُعرض بجانبه ولا يدخل في الترتيب.</li></ul>
-        <div class="human">القرار النهائي بيد مشغّل الميناء — مرسى لا ينفذ أي إجراء تلقائيًا.</div>
-      </div>
-    </section>`;
-
-    document.querySelectorAll('.cand').forEach(el => el.addEventListener('click', () => {
-      SEL = el.dataset.id; render(); }));
-    document.querySelectorAll('.try[data-id]').forEach(el => el.addEventListener('click', e => {
-      e.stopPropagation(); showOnTop(el.dataset.id); }));
-    $('cuRun').addEventListener('click', tryCustom);
-    if (CU) Object.entries(CU).forEach(([k, v]) => { if ($(k)) $(k).value = v; });   // keep the user's last custom inputs
-    $('hourSlider').addEventListener('input', e => { HOUR = +e.target.value; drawMap(); });
-    drawMap(); drawChart(); drawYard();
-  }
-
-  function candCard(r) {
-    const k = r.kpis, vs = r.vs_baseline, custom = r.candidate_id === 'user_decision';
-    const yard = k.yard_peak_occupancy_pct !== undefined && k.yard_peak_occupancy_pct !== null;
-    const better = [];
-    if (vs && vs.total_wait_vessel_hours < 0) better.push(`أقل بـ ${num(-vs.total_wait_vessel_hours, 1)} ساعة انتظار للسفن`);
-    if (vs && vs.yard_peak_occupancy_pct < 0) better.push(`أعلى إشغال للساحة أقل بـ ${num(-vs.yard_peak_occupancy_pct, 1)} نقطة`);
-    const delta = !vs ? '<div class="delta none">الأساس للمقارنة</div>'
-      : better.length ? `<div class="delta good">مقارنة بعدم التغيير: ${better.join('، ')}</div>`
-      : '<div class="delta none">بدون تحسّن مقارنة بعدم التغيير</div>';
-    const cand = (DATA.strategy_candidates || []).find(c => c.candidate_id === r.candidate_id);
-    const why = cand && cand.evidence_references.length && r.candidate_id !== 'baseline'
-      ? `<div class="note" style="margin-bottom:6px">سبب اختباره: ${cand.evidence_references.filter(x => TRIGGER_AR[x]).map(x => TRIGGER_AR[x]).join('، ')}</div>` : '';
-    return `<div class="cand ${custom ? 'custom' : ''} ${r.candidate_id === SEL ? 'sel' : ''}" data-id="${esc(r.candidate_id)}">
-      <div class="ct">${custom ? badge('user') : `<span class="rank">#${r.rank}</span>`}${esc(TITLES[r.candidate_id] || r.title)}</div>
-      ${why}
-      <div class="row"><span>إجمالي ساعات الانتظار</span><b>${num(k.total_wait_vessel_hours, 1)}</b></div>
-      <div class="row"><span>منها بسبب امتلاء الأرصفة</span><b>${num(k.capacity_wait_vessel_hours, 1)}</b></div>
-      <div class="row"><span>سفن انتظرت / أقصى انتظار</span><b>${num(k.vessels_waited)} / ${hrs(k.max_wait_hours)}</b></div>
-      <div class="row"><span>منتظرة في نهاية الأفق</span><b>${num(k.waiting_end)}</b></div>
-      <div class="row"><span>الأرصفة المفتوحة</span><b>${num(k.open_berths)}</b></div>
-      ${yard ? `<div class="row"><span>أعلى إشغال للساحة ${badge('syn')}</span><b>${num(k.yard_peak_occupancy_pct, 1)}%</b></div>
-      <div class="row"><span>إشغال الساحة في نهاية الأفق</span><b>${num(k.yard_end_occupancy_pct, 1)}%</b></div>
-      ${k.gate_per_hour ? `<div class="row"><span>البوابة (حاوية/ساعة) / حاويات إضافية خرجت</span><b>${num(k.gate_per_hour, 1)} / ${num(k.extra_containers_cleared)}</b></div>` : ''}` : ''}
-      ${delta}
-      <button class="b-secondary try" type="button" data-id="${esc(r.candidate_id)}">جرّب هذا القرار — اعرض نتيجته فوق</button></div>`;
-  }
-
-  function sourceLine(src) {
-    const map = { 'OBSERVED (AIS)': 'ais', 'PUBLIC SOURCE': 'pub', 'USER INPUT': 'user', 'LIMITATION': 'note',
-                  'SYNTHETIC (Cargo agent)': 'syn' };
-    if (src.kind === 'added') {
-      return `${badge('user')} ${badge('est')} سفن أضافها المستخدم: ` + src.value.map((e, i) =>
-        `ADD${i + 1}${e.vessel_id ? ` (${esc(e.vessel_id)})` : ''} مدة إقامتها ${hrs(e.hours)} — ${METHOD_AR(e)}`).join('؛ ') +
-        '. تُحسب من إقامات انتهت قبل الساعة المختارة فقط.';
-    }
-    const label = {
-      'OBSERVED (AIS)': `السفن ومواعيد وصولها ورسوها ومدة خدمتها: ملف ${esc(src.source)}`,
-      'SYNTHETIC (Cargo agent)': src.kind === 'yard' ? `الساحة والبوابة: ملف وكيل البضائع ${esc(src.source)} (بيانات مولّدة ومعايرة) — السعة ${num(src.value.capacity)} وحدة (مقياس افتراضي)، وأعلى خروج حاويات سُجّل في ساعة واحدة حتى الساعة المختارة ${num(src.value.max_recorded_departures, 1)} (<bdi dir="ltr">${esc(src.value.max_recorded_at.slice(0, 16).replace('T', ' '))} UTC</bdi>)` : '',
-      'PUBLIC SOURCE': `عدد أرصفة الحاويات ${num(src.value)}: مجموع أرصفة محطات الحاويات السبع في كتيب ميناء لوس أنجلوس الرسمي Port 101 (الكتيب يذكر أرصفة كل محطة ولا يطبع المجموع)`,
-      'USER INPUT': src.value && src.value.berths_closed !== undefined ? `سيناريو الضغط: ${num(src.value.berths_closed)} رصيف مغلق، ومضاعف السفن القادمة ×${num(src.value.arrival_multiplier, 1)}` : '',
-      'LIMITATION': src.kind === 'data_gap'
-        ? `ساعات غير موجودة في بيانات AIS ضمن أفق المحاكاة أو إقامة سفينة حالية (${(src.value || []).map(g => `<bdi dir="ltr">${esc(g[0].slice(0, 16).replace('T', ' '))}${g[0] === g[1] ? '' : ' → ' + esc(g[1].slice(11, 16))}</bdi>`).join('، ')} UTC). السفن الموجودة قبلها وبعدها اعتُبرت نفس الإقامة.`
-        : 'بيانات AIS تنتهي داخل أفق المحاكاة؛ السفن القادمة بعدها غير معروفة',
-    }[src.provenance] || esc(src.source);
-    return `${badge(map[src.provenance] || 'pub')} ${label}`;
-  }
-
-  const vesselName = v => v.added ? `سفينة مضافة ${v.id}${v.est && v.est.vessel_id ? ` (${esc(v.est.vessel_id)})` : ''}`
-    : `سفينة MMSI ${v.mmsi}<br>زيارة ${v.id}`;
-
-  // ---------- map ----------
-  function drawMap() {
-    const d = DATA, sc = d.digital_twin.scenario, r = result(SEL), H = d.digital_twin.simulation_horizon_hours;
-    $('hourLbl').textContent = HOUR === 0 ? 'الآن' : `+${HOUR} س`;
-    const st = stateAt(r, HOUR);
-    const open = r.kpis.open_berths, total = open + sc.berths_closed;
-    const W = 1100, cols = Math.min(total, 13), bw = 70, bh = 46, gap = 8;
-    let s = `<text x="${W - 20}" y="24" fill="#A3B4CA" font-size="13" text-anchor="start">الأرصفة (${num(st.berthed.length)} مشغولة من ${num(open)} مفتوحة)</text>`;
-    const occupied = st.berthed.slice().sort((a, b) => a.leaves - b.leaves);
+  // ---------------- رسم الميناء (يُستخدم في اللوحة والتوأم والاختبار اليدوي) ----------------
+  function drawPort(svg, tipEl, wrap, sc, r, h) {
+    const st = stateAt(sc, r, h), open = r.kpis.open_berths, total = open + sc.berths_closed;
+    const W = 1100, cols = 12, bw = 78, bh = 54, gap = 8, x0 = W - 24;
+    const occ = st.berthed.slice().sort((a, b) => a.leaves - b.leaves);
+    const tips = {};
+    let s = `<text x="${x0}" y="22" class="dim" font-size="13">الأرصفة: ${num(st.berthed.length)} مشغولة من ${num(open)} مفتوحة ${r.kpis.open_berths > sc.open_berths ? '(تشمل أرصفة القرار)' : ''}</text>`;
     for (let i = 0; i < total; i++) {
-      const col = i % cols, row = Math.floor(i / cols);
-      const x = W - 20 - (col + 1) * (bw + gap) + gap, y = 38 + row * (bh + gap);
-      const closed = i >= open, v = !closed ? occupied[i] : null;
-      const over = closed && occupied[i];   // more vessels at berth than open berths (closure scenario)
-      const fill = closed ? 'url(#hatch)' : v ? 'rgba(127,178,229,.25)' : 'transparent';
-      const stroke = closed ? '#A3B4CA' : v ? (v.added ? '#B9A2F0' : '#7FB2E5') : '#3ED0B6';
-      const tipText = v ? `${vesselName(v)}<br>تغادر بعد ${hrs(v.leaves)}${v.added ? '<br>' + METHOD_AR(v.est) : ''}` :
-                     over ? `رصيف مغلق في السيناريو<br>ما زالت عليه سفينة MMSI ${over.mmsi} حتى مغادرتها بعد ${hrs(over.leaves)}` :
-                     closed ? 'رصيف مغلق في السيناريو' : 'رصيف متاح';
-      s += `<g class="hit" data-tip="${esc(tipText)}"><rect x="${x}" y="${y}" width="${bw}" height="${bh}" rx="6" fill="${fill}" stroke="${stroke}"
-        stroke-width="1.5" ${(!closed && !v) || (v && v.added) ? 'stroke-dasharray="4 3"' : ''}/>
-        ${v || over ? `<text x="${x + bw / 2}" y="${y + 28}" text-anchor="middle" fill="#F1F5FA" font-size="12" font-family="IBM Plex Mono">${hrs((v || over).leaves).replace(' س', 'h')}</text>` : ''}</g>`;
+      const col = i % cols, row = Math.floor(i / cols), x = x0 - (col + 1) * (bw + gap) + gap, y = 36 + row * (bh + gap);
+      const closed = i >= open, v = !closed ? occ[i] : null, extra = !closed && i >= sc.open_berths;
+      const cls = closed ? 'pm-bx' : v ? 'pm-bx busy' : 'pm-bx free';
+      const k = 'b' + i;
+      tips[k] = closed ? { t:'رصيف مغلق', b:['سيناريو', 'warn'], rows:[], note:'أغلقه المستخدم في السيناريو.' }
+        : v ? { t:vName(v), b:['على الرصيف', 'info'], rows:[['يغادر بعد', hrs(v.leaves)]], note:v.added ? methodAr(v.est) : 'مدة البقاء من AIS.' }
+        : { t:extra ? 'رصيف إضافي (قرار)' : 'رصيف متاح', b:['فارغ', 'ok'], rows:[], note:'' };
+      s += `<g class="pm-hit" data-k="${k}" tabindex="0"><rect class="${cls}" x="${x}" y="${y}" width="${bw}" height="${bh}" rx="7"
+        ${closed ? 'style="fill:rgba(163,180,202,.18);stroke:var(--muted)"' : ''}${v && v.added ? ` style="stroke:${VIOLET};stroke-dasharray:4 3"` : ''}/>
+        ${v ? `<use href="#pmShip" class="pm-shipb" x="${x + 9}" y="${y + 8}" width="60" height="22"/>
+              <text x="${x + bw / 2}" y="${y + 46}" text-anchor="middle" class="mono" font-size="11">${hrs(v.leaves)}</text>` : ''}</g>`;
     }
-    const extraRows = Math.max(0, occupied.length - total);
-    const yW = 38 + Math.ceil(total / cols) * (bh + gap) + 22;
-    s += `<text x="${W - 20}" y="${yW}" fill="#A3B4CA" font-size="13">منطقة الانتظار (${num(st.waiting.length)})${extraRows ? ` · ${extraRows} سفينة إضافية على الأرصفة` : ''}</text>`;
-    st.waiting.forEach((v, i) => {
-      const x = W - 40 - i * 46, y = yW + 26, capWait = v.cap > 0.01;
-      const tipText = `${vesselName(v)}<br>تنتظر منذ ${hrs(v.waited)}<br>` + (v.added ? METHOD_AR(v.est) + '<br>' : '') +
-        (capWait ? `تنتظر رصيفًا شاغرًا منذ ${hrs(v.cap)}` : `موعد رسوها المسجل بعد ${hrs(Math.max(0, v.sched))}`);
-      s += `<g class="hit" data-tip="${esc(tipText)}"><circle cx="${x}" cy="${y}" r="15" fill="${capWait ? 'rgba(246,131,124,.25)' : 'rgba(243,182,87,.25)'}"
-        stroke="${v.added ? '#B9A2F0' : capWait ? '#F6837C' : '#F3B657'}" stroke-width="1.6" ${v.added ? 'stroke-dasharray="4 3"' : ''}/></g>`;
+    const rows = Math.ceil(total / cols), yW = 36 + rows * (bh + gap) + 26;
+    s += `<rect class="pm-anch" x="24" y="${yW - 2}" width="${W - 48}" height="66" rx="10"/>
+          <text x="${x0}" y="${yW - 8}" class="dim" font-size="13">منطقة الانتظار (${num(st.waiting.length)})</text>`;
+    st.waiting.slice(0, 18).forEach((v, i) => {
+      const x = x0 - 70 - i * 56, cap = v.cap > 0.01, k = 'w' + i;
+      tips[k] = { t:vName(v), b:[cap ? 'تنتظر رصيفًا شاغرًا' : 'تنتظر موعد رسوها', cap ? 'bad' : 'warn'],
+        rows:[['تنتظر منذ', hrs(v.waited)], cap ? ['منها بسبب امتلاء الأرصفة', hrs(v.cap)] : ['موعد رسوها المسجل بعد', hrs(Math.max(0, v.sched))]],
+        note:v.added ? methodAr(v.est) : 'وقت الوصول وموعد الرسو من AIS.' };
+      s += `<g class="pm-hit" data-k="${k}" tabindex="0"><use href="#pmShip" x="${x}" y="${yW + 16}" width="48" height="18"
+        style="color:${v.added ? VIOLET : cap ? 'var(--red)' : 'var(--amber)'}"/></g>`;
     });
-    if (!st.waiting.length) s += `<text x="${W - 40}" y="${yW + 30}" fill="#3ED0B6" font-size="12">لا توجد سفن منتظرة</text>`;
-    const yC = yW + 70;
-    s += `<text x="${W - 20}" y="${yC}" fill="#A3B4CA" font-size="13">قادمة حتى نهاية الأفق (${num(st.coming.length)})</text>`;
-    const span = W - 260;
-    s += `<line x1="${W - 40}" y1="${yC + 26}" x2="${W - 40 - span}" y2="${yC + 26}" stroke="#38597F" stroke-dasharray="3 5"/>`;
-    st.coming.forEach(v => {
-      const x = W - 40 - Math.min(1, v.eta / Math.max(1, H - HOUR)) * span;
-      s += `<g class="hit" data-tip="${esc(`${vesselName(v)}<br>تصل بعد ${hrs(v.eta)}${v.added ? '<br>' + METHOD_AR(v.est) : ''}`)}"><circle cx="${x}" cy="${yC + 26}" r="9" fill="transparent" stroke="${v.added ? '#B9A2F0' : '#A3B4CA'}" stroke-width="1.6" ${v.added ? 'stroke-dasharray="3 2"' : ''}/></g>`;
+    if (!st.waiting.length) s += `<text x="${x0 - 20}" y="${yW + 34}" class="tl" font-size="12">لا توجد سفن منتظرة</text>`;
+    const yC = yW + 100, H = DATA ? DATA.digital_twin.simulation_horizon_hours : 24, span = W - 260;
+    s += `<text x="${x0}" y="${yC - 8}" class="dim" font-size="13">قادمة حتى نهاية الأفق (${num(st.coming.length)})</text>
+          <line x1="${x0 - 30}" y1="${yC + 14}" x2="${x0 - 30 - span}" y2="${yC + 14}" stroke="var(--line)" stroke-dasharray="3 5"/>`;
+    st.coming.forEach((v, i) => {
+      const x = x0 - 30 - Math.min(1, v.eta / Math.max(1, H - h)) * span, k = 'c' + i;
+      tips[k] = { t:vName(v), b:['في الطريق', 'info'], rows:[['تصل بعد', hrs(v.eta)]], note:v.added ? methodAr(v.est) : 'وقت الوصول من AIS.' };
+      s += `<g class="pm-hit" data-k="${k}" tabindex="0"><circle cx="${x}" cy="${yC + 14}" r="8" fill="transparent"
+        stroke="${v.added ? VIOLET : 'var(--muted)'}" stroke-width="1.6"/></g>`;
     });
-    s = `<defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-      <rect width="3" height="6" fill="rgba(163,180,202,.35)"/></pattern></defs>` + s;
-    const svg = $('mapSvg');
-    svg.setAttribute('viewBox', `0 0 ${W} ${yC + 50}`);
+    const pt = r.timeline[Math.min(h, r.timeline.length - 1)], yo = pt && pt.yard_occupancy_pct;
+    if (yo !== undefined) {
+      const yY = yC + 52, bwid = 420, fill = yo === null ? 0 : Math.min(1, yo / 100);
+      tips.yard = { t:'الساحة', b:['اصطناعي', 'warn'], rows:[['الإشغال', yo === null ? 'ساعة ناقصة في الملف' : num(yo, 1) + '%'],
+        ['السعة (مقياس الملف)', num(sc.yard_capacity)]], note:'من ملف وكيل البضائع؛ قرار البوابة والسيناريو يغيّرانها.' };
+      s += `<g class="pm-hit" data-k="yard" tabindex="0"><text x="${x0}" y="${yY}" class="dim" font-size="13">الساحة ${yo === null ? '—' : num(yo, 1) + '%'}</text>
+        <rect class="pm-track" x="${x0 - 110 - bwid}" y="${yY - 12}" width="${bwid}" height="12" rx="6"/>
+        <rect class="pm-fill ${yo >= 85 ? 'hot' : ''}" x="${x0 - 110 - bwid * fill}" y="${yY - 12}" width="${bwid * fill}" height="12" rx="6"/></g>`;
+    }
+    svg.setAttribute('viewBox', `0 0 ${W} ${yC + 80}`);
     svg.innerHTML = s;
-    bindTips(svg);
+    if (!tipEl) return st;
+    svg.querySelectorAll('.pm-hit').forEach(g => {
+      const show = e => {
+        const t = tips[g.dataset.k]; if (!t) return;
+        tipEl.innerHTML = `<div class="t">${t.t}<span class="pm-badge ${t.b[1]}">${t.b[0]}</span></div>` +
+          t.rows.map(rw => `<div class="pm-row">${rw[0]}<b>${rw[1]}</b></div>`).join('') + (t.note ? `<div class="pm-note">${t.note}</div>` : '');
+        const box = wrap.getBoundingClientRect(), gb = g.getBoundingClientRect();
+        tipEl.style.left = Math.max(8, Math.min(box.width - 250, gb.left - box.left + gb.width / 2 - 120)) + 'px';
+        tipEl.style.top = (gb.bottom - box.top + 8) + 'px';
+        tipEl.classList.add('show');
+      };
+      g.addEventListener('mouseenter', show); g.addEventListener('focus', show);
+      g.addEventListener('mouseleave', () => tipEl.classList.remove('show')); g.addEventListener('blur', () => tipEl.classList.remove('show'));
+    });
+    return st;
   }
 
-  // ---------- chart ----------
-  function drawChart() {
-    const r = result(SEL), tl = r.timeline, W = 700, Hh = 190, pl = 34, pr = 10, pt = 10, pb = 26;
-    const maxY = Math.max(r.kpis.open_berths, ...tl.map(p => Math.max(p.at_berth, p.waiting))) + 1;
-    const X = h => W - pr - (h / (tl.length - 1)) * (W - pl - pr);   // RTL: hour 0 on the right
-    const Y = v => pt + (1 - v / maxY) * (Hh - pt - pb);
+  // ---------------- القسم ١ ----------------
+  function renderFlow() {
+    const s = DATA.port_state, sc = DATA.digital_twin.scenario, m = DATA.domain_agents.maritime, c = DATA.domain_agents.cargo;
+    const nodes = [
+      { k:'in', l:'السفن القادمة', v:num(s.approaching_vessel_count), sub:'تقترب (الميناءان)', src:'ais', pill:null,
+        info:'عدد السفن المقتربة من لوس أنجلوس ولونق بيتش في هذه الساعة، من ملف الوكيل البحري (AIS).' },
+      { k:'wait', l:'الانتظار', v:num(s.waiting_vessel_count), sub:'سفينة في منطقة الانتظار', src:'ais', pill:m.maritime_status,
+        info:'السفن في منطقة الانتظار المشتركة (شحن وناقلات، الميناءان). الحالة من الوكيل البحري.' },
+      { k:'berth', l:'الأرصفة', v:num(sc.vessels_at_berth_now) + ' / ' + num(sc.open_berths), sub:'رصيف حاويات مشغول', src:'ais', pill:null,
+        info:'سفن الشحن على أرصفة لوس أنجلوس (AIS). عدد الأرصفة 23 من كتيب الميناء الرسمي Port 101.' },
+      { k:'dep', l:'المغادرة', v:num(s.departing_vessel_count), sub:'سفينة تغادر', src:'ais', pill:null,
+        info:'السفن المغادرة في هذه الساعة (الميناءان)، من ملف الوكيل البحري.' },
+      { k:'yard', l:'الساحة', v:num(s.yard_occupancy_percent, 1) + '%', sub:'إشغال الساحة', src:'syn', pill:c.cargo_status,
+        info:`نسبة من مقياس افتراضي في ملف وكيل البضائع (${num(sc.yard_capacity)} وحدة)، بيانات مولّدة ومعايرة وليست قياسًا.` },
+      { k:'out', l:'خروج الحاويات', v:num(s.container_departures), sub:'حاوية خرجت آخر ساعة', src:'syn', pill:null,
+        info:'من ملف وكيل البضائع (اصطناعي معاير).' },
+    ];
+    $('flowRow').innerHTML = nodes.map((f, i) => `${i ? '<div class="flowarrow">←</div>' : ''}
+      <div class="flownode" data-key="${f.k}" tabindex="0" role="button">
+        <div class="flabel">${f.l} ${tag(f.src)}</div><div class="fval">${f.v}</div><div class="fsub">${f.sub}</div>
+        <div class="flim">${f.pill ? `<span class="fst ${LVL(f.pill)}">${ar(f.pill)}</span>حالة الوكيل` : 'اضغط لمعرفة المصدر'}</div></div>`).join('');
+    document.querySelectorAll('.flownode').forEach(n => n.addEventListener('click', () => {
+      const f = nodes.find(x => x.k === n.dataset.key), box = $('flowExpand'), on = n.classList.contains('active');
+      document.querySelectorAll('.flownode').forEach(x => x.classList.remove('active'));
+      if (on) { box.classList.remove('show'); return; }
+      n.classList.add('active'); box.textContent = f.info; box.classList.add('show');
+    }));
+    $('flowStamp').textContent = ' · ' + DATA.authoritative_timestamp.replace('+00:00', ' UTC').replace('T', ' ');
+    const press = DATA.strategy_synthesis.supported_pressure_areas;
+    const ps = $('pmStatus');
+    ps.hidden = !press.length;
+    ps.querySelector('span').textContent = press.length ? 'ضغط حسب الوكلاء: ' + press.map(a => AREA_AR[a]).join('، ') : '';
+    drawPort($('pmSvg'), $('pmTip'), $('pmWrap'), DATA.digital_twin.scenario, result('baseline'), 0);
+  }
+
+  // ---------------- القسم ٢ ----------------
+  function renderTimeline() {
+    const ml = DATA.ml_forecast, base = result('baseline'), tl = base.timeline, Hn = tl.length - 1;
+    const W = 1000, Hh = 120, X = h => W - 20 - (h / Hn) * (W - 40);
+    const maxY = Math.max(1, ...tl.map(p => Math.max(p.waiting, p.at_berth))) + 1, Y = v => Hh - 22 - (v / maxY) * (Hh - 34);
     const line = key => tl.map((p, i) => `${i ? 'L' : 'M'}${X(p.hour).toFixed(1)},${Y(p[key]).toFixed(1)}`).join(' ');
-    let s = '';
-    for (let v = 0; v <= maxY; v += Math.max(1, Math.ceil(maxY / 5))) {
-      s += `<line x1="${pl}" x2="${W - pr}" y1="${Y(v)}" y2="${Y(v)}" stroke="#38597F" stroke-width=".5"/>
-            <text x="${pl - 6}" y="${Y(v) + 4}" fill="#A3B4CA" font-size="10" text-anchor="end" font-family="IBM Plex Mono">${v}</text>`;
-    }
-    tl.forEach(p => { if (p.hour % 6 === 0) s += `<text x="${X(p.hour)}" y="${Hh - 8}" fill="#A3B4CA" font-size="10" text-anchor="middle" font-family="IBM Plex Mono">+${p.hour}h</text>`; });
-    s += `<line x1="${pl}" x2="${W - pr}" y1="${Y(r.kpis.open_berths)}" y2="${Y(r.kpis.open_berths)}" stroke="#A3B4CA" stroke-dasharray="5 4"/>`;
-    s += `<path d="${line('at_berth')}" fill="none" stroke="#7FB2E5" stroke-width="2"/>`;
-    s += `<path d="${line('waiting')}" fill="none" stroke="#F3B657" stroke-width="2"/>`;
-    s += markerLines(X, pt, Hh - pb);
-    $('chartSvg').innerHTML = s;
+    let s = `<path d="${line('at_berth')}" fill="none" stroke="var(--sky)" stroke-width="2"/>
+             <path d="${line('waiting')}" fill="none" stroke="var(--amber)" stroke-width="2"/>`;
+    DATA.digital_twin.marker_hours.forEach(m => {
+      s += `<line x1="${X(m)}" x2="${X(m)}" y1="6" y2="${Hh - 18}" stroke="var(--sky)" stroke-dasharray="2 3"/>
+            <text x="${X(m) - 4}" y="16" fill="var(--sky)" font-size="11" text-anchor="end">وقت تنبيه النموذج</text>`;
+    });
+    tl.forEach(p => { if (p.hour % 6 === 0) s += `<text x="${X(p.hour)}" y="${Hh - 4}" fill="var(--muted)" font-size="10" text-anchor="middle">+${p.hour}س</text>`; });
+    $('tlineSvg').innerHTML = s;
+    const m = DATA.domain_agents.maritime, c = DATA.domain_agents.cargo;
+    $('tlLabels').innerHTML = [
+      `<div><div class="tt">الآن ${tag('ais')}</div><div class="ts">البحري: ${ar(m.maritime_status)} · البضائع: ${ar(c.cargo_status)}</div></div>`,
+      `<div><div class="tt">+${num(ml.horizon_hours || 6)} ساعات ${tag('pred')}</div><div class="ts">${ml.status === 'success' ? 'النموذج: ' + ar(ml.classification) + (ml.alert_active ? ' · تنبيه' : '') : 'النموذج غير متاح لهذه الساعة'}</div></div>`,
+      `<div><div class="tt">+${num(Hn)} ساعة ${tag('sim')}</div><div class="ts">بدون تغيير: ${num(tl[Hn].waiting)} سفينة منتظرة، ${num(tl[Hn].at_berth)} على الأرصفة</div></div>`,
+    ].join('');
+    $('dbModel').textContent = ml.status === 'success' ? `${ar(ml.classification)} (درجة ${num(ml.congestion_score, 3)}، ليست احتمالًا)` : 'غير متاح';
+    $('dbWindow').textContent = ml.target_timestamp_utc ? ml.target_timestamp_utc.slice(0, 16).replace('T', ' ') + ' UTC' : '—';
+    $('dbWait').textContent = num(base.kpis.total_wait_vessel_hours, 1) + ' ساعة-سفينة';
   }
 
-  // Dotted vertical line at the prediction model's horizon (+6 h), the hour its alert refers to.
-  function markerLines(X, top, bottom) {
-    const H = DATA.digital_twin.simulation_horizon_hours;
-    return DATA.digital_twin.marker_hours.filter(m => m <= H).map(m =>
-      `<line x1="${X(m)}" x2="${X(m)}" y1="${top}" y2="${bottom}" stroke="#7FB2E5" stroke-dasharray="2 3"/>
-       <text x="${X(m) - 4}" y="${top + 10}" fill="#7FB2E5" font-size="10" text-anchor="end">وقت تنبيه النموذج</text>`).join('');
+  // ---------------- القسم ٣ ----------------
+  function renderFactors() {
+    const m = DATA.domain_agents.maritime, c = DATA.domain_agents.cargo, e = DATA.domain_agents.events_weather, ml = DATA.ml_forecast, s = DATA.port_state;
+    const ev = e.external_event_assessment || {};
+    const row = (name, val, src, pill, bar) => `<div class="factor"><div class="factor-top">
+      <div class="factor-name">${name} ${tag(src)}</div><div class="factor-vals"><b>${val}</b></div>
+      <div class="factor-bar-wrap">${bar === null ? '' : `<div class="factor-bar" style="width:${Math.round(Math.max(0, Math.min(1, bar)) * 100)}%"></div>`}</div>
+      <div class="factor-trend">${pill ? `<span class="pm-badge ${LVL(pill)}">${ar(pill)}</span>` : ''}</div></div></div>`;
+    $('factorsList').innerHTML = [
+      row('الوكيل البحري: السفن المنتظرة من كل السفن', `${num(m.evidence.waiting_vessels)} من ${num(m.evidence.vessels)}`, 'ais', m.maritime_status, m.evidence.waiting_ratio),
+      row('الوكيل البحري: القادمة / المغادرة', `${num(m.evidence.approaching_vessels)} / ${num(m.evidence.departing_vessels)}`, 'ais', null, null),
+      row('وكيل البضائع: إشغال الساحة', num(c.evidence.yard_occupancy_percent, 1) + '%', 'syn', c.cargo_status, (c.evidence.yard_occupancy_percent || 0) / 100),
+      row('وكيل البضائع: دخول / خروج الحاويات (آخر ساعة)', `${num(c.evidence.container_arrivals_last_1h)} / ${num(c.evidence.container_departures_last_1h)}`, 'syn', null, null),
+      row('وكيل البضائع: انتظار الشاحنات', num(c.evidence.truck_waiting_time_minutes) + ' د', 'syn', null, null),
+      row('وكيل الأحداث والطقس: الطقس', `${ar(e.weather_assessment.level)} · رياح ${num(s.wind_speed_10m, 1)} · موج ${num(s.wave_height, 2)} م`, 'obs', e.weather_assessment.level, null),
+      row('وكيل الأحداث والطقس: حدث خارجي', ev.active ? `${EVENT_AR[ev.type] || esc(ev.type)} (${ar(ev.severity)})` : 'لا يوجد', 'syn', ev.active ? ev.severity : null, null),
+      row('نموذج التنبؤ (+6 ساعات)', ml.status === 'success' ? `${ar(ml.classification)} · ${num(ml.congestion_score, 3)}` : 'غير متاح', 'pred', ml.status === 'success' ? ml.classification : null, null),
+    ].join('');
   }
 
-  // Yard occupancy (%) of the shown decision against no change, both from the twin.
-  function drawYard() {
-    const svg = $('yardSvg');
-    if (!svg) return;
-    const r = result(SEL), b = baseline(), W = 700, Hh = 170, pl = 40, pr = 10, pt = 10, pb = 26;
-    const vals = [...r.timeline, ...b.timeline].map(p => p.yard_occupancy_pct).filter(v => v !== null);
-    if (!vals.length) { svg.innerHTML = ''; return; }
-    const lo = Math.floor(Math.min(...vals) / 5) * 5, hi = Math.min(100, Math.ceil(Math.max(...vals) / 5) * 5 + 5);
-    const X = h => W - pr - (h / (r.timeline.length - 1)) * (W - pl - pr);
-    const Y = v => pt + (1 - (v - lo) / Math.max(1, hi - lo)) * (Hh - pt - pb);
-    // missing hours in the Cargo file break the line instead of being filled in
-    const line = tl => tl.map((p, i) => p.yard_occupancy_pct === null ? '' :
-      `${i && tl[i - 1].yard_occupancy_pct !== null ? 'L' : 'M'}${X(p.hour).toFixed(1)},${Y(p.yard_occupancy_pct).toFixed(1)}`).join(' ');
-    let s = '';
-    for (let v = lo; v <= hi; v += Math.max(1, Math.ceil((hi - lo) / 4))) {
-      s += `<line x1="${pl}" x2="${W - pr}" y1="${Y(v)}" y2="${Y(v)}" stroke="#38597F" stroke-width=".5"/>
-            <text x="${pl - 6}" y="${Y(v) + 4}" fill="#A3B4CA" font-size="10" text-anchor="end" font-family="IBM Plex Mono">${v}%</text>`;
-    }
-    r.timeline.forEach(p => { if (p.hour % 6 === 0) s += `<text x="${X(p.hour)}" y="${Hh - 8}" fill="#A3B4CA" font-size="10" text-anchor="middle" font-family="IBM Plex Mono">+${p.hour}h</text>`; });
-    s += `<path d="${line(b.timeline)}" fill="none" stroke="#A3B4CA" stroke-width="1.5" stroke-dasharray="5 4"/>`;
-    s += `<path d="${line(r.timeline)}" fill="none" stroke="#F3B657" stroke-width="2"/>`;
-    s += markerLines(X, pt, Hh - pb);
-    svg.innerHTML = s;
+  // ---------------- القسم ٤ ----------------
+  const result = id => DATA.digital_twin.results.find(r => r.candidate_id === id);
+  function renderAlert() {
+    const ds = DATA.decision_support, base = result('baseline'), best = result(ds.highest_ranked_candidate) || base;
+    const press = DATA.strategy_synthesis.supported_pressure_areas, ml = DATA.ml_forecast, ev = DATA.domain_agents.events_weather.external_event_assessment || {};
+    const tested = DATA.digital_twin.results.length > 1;
+    $('noAlert').style.display = 'none'; $('alertBox').style.display = '';
+    $('alertBox').style.borderColor = tested ? '' : 'var(--line)';
+    $('alTitle').textContent = tested ? 'إشارة ضغط — اختبر الوكيل قرارات في التوأم' : 'لا توجد إشارة تستدعي اختبار قرار';
+    $('amWhen').textContent = ml.status === 'success' ? num(ml.horizon_hours || 6) + ' ساعات' : '—';
+    $('amArea').textContent = press.length ? press.map(a => AREA_AR[a]).join('، ') : (ev.active ? 'سياق خارجي' : '—');
+    const m = DATA.domain_agents.maritime, c = DATA.domain_agents.cargo, sc = DATA.digital_twin.scenario;
+    $('alReason').innerHTML = `${num(m.evidence.waiting_vessels)} سفينة في منطقة الانتظار (الميناءان)، و${num(sc.vessels_at_berth_now)} من ${num(sc.open_berths)} رصيفًا في لوس أنجلوس مشغولة، وإشغال الساحة ${num(c.evidence.yard_occupancy_percent, 1)}% (اصطناعي). ` +
+      (ml.status === 'success' ? `نموذج التنبؤ: <b>${ar(ml.classification)}</b> بعد ${num(ml.horizon_hours || 6)} ساعات.` : 'نموذج التنبؤ غير متاح لهذه الساعة.');
+    $('alLabel').textContent = 'توصية وكيل الاستراتيجية' + (ds.reasoning_mode === 'llm_assisted' ? ' (صياغة بمساعدة LLM)' : '');
+    $('alText').innerHTML = `<b>${esc(title(best))}</b><br><span style="opacity:.92">${esc(ds.summary)}</span>`;
+    const k = 'total_wait_vessel_hours';
+    $('alBefore').textContent = num(base.kpis[k], 1) + ' س';
+    $('alAfter').textContent = num(best.kpis[k], 1) + ' س';
+    const parts = [];
+    if (best.kpis[k] < base.kpis[k]) parts.push(`أقل بـ ${num(base.kpis[k] - best.kpis[k], 1)} ساعة انتظار`);
+    if (best.kpis.yard_peak_occupancy_pct != null && best.kpis.yard_peak_occupancy_pct < base.kpis.yard_peak_occupancy_pct)
+      parts.push(`أعلى إشغال للساحة أقل بـ ${num(base.kpis.yard_peak_occupancy_pct - best.kpis.yard_peak_occupancy_pct, 1)} نقطة`);
+    const yardBest = DATA.digital_twin.results.filter(r => r.kpis.yard_peak_occupancy_pct != null)
+      .sort((x, y) => x.kpis.yard_peak_occupancy_pct - y.kpis.yard_peak_occupancy_pct)[0];
+    const yardNote = yardBest && yardBest.kpis.yard_peak_occupancy_pct < base.kpis.yard_peak_occupancy_pct && yardBest.candidate_id !== best.candidate_id
+      ? `، و«${title(yardBest)}» يخفّض أعلى إشغال للساحة ${num(base.kpis.yard_peak_occupancy_pct - yardBest.kpis.yard_peak_occupancy_pct, 1)} نقطة` : '';
+    $('alImprove').textContent = (best.candidate_id === 'baseline' ? 'لا يوجد خيار يخفّض انتظار السفن' : (parts.join('، ') || 'بدون تحسّن ملموس')) + yardNote;
+    $('alertButtons').innerHTML = `<button class="b-secondary" id="simBtn" type="button">افتح التوأم الرقمي</button>
+      <button class="b-primary" id="adoptBtn">اعتماد التوصية</button><button class="b-ghost" id="dismissBtn">غير مناسب</button>`;
+    $('simBtn').onclick = () => showView('console');
+    $('adoptBtn').onclick = () => { logDecision('اعتماد', best.candidate_id); $('alertButtons').innerHTML = '<div class="adopted-msg">✓ سُجّل الاعتماد في هذا المتصفح. التنفيذ بيد فريق التشغيل.</div>'; };
+    $('dismissBtn').onclick = () => {
+      const WHY = ['الأرقام لا تطابق ما أراه', 'القرار غير ممكن تشغيليًا', 'أفضّل قرارًا آخر'];
+      $('alertButtons').innerHTML = `<div class="why-chips"><div class="q">لماذا لا توافق؟ يُسجَّل في هذا المتصفح.</div>${WHY.map(w => `<button type="button" data-why="${w}">${w}</button>`).join('')}</div>`;
+      $('alertButtons').querySelectorAll('[data-why]').forEach(b => b.onclick = () => {
+        logDecision('رفض', best.candidate_id, b.dataset.why);
+        $('alertButtons').innerHTML = `<div class="adopted-msg">تم تسجيل الرفض: ${esc(b.dataset.why)}${b.dataset.why === 'أفضّل قرارًا آخر' ? ' — جرّبه في «اختبار يدوي» داخل التوأم الرقمي.' : ''}</div>`;
+      });
+    };
   }
+  function logDecision(decision, candidate, reason) {
+    try { const all = JSON.parse(localStorage.getItem('marsa_decisions') || '[]');
+      all.push({ at:new Date().toISOString(), decision, candidate, reason:reason || null, port_hour:DATA && DATA.authoritative_timestamp });
+      localStorage.setItem('marsa_decisions', JSON.stringify(all.slice(-300))); } catch (e) {}
+  }
+  window.MarsaLog = { add: (d, r) => logDecision(d, DATA && DATA.decision_support.highest_ranked_candidate, r) };
 
-  // ---------- tooltips ----------
-  function bindTips(root) {
-    const tip = $('tip');
-    root.querySelectorAll('.hit').forEach(g => {
-      g.addEventListener('mousemove', e => { tip.innerHTML = g.dataset.tip; tip.style.display = 'block';
-        tip.style.left = (e.clientX + 14) + 'px'; tip.style.top = (e.clientY + 14) + 'px'; });
-      g.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+  // ---------------- الجرس ----------------
+  function renderBell() {
+    const m = DATA.domain_agents.maritime, c = DATA.domain_agents.cargo, ml = DATA.ml_forecast, ev = DATA.domain_agents.events_weather.external_event_assessment || {};
+    const n = [];
+    if (m.maritime_status !== 'NORMAL') n.push({ type:LVL(m.maritime_status) === 'bad' ? 'warn' : 'watch', text:'الوكيل البحري: ' + ar(m.maritime_status), target:'sec3' });
+    if (c.cargo_status !== 'NORMAL') n.push({ type:LVL(c.cargo_status) === 'bad' ? 'warn' : 'watch', text:'وكيل البضائع: ' + ar(c.cargo_status), target:'sec3' });
+    if (ml.status === 'success' && ml.alert_active) n.push({ type:'warn', text:'نموذج التنبؤ: تنبيه بعد ' + num(ml.horizon_hours || 6) + ' ساعات', target:'sec2' });
+    if (ev.active) n.push({ type:'info', text:'حدث خارجي نشط (اصطناعي): ' + (EVENT_AR[ev.type] || ev.type), target:'sec3' });
+    if (DATA.digital_twin.results.length > 1) n.push({ type:'info', text:'وكيل الاستراتيجية اختبر ' + (DATA.digital_twin.results.length - 1) + ' قرارات في التوأم', target:'sec4' });
+    $('bellCount').textContent = n.length;
+    $('bellPanel').innerHTML = n.length ? n.map(x => `<div class="notif type-${x.type}" data-target="${x.target}"><div class="ntype">${x.type === 'warn' ? 'تحذير' : x.type === 'watch' ? 'مراقبة' : 'معلومة'}</div><div class="ntext">${esc(x.text)}</div></div>`).join('')
+      : '<div class="notif"><div class="ntext">لا توجد تنبيهات لهذه الساعة.</div></div>';
+    $('bellPanel').querySelectorAll('[data-target]').forEach(el => el.onclick = () => {
+      const t = $(el.dataset.target); t.scrollIntoView({ behavior:'smooth', block:'center' });
+      t.classList.add('hl-flash'); setTimeout(() => t.classList.remove('hl-flash'), 1400); $('bellPanel').classList.remove('open');
     });
   }
 
-  $('ctlForm').addEventListener('submit', analyze);
-  $('addvAdd').addEventListener('click', () => addRow());
+  // ---------------- صفحة التوأم ----------------
+  const TW = { h:0, timer:null };
+  function allResults() { return DATA.digital_twin.results.slice().sort((a, b) => a.rank - b.rank); }
+  function renderTwin() {
+    const ds = DATA.decision_support, bestId = ds.highest_ranked_candidate, base = result('baseline');
+    $('twCards').innerHTML = allResults().map(r => {
+      const k = r.kpis, vs = r.vs_baseline || {}, user = r.candidate_id === 'user_decision';
+      const good = [];
+      if (vs.total_wait_vessel_hours < 0) good.push(`انتظار أقل بـ ${num(-vs.total_wait_vessel_hours, 1)} س`);
+      if (vs.yard_peak_occupancy_pct < 0) good.push(`ساحة أقل بـ ${num(-vs.yard_peak_occupancy_pct, 1)} نقطة`);
+      return `<button type="button" class="tw-card ${r.candidate_id === SEL ? 'sel' : ''}" data-id="${esc(r.candidate_id)}">
+        <div style="display:flex;justify-content:space-between;gap:6px"><b>${user ? '' : '#' + r.rank + ' '}${esc(title(r))}</b>${r.candidate_id === bestId ? '<span class="tw-badge">توصية الوكيل</span>' : user ? `<span class="live-tag">${SRC.user}</span>` : ''}</div>
+        <div style="font-size:12.5px;opacity:.9">انتظار السفن ${num(k.total_wait_vessel_hours, 1)} س · بسبب امتلاء الأرصفة ${num(k.capacity_wait_vessel_hours, 1)} س</div>
+        <div style="font-size:12.5px;opacity:.9">سفن انتظرت ${num(k.vessels_waited)} · أرصفة مفتوحة ${num(k.open_berths)}</div>
+        ${k.yard_peak_occupancy_pct != null ? `<div style="font-size:12.5px;opacity:.9">أعلى إشغال للساحة ${num(k.yard_peak_occupancy_pct, 1)}% ${tag('syn')}</div>` : ''}
+        <div style="font-size:12px;color:${good.length ? 'var(--teal)' : 'var(--muted)'}">${r.candidate_id === 'baseline' ? 'الأساس للمقارنة' : good.length ? good.join('، ') : 'بدون تحسّن مقارنة بعدم التغيير'}</div>
+        <div style="font-size:11.5px;color:var(--teal);margin-top:2px">جرّب هذا القرار ←</div></button>`;
+    }).join('');
+    $('twCards').querySelectorAll('.tw-card').forEach(b => b.onclick = () => { SEL = b.dataset.id; TW.h = 0; renderTwin(); });
+    const r = result(SEL) || base;
+    $('twTitle').textContent = 'محاكاة: ' + title(r) + ' — ' + DATA.authoritative_timestamp.replace('+00:00', ' UTC').replace('T', ' ');
+    $('twBest').style.display = SEL === bestId ? '' : 'none';
+    const e = DATA.domain_agents.events_weather, s = DATA.port_state;
+    $('twWx').textContent = `الطقس (مرصود): ${ar(e.weather_assessment.level)} · رياح ${num(s.wind_speed_10m, 1)} · موج ${num(s.wave_height, 2)} م — لا يدخل حساب التوأم`;
+    $('twScrub').max = DATA.digital_twin.simulation_horizon_hours;
+    $('twScrub').value = TW.h;
+    drawTwinFrame();
+    renderTwinFeedback(r);
+  }
+  function drawTwinFrame() {
+    const r = result(SEL) || result('baseline'), sc = DATA.digital_twin.scenario;
+    const st = drawPort($('twSvg'), null, null, sc, r, TW.h), p = r.timeline[TW.h];
+    $('twT').textContent = TW.h ? '+' + TW.h + ' س' : 'الآن';
+    $('twQ').textContent = num(st.waiting.length);
+    $('twB').textContent = num(st.berthed.length) + ' / ' + num(r.kpis.open_berths);
+    $('twY').textContent = p && p.yard_occupancy_pct != null ? num(p.yard_occupancy_pct, 1) + '%' : '—';
+  }
+  function renderTwinFeedback(r) {
+    const bestId = DATA.decision_support.highest_ranked_candidate;
+    $('twFb').innerHTML = `<div class="tw-fb-q"><span class="grow">هل توافق على اختيار الوكيل «${esc(TITLE[bestId] || bestId)}»؟</span>
+      <button type="button" class="ok" id="twOk">نعم، أعتمده</button><button type="button" class="obj" id="twObj">اعتراض</button></div>`;
+    $('twOk').onclick = () => { logDecision('اعتماد (التوأم)', bestId); $('twFb').innerHTML = '<div class="tw-fb-done">✓ سُجّل الاعتماد في هذا المتصفح.</div>'; };
+    $('twObj').onclick = () => {
+      $('twFb').innerHTML = `<div class="tw-fb-q">اعتراضك يُسجَّل، وتقدر تجرّب قرارك في «اختبار يدوي» تحت.</div>
+        <div class="tw-fb-form"><textarea id="twWhy" placeholder="لماذا؟ (اختياري)"></textarea><button type="button" class="send" id="twSend">أرسل الاعتراض</button></div>`;
+      $('twSend').onclick = () => { logDecision('اعتراض (التوأم)', bestId, $('twWhy').value.trim()); $('twFb').innerHTML = '<div class="tw-fb-done">✓ سُجّل الاعتراض في هذا المتصفح.</div>'; $('manualTest').scrollIntoView({ behavior:'smooth' }); };
+    };
+  }
+  $('twScrub').addEventListener('input', e => { TW.h = +e.target.value; if (DATA) drawTwinFrame(); });
+  $('twPlay').addEventListener('click', () => {
+    if (!DATA) return;
+    if (TW.timer) { clearInterval(TW.timer); TW.timer = null; $('twPlay').textContent = '▶'; return; }
+    $('twPlay').textContent = '❚❚';
+    TW.timer = setInterval(() => {
+      const max = DATA.digital_twin.simulation_horizon_hours;
+      TW.h = TW.h >= max ? 0 : TW.h + 1; $('twScrub').value = TW.h; drawTwinFrame();
+    }, 900 / (+$('twSpeed').value || 1));
+  });
+
+  // ---------------- الاختبار اليدوي ----------------
+  function addVesselRow() {
+    const d = document.createElement('div');
+    d.className = 'row2'; d.style.marginTop = '6px';
+    d.innerHTML = `<input data-k="vessel_id" list="mtKnown" placeholder="رقم السفينة" style="width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:7px 8px;font-family:var(--font-mono);font-size:12px">
+      <input type="number" data-k="length_m" placeholder="الطول م" min="1">
+      <input type="number" data-k="service_hours" placeholder="مدة البقاء س" min="0.5" step="0.5">
+      <input type="number" data-k="arrival_in_hours" placeholder="تصل بعد س" min="0" value="0">
+      <button type="button" style="grid-column:1/-1">حذف</button>`;
+    d.querySelector('button').onclick = () => d.remove();
+    $('mtAdded').appendChild(d);
+  }
+  function readAdded() {
+    const out = [];
+    for (const row of $('mtAdded').children) {
+      const v = {};
+      row.querySelectorAll('input').forEach(i => { if (i.value.trim() !== '') v[i.dataset.k] = i.dataset.k === 'vessel_id' ? i.value.trim() : +i.value; });
+      if (!v.vessel_id && !v.length_m && !v.service_hours) throw new Error('كل سفينة مضافة تحتاج رقمها أو طولها أو مدة بقائها.');
+      v.arrival_in_hours = v.arrival_in_hours || 0; out.push(v);
+    }
+    return out;
+  }
+  $('mtAddV').onclick = addVesselRow;
+  $('mtGate').onchange = () => { $('mtGateN').hidden = $('mtGate').value !== 'number'; };
+  $('mtCond').onchange = async () => {
+    const c = $('mtCond').value;
+    $('mtHour').hidden = !c; $('mtHourHint').textContent = '';
+    if (!c) return;
+    $('mtHourHint').textContent = 'جارٍ جلب الساعات…';
+    try {
+      const out = await get('/api/twin/hours?limit=100&condition=' + c);
+      $('mtHour').innerHTML = out.hours.map(h => `<option value="${h.timestamp_utc}">${h.timestamp_utc.slice(0, 16).replace('T', ' ')} · رياح ${num(h.wind_speed_10m, 1)} · موج ${num(h.wave_height, 2)}${h.event_type ? ' · ' + (EVENT_AR[h.event_type] || h.event_type) : ''}</option>`).join('');
+      $('mtHourHint').textContent = `${num(out.hours_found)} ساعة في 2025 (${out.provenance === 'SYNTHETIC' ? 'الأحداث اصطناعية' : 'طقس مرصود من Open-Meteo'})` +
+        (c === 'wind' || c === 'wave' ? '، مرتبة من الأقوى' : '') + '. الطقس لا يدخل حساب التوأم؛ النتيجة هي ما حدث في تلك الساعة.';
+    } catch (e) { $('mtHourHint').textContent = e.message; }
+  };
+  $('runBtn').onclick = async () => {
+    const ts = ($('mtCond').value && $('mtHour').value) || (DATA && DATA.authoritative_timestamp.replace('+00:00', 'Z'));
+    const banner = $('banner');
+    banner.classList.remove('show');
+    if (!ts) { banner.textContent = 'حمّلي ساعة أولًا من «اختر اللحظة الحالية» أو اختاري ساعة حسب الظرف.'; banner.classList.add('show'); return; }
+    let body;
+    try {
+      const stress = { berths_closed:+$('mtClosed').value || 0, arrival_multiplier:+$('mtMult').value || 1,
+                       gate_closed_hours:+$('mtGateClosed').value || 0, container_inflow_multiplier:+$('mtInflow').value || 1 };
+      const actions = [];
+      if ($('mtPolicy').value !== 'fcfs') actions.push({ type:'queue_policy', value:$('mtPolicy').value });
+      if (+$('mtBerths').value) actions.push({ type:'add_berths', value:+$('mtBerths').value });
+      if ($('mtGate').value === 'max_recorded') actions.push({ type:'gate_capacity', value:'max_recorded' });
+      if ($('mtGate').value === 'number') actions.push({ type:'gate_capacity', value:+$('mtGateN').value });
+      body = { timestamp_utc:ts, stress, added:readAdded(), user_actions:actions };
+    } catch (e) { banner.textContent = e.message; banner.classList.add('show'); return; }
+    $('statusVal').textContent = 'جارٍ الحساب…';
+    try {
+      MT = await post('/api/decision-support/analyze', body);
+      MT.h = 0; renderManual();
+      $('statusVal').textContent = 'تم';
+    } catch (e) { banner.textContent = e.message; banner.classList.add('show'); $('statusVal').textContent = 'خطأ'; }
+  };
+  function renderManual() {
+    const res = MT.digital_twin.results.slice().sort((a, b) => a.rank - b.rank), ds = MT.decision_support, a = ds.user_decision_assessment;
+    const user = res.find(r => r.candidate_id === 'user_decision'), sc = MT.digital_twin.scenario;
+    $('clockVal').innerHTML = `الساعة <b>${MT.authoritative_timestamp.slice(0, 16).replace('T', ' ')}</b> UTC`;
+    const rowsHtml = res.map(r => `<tr class="${r.candidate_id === 'user_decision' ? 'best' : ''}">
+      <td>${esc(title(r))}${r.candidate_id === ds.highest_ranked_candidate ? ' <span class="live-tag">توصية الوكيل</span>' : ''}</td>
+      <td class="mono">${num(r.kpis.total_wait_vessel_hours, 1)}</td><td class="mono">${num(r.kpis.capacity_wait_vessel_hours, 1)}</td>
+      <td class="mono">${num(r.kpis.vessels_waited)}</td><td class="mono">${r.kpis.yard_peak_occupancy_pct == null ? '—' : num(r.kpis.yard_peak_occupancy_pct, 1) + '%'}</td>
+      <td class="mono">${r.kpis.yard_end_occupancy_pct == null ? '—' : num(r.kpis.yard_end_occupancy_pct, 1) + '%'}</td></tr>`).join('');
+    $('stageContent').innerHTML = `
+      <div class="mt-cmp" style="margin-bottom:12px"><b style="font-family:var(--font)">تقييم وكيل الاستراتيجية:</b> ${esc(ds.summary)}</div>
+      <table class="ctable"><thead><tr><th>الخيار</th><th class="mono">انتظار السفن (س)</th><th class="mono">بسبب امتلاء الأرصفة</th><th class="mono">سفن انتظرت</th><th class="mono">أعلى إشغال للساحة</th><th class="mono">الساحة نهاية الأفق</th></tr></thead><tbody>${rowsHtml}</tbody></table>
+      <div class="pm-card" id="mtWrap" style="margin-top:14px"><div class="pm-scroll"><svg class="pm-svg" id="mtSvg"></svg></div><div class="pm-tip" id="mtTip"></div></div>
+      <div class="transport" style="display:flex"><span class="clock">قرارك عبر الساعات:</span>
+        <input type="range" id="mtScrub" min="0" max="${MT.digital_twin.simulation_horizon_hours}" step="1" value="0"><span class="clock" id="mtH">الآن</span></div>
+      <div class="hint">مصادر هذا التشغيل: ${[...new Set(MT.digital_twin.sources.map(s => PROV[s.provenance] || s.provenance))].join(' · ')}</div>`;
+    const draw = () => { drawPort($('mtSvg'), $('mtTip'), $('mtWrap'), sc, user, MT.h); $('mtH').textContent = MT.h ? '+' + MT.h + ' س' : 'الآن'; };
+    $('mtScrub').oninput = e => { MT.h = +e.target.value; draw(); };
+    draw();
+    const vb = a.vs_baseline, va = a.vs_agent_best, sign = v => v === undefined ? '—' : (v > 0 ? '+' : '') + num(v, 1);
+    $('kpis').style.display = '';
+    $('kpis').innerHTML = [
+      ['انتظار السفن مقابل عدم التغيير', sign(vb.total_wait_vessel_hours) + ' س'],
+      ['الساحة مقابل عدم التغيير', sign(vb.yard_peak_occupancy_pct) + ' نقطة'],
+      ['مقابل أفضل خيار للوكيل', sign(va.total_wait_vessel_hours) + ' س'],
+      ['أفضل خيار للوكيل', esc(TITLE[a.agent_best_candidate] || a.agent_best_candidate)],
+    ].map(k => `<div class="kpi"><div class="v" style="font-size:15px">${k[1]}</div><div class="l">${k[0]}</div></div>`).join('');
+  }
+
+  // ---------------- التنقل والساعة ----------------
+  function showView(which) {
+    const toConsole = which === 'console';
+    $('dashView').hidden = toConsole; $('consoleView').hidden = !toConsole; window.scrollTo(0, 0);
+    if (toConsole && DATA) renderTwin();
+  }
+  $('cvBack').onclick = () => showView('dash');
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('consoleView').hidden) showView('dash'); });
+  $('bellBtn').onclick = () => $('bellPanel').classList.toggle('open');
+  document.addEventListener('click', e => { if (!e.target.closest('.bellwrap')) $('bellPanel').classList.remove('open'); });
+  const tick = () => { $('clockNow').textContent = new Date().toLocaleTimeString('ar-SA', { hour:'2-digit', minute:'2-digit' }); };
+  tick(); setInterval(tick, 30000);
+
+  function renderAll() {
+    $('lastUpdate').textContent = 'حالة الميناء: ' + DATA.authoritative_timestamp.replace('+00:00', ' UTC').replace('T', ' ') + ' (إعادة تشغيل تاريخية)';
+    renderFlow(); renderTimeline(); renderFactors(); renderAlert(); renderBell();
+    window.MARSA_LAST = DATA;
+    if (!$('consoleView').hidden) renderTwin();
+  }
+
+  $('mlLoad').onclick = () => { load(($('mlCustom').value || $('mlPreset').value).trim()); $('marsaLive').classList.remove('open'); };
+  $('mlPreset').onchange = () => { $('mlCustom').value = ''; $('mlLoad').click(); };
+  $('marsaToggle').onclick = () => $('marsaLive').classList.toggle('open');
+  load($('mlPreset').value);
 })();
 </script>
 </body>

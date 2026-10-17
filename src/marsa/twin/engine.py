@@ -57,6 +57,8 @@ class Scenario:
     policy: str = "fcfs"
     yard: dict | None = None         # from yard.yard_state (Cargo agent file)
     gate_per_hour: float | None = None
+    gate_closed_hours: int = 0           # user yard stress (see yard.simulate_yard)
+    container_inflow_multiplier: float = 1.0
     notes: list[str] = field(default_factory=list)
 
 
@@ -148,7 +150,7 @@ def simulate_candidate(sc: Scenario, candidate: dict) -> dict:
                     and (berth[v.call_id] is None or berth[v.call_id] > h))
         timeline.append({"hour": h, "at_berth": at_berth, "waiting": queue})
 
-    yard = simulate_yard(s.yard, s.gate_per_hour)
+    yard = simulate_yard(s.yard, s.gate_per_hour, s.gate_closed_hours, s.container_inflow_multiplier)
     if yard is not None:
         for point, occ in zip(timeline, yard["occupancy_pct"], strict=True):
             point["yard_occupancy_pct"] = occ

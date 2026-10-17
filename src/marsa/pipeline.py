@@ -36,9 +36,10 @@ def _forecast_risk(forecast: dict) -> str | None:
 # Run evidence collection, the Digital Twin, strategy generation and ranking for one hour.
 # stress: optional user scenario {"berths_closed": int, "arrival_multiplier": float}.
 # added: optional vessels added by the user [{"arrival_in_hours", "vessel_id"|"length_m"|"service_hours"}].
+# user_actions: optional decision typed by the user; the Strategy agent evaluates it next to its own.
 def run(timestamp: str, cfg=None, df=None, llm=None, save=False,
         agents=None, forecast_override: dict | None = None, stress: dict | None = None,
-        added: list[dict] | None = None) -> dict:
+        added: list[dict] | None = None, user_actions: list[dict] | None = None) -> dict:
     cfg = cfg or load_config()
     frame = df if df is not None else load_dataset()
     ts = parse_exact_utc_hour(timestamp)
@@ -78,6 +79,10 @@ def run(timestamp: str, cfg=None, df=None, llm=None, save=False,
     candidates, candidate_selection = strategy_agent.select_candidates(
         candidates, investigation, ts, domain_results, cfg,
     )
+    if user_actions is not None:
+        # added after the agent's own selection, so it never changes what the agent chose to test
+        candidates = candidates + [strategy_agent.user_candidate(user_actions)]
+        legacy_order = legacy_order + [strategy_agent.USER_DECISION_ID]
     synthesis = strategy_agent.synthesize(forecast, maritime, cargo, events_weather)
     ranked = strategy_agent.evaluate(
         scenario, candidates, cfg, baseline=baseline,

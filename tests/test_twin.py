@@ -183,3 +183,36 @@ def test_known_vessel_uses_own_history_before_the_hour():
 
 def test_typed_service_hours_wins():
     assert estimate_stay(pd.Timestamp(TS), 5, length_m=300, service_hours=12)["method"] == "user_input"
+
+
+def test_yard_stress_gate_closed_and_inflow():
+    ts = pd.Timestamp(TS)
+    cfg = load_config()
+    base_sc, _ = build_scenario(ts, cfg)
+    closed_sc, _ = build_scenario(ts, cfg, {"gate_closed_hours": 6})
+    more_sc, _ = build_scenario(ts, cfg, {"container_inflow_multiplier": 1.5})
+    base = simulate_candidate(base_sc, {"id": "b", "actions": []})["kpis"]
+    closed = simulate_candidate(closed_sc, {"id": "b", "actions": []})["kpis"]
+    more = simulate_candidate(more_sc, {"id": "b", "actions": []})["kpis"]
+    assert closed["yard_peak_occupancy_pct"] > base["yard_peak_occupancy_pct"]
+    assert more["yard_end_occupancy_pct"] > base["yard_end_occupancy_pct"]
+    assert closed["total_wait_vessel_hours"] == base["total_wait_vessel_hours"]
+
+
+def test_yard_stress_validation():
+    with pytest.raises(ValueError):
+        validate_stress({"gate_closed_hours": 30}, 23, 24)
+    with pytest.raises(ValueError):
+        validate_stress({"container_inflow_multiplier": 0}, 23, 24)
+
+
+def test_hours_by_condition():
+    with TestClient(app) as client:
+        rain = client.get("/api/twin/hours", params={"condition": "rain"}).json()
+        wind = client.get("/api/twin/hours", params={"condition": "wind", "limit": 3}).json()
+        bad = client.get("/api/twin/hours", params={"condition": "snow"})
+    assert rain["hours_found"] > 0
+    assert all(61 <= h["weather_code"] <= 65 for h in rain["hours"])
+    speeds = [h["wind_speed_10m"] for h in wind["hours"]]
+    assert speeds == sorted(speeds, reverse=True) and len(speeds) == 3
+    assert bad.status_code == 422
