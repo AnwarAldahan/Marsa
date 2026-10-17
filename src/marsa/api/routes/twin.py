@@ -4,6 +4,8 @@ POST /api/twin/simulate runs the twin at one hour twice: with no change (baselin
 chosen actions, under the same stress scenario and added vessels. It returns both, the difference
 and the sources. It does not rank or recommend: that is the Strategy agent's job.
 GET /api/twin/vessels lists vessels with stays completed before the hour (for adding a known vessel).
+GET /api/twin/hours lists real 2025 hours by condition (rain, drizzle, strongest wind or waves, active
+event) from the Events & Weather file, so the user can test decisions on hours that really happened.
 """
 from __future__ import annotations
 
@@ -13,14 +15,19 @@ import pandas as pd
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from marsa.config import load_config
+from marsa.config import DATA_DIR, load_config
 from marsa.data.load import parse_exact_utc_hour
 from marsa.twin.adapter import build_scenario, scenario_summary
+from marsa.twin.calls import ais_hours
 from marsa.twin.engine import simulate_candidate
 from marsa.twin.estimates import completed_before
 from marsa.twin.scoring import score_results
 
 router = APIRouter(prefix="/api/twin", tags=["digital-twin"])
+WEATHER_PATH = DATA_DIR / "processed" / "events_weather_state_2025.parquet"
+# WMO weather codes (Open-Meteo): 51-55 drizzle, 61-65 rain. Wind and waves have no threshold:
+# the hours are listed from the strongest down, so no limit is invented.
+CONDITIONS = {"rain": (61, 65), "drizzle": (51, 55)}
 
 
 # Stress scenario chosen by the user; empty means replay the real AIS schedule.
@@ -28,6 +35,8 @@ class StressScenario(BaseModel):
     model_config = ConfigDict(extra="forbid")
     berths_closed: int = Field(default=0, ge=0)
     arrival_multiplier: float = Field(default=1.0, gt=0.0)
+    gate_closed_hours: int = Field(default=0, ge=0)              # yard stress: gate clears nothing
+    container_inflow_multiplier: float = Field(default=1.0, gt=0.0)   # yard stress: x arrivals
 
 
 # A vessel added by the user; its stay comes from its own history, similar lengths, or service_hours.
@@ -113,3 +122,30 @@ def vessels(timestamp_utc: datetime) -> dict:
     table = table.astype(object).where(pd.notna(table), None)
     return {"timestamp_utc": ts.isoformat(), "source": "la_cargo_calls_2023_2025.csv (AIS)",
             "vessels": table.to_dict(orient="records")}
+
+@router.get("/hours")
+def hours(condition: str, limit: int = 50) -> dict:
+    if condition not in {"rain", "drizzle", "wind", "wave", "event"}:
+        raise HTTPException(status_code=422, detail="condition must be rain, drizzle, wind, wave or event")
+    w = pd.read_parquet(WEATHER_PATH)
+    w["hour_key"] = pd.to_datetime(w["hour_key"], utc=True)
+    w = w[w["hour_key"].isin(ais_hours())]          # only hours the twin can run
+    if condition in CONDITIONS:
+        lo, hi = CONDITIONS[condition]
+        w = w[w["weather_code"].between(lo, hi)].sort_values("hour_key")
+    elif condition == "wind":
+        w = w.sort_values("wind_speed_10m", ascending=False)
+    elif condition == "wave":
+        w = w.sort_values("wave_height", ascending=False)
+    else:
+        w = w[w["event_active"]].sort_values("hour_key")
+    total = len(w)
+    rows = [{"timestamp_utc": r.hour_key.strftime("%Y-%m-%dT%H:00:00Z"),
+             "weather_code": None if pd.isna(r.weather_code) else int(r.weather_code),
+             "wind_speed_10m": None if pd.isna(r.wind_speed_10m) else float(r.wind_speed_10m),
+             "wave_height": None if pd.isna(r.wave_height) else float(r.wave_height),
+             "event_type": None if pd.isna(r.event_type) else str(r.event_type),
+             "event_severity": None if pd.isna(r.event_severity) else str(r.event_severity)}
+            for r in w.head(max(1, limit)).itertuples()]
+    return {"condition": condition, "hours_found": total, "source": WEATHER_PATH.name,
+            "provenance": "SYNTHETIC" if condition == "event" else "OBSERVED", "hours": rows}

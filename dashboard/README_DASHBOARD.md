@@ -15,6 +15,9 @@ vessels arriving within 24 h, no upper limit). Leave them at 0 and ×1 to replay
 Optional "إضافة سفن للتجربة": vessel number (IMO/MMSI, suggestions from GET /api/twin/vessels), length,
 stay hours and arrival hour. A stay left empty is estimated from earlier stays (badge "تقدير من التاريخ").
 The page calls POST /api/decision-support/analyze and shows only what the API returns.
+Two views in one file: the dashboard (sections ١–٥) and the Digital Twin (agent options, hour-by-hour
+replay, manual test). The manual test sends the user's decision as `user_actions`; the Strategy agent
+evaluates it next to its own options. Hours by condition come from GET /api/twin/hours.
 Section ٤: each option has "جرّب هذا القرار" (shows its result in the map and charts at the top), and
 "جرّب قرارك الخاص" sends a custom decision (queue order, extra berths, gate per hour) to
 POST /api/twin/simulate on the same hour, scenario and added vessels as the last analysis.

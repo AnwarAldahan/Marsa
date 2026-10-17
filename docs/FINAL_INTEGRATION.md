@@ -113,7 +113,10 @@ python scripts/run_pipeline.py 2025-01-01T00:00:00Z
 `stress: {"berths_closed": int, "arrival_multiplier": float}` (invalid values → 422). The response separates
 timestamp, ML state, domain-agent results, Strategy synthesis/candidates, Digital Twin
 scenario/results, deterministic ranking, limitations, and the human-approval flag. It also accepts
-`added` vessels. `POST /api/twin/simulate` runs one user decision against no change on the same hour,
+`added` vessels and `user_actions` (the user's own decision; the Strategy agent evaluates it next to its
+options and returns `decision_support.user_decision_assessment`). `stress` also accepts yard assumptions
+`gate_closed_hours` and `container_inflow_multiplier`. `GET /api/twin/hours?condition=rain|drizzle|wind|wave|event`
+lists real 2025 hours by condition. `POST /api/twin/simulate` runs one user decision against no change on the same hour,
 stress and added vessels; `GET /api/twin/vessels` lists known vessels for the add-vessel form.
 
 ## Known limitations

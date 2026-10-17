@@ -23,7 +23,9 @@ ARABIC_CANDIDATE_TITLES = {
     "shortest_first": "إعطاء الأولوية للسفن ذات مدة الخدمة الأقصر",
     "extra_berth": "فتح رصيف إضافي مؤقت",
     "gate_max": "تشغيل البوابة بأعلى طاقة سجّلها ملف البضائع",
+    "user_decision": "قرار المستخدم",
 }
+USER_DECISION_ID = "user_decision"
 
 
 class StrategyNarrative(BaseModel):
@@ -159,8 +161,68 @@ def evaluate(scenario: object, candidates: list[dict], cfg: dict | None = None,
     return ranked
 
 
+# Wrap the user's own decision as a candidate, so the Strategy agent evaluates it like its own.
+def user_candidate(actions: list[dict]) -> dict:
+    return _candidate(USER_DECISION_ID, "User decision",
+                      "Proposed by the user in the interface; evaluated against the agent's options.",
+                      ["user_input"], actions)
+
+
+# Compare the user's decision with no change and with the agent's best option (same twin run).
+def assess_user_decision(ranked: list[dict]) -> dict | None:
+    user = next((r for r in ranked if r["candidate_id"] == USER_DECISION_ID), None)
+    if user is None:
+        return None
+    base = next(r for r in ranked if r["candidate_id"] == "baseline")
+    agent = [r for r in ranked if r["candidate_id"] != USER_DECISION_ID]
+    agent_best = agent[0]   # ranked order: lowest total vessel waiting, ties keep "no change"
+    keys = ("total_wait_vessel_hours", "yard_peak_occupancy_pct")
+
+    def diff(a, b):
+        return {k: round(a["kpis"][k] - b["kpis"][k], 2) for k in keys
+                if a["kpis"].get(k) is not None and b["kpis"].get(k) is not None}
+    return {
+        "candidate_id": USER_DECISION_ID,
+        "actions": user["actions"],
+        "vs_baseline": diff(user, base),
+        "agent_best_candidate": agent_best["candidate_id"],
+        "vs_agent_best": diff(user, agent_best),
+        "provenance": DataProvenance.AGENT_GENERATED.value,
+    }
+
+
+# One Arabic sentence comparing the user's decision with no change and the agent's best option.
+def _user_sentence(assessment: dict | None) -> str:
+    if assessment is None:
+        return ""
+    vb, va = assessment["vs_baseline"], assessment["vs_agent_best"]
+    best = ARABIC_CANDIDATE_TITLES.get(assessment["agent_best_candidate"],
+                                       assessment["agent_best_candidate"])
+    wait = vb.get("total_wait_vessel_hours", 0)
+    part = (f"قرار المستخدم خفّض إجمالي ساعات انتظار السفن {-wait:g} ساعة مقارنة بعدم التغيير"
+            if wait < 0 else "قرار المستخدم لم يخفّض انتظار السفن مقارنة بعدم التغيير")
+    yard = vb.get("yard_peak_occupancy_pct")
+    if yard is not None and yard < 0:
+        part += f"، وخفّض أعلى امتلاء للساحة {-yard:g} نقطة"
+    gap = va.get("total_wait_vessel_hours", 0)
+    if gap < 0:
+        part += f"، وهو أفضل من أفضل خيار للوكيل («{best}») بـ {-gap:g} ساعة انتظار"
+    elif gap > 0:
+        part += f"، وخيار الوكيل «{best}» أفضل منه بـ {gap:g} ساعة انتظار"
+    else:
+        part += f"، ونتيجته في انتظار السفن مثل خيار الوكيل «{best}»"
+    return " " + part + "."
+
+
 # Arabic summary built only from the twin results (vessel and yard measures reported separately).
+# The agent's own options are summarised first; the user's decision gets its own sentence.
 def _deterministic_summary(ranked: list[dict]) -> str:
+    sentence = _user_sentence(assess_user_decision(ranked))
+    ranked = [r for r in ranked if r["candidate_id"] != USER_DECISION_ID]
+    return _agent_summary(ranked) + sentence
+
+
+def _agent_summary(ranked: list[dict]) -> str:
     if len(ranked) == 1:
         return (
             "لا توجد إشارة من الوكلاء أو نموذج التنبؤ تستدعي اختبار قرار، ولا يُظهر التوأم الرقمي "
@@ -194,6 +256,8 @@ def recommend(ranked: list[dict], forecast: dict, agents: dict,
               llm: StructuredLLMProvider | None = None) -> dict:
     synthesis = synthesize(forecast, agents["maritime"], agents["cargo"], agents["events_weather"])
     summary = _deterministic_summary(ranked)
+    user_assessment = assess_user_decision(ranked)
+    agent_ranked = [r for r in ranked if r["candidate_id"] != USER_DECISION_ID]
     reasoning_mode = "deterministic"
     if llm is not None:
         try:
@@ -227,7 +291,10 @@ def recommend(ranked: list[dict], forecast: dict, agents: dict,
 
     return {
         "purpose": "Simulation-based candidate evaluation for human review.",
-        "highest_ranked_candidate": ranked[0]["candidate_id"],
+        # the recommendation is always one of the agent's own options; the user's decision is
+        # reported separately in user_decision_assessment
+        "highest_ranked_candidate": agent_ranked[0]["candidate_id"],
+        "user_decision_assessment": user_assessment,
         "summary": summary,
         "evidence_summary": synthesis,
         "reasoning_mode": reasoning_mode,

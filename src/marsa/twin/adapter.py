@@ -19,18 +19,28 @@ ADDED_KEYS = {"arrival_in_hours", "vessel_id", "length_m", "service_hours"}
 
 # Check the user's stress inputs; invalid values are rejected, never clipped. There is no upper
 # limit on the arrival multiplier: the user is free to test any scenario.
-def validate_stress(stress: dict | None, berths: int) -> dict:
+YARD_STRESS = {"gate_closed_hours", "container_inflow_multiplier"}
+
+
+def validate_stress(stress: dict | None, berths: int, horizon: int | None = None) -> dict:
     stress = dict(stress or {})
-    unknown = set(stress) - {"berths_closed", "arrival_multiplier"}
+    unknown = set(stress) - {"berths_closed", "arrival_multiplier"} - YARD_STRESS
     if unknown:
         raise ValueError(f"unknown stress inputs: {sorted(unknown)}")
     closed = int(stress.get("berths_closed", 0))
     multiplier = float(stress.get("arrival_multiplier", 1.0))
+    gate_closed = int(stress.get("gate_closed_hours", 0))
+    inflow = float(stress.get("container_inflow_multiplier", 1.0))
     if not 0 <= closed <= berths:
         raise ValueError(f"berths_closed must be between 0 and {berths}")
     if not multiplier > 0.0:
         raise ValueError("arrival_multiplier must be greater than 0 (1 = real schedule)")
-    return {"berths_closed": closed, "arrival_multiplier": multiplier}
+    if not 0 <= gate_closed <= (horizon if horizon is not None else gate_closed):
+        raise ValueError(f"gate_closed_hours must be between 0 and {horizon}")
+    if not inflow > 0.0:
+        raise ValueError("container_inflow_multiplier must be greater than 0 (1 = the Cargo file)")
+    return {"berths_closed": closed, "arrival_multiplier": multiplier,
+            "gate_closed_hours": gate_closed, "container_inflow_multiplier": inflow}
 
 
 # Turn the user's added vessels into twin vessels; each stay is estimated from history (or typed).
@@ -66,7 +76,10 @@ def scenario_summary(sc: Scenario) -> dict:
         "vessels_waiting_now": sum(1 for v in sc.vessels if v.arrival_h <= 0),
         "vessels_arriving_in_horizon": sum(
             1 for v in sc.vessels if 0 < v.arrival_h <= sc.horizon_hours),
-        "stress_applied": bool(sc.berths_closed or sc.arrival_multiplier != 1.0),
+        "stress_applied": bool(sc.berths_closed or sc.arrival_multiplier != 1.0
+                               or sc.gate_closed_hours or sc.container_inflow_multiplier != 1.0),
+        "gate_closed_hours": sc.gate_closed_hours,
+        "container_inflow_multiplier": sc.container_inflow_multiplier,
         "yard_capacity": None if sc.yard is None else sc.yard["capacity"],
         "gate_max_recorded": None if sc.yard is None else sc.yard["max_recorded_departures"],
         "vessels_added": sum(1 for v in sc.vessels if v.source == "added"),
@@ -78,9 +91,13 @@ def build_scenario(ts: pd.Timestamp, cfg: dict, stress: dict | None = None,
                    added: list[dict] | None = None) -> tuple[Scenario, list[dict]]:
     berths = int(cfg["capacity"]["container_berths"])
     horizon = int(cfg["twin"]["horizon_hours"])
-    stress = validate_stress(stress, berths)
-    sc = scenario_at(ts, berths=berths, horizon_hours=horizon, **stress)
+    stress = validate_stress(stress, berths, horizon)
+    sc = scenario_at(ts, berths=berths, horizon_hours=horizon,
+                     berths_closed=stress["berths_closed"],
+                     arrival_multiplier=stress["arrival_multiplier"])
     sc.yard = yard_state(ts, horizon)
+    sc.gate_closed_hours = stress["gate_closed_hours"]
+    sc.container_inflow_multiplier = stress["container_inflow_multiplier"]
     extra = added_vessels(ts, added, horizon, int(cfg["twin"]["similar_vessels_k"]))
     sc.vessels = sc.vessels + extra
     sources = [
@@ -100,7 +117,8 @@ def build_scenario(ts: pd.Timestamp, cfg: dict, stress: dict | None = None,
                         "value": [v.estimate for v in extra],
                         "source": "added by the user; stays estimated from earlier stays",
                         "provenance": "USER INPUT"})
-    if stress["berths_closed"] or stress["arrival_multiplier"] != 1.0:
+    if (stress["berths_closed"] or stress["arrival_multiplier"] != 1.0
+            or stress["gate_closed_hours"] or stress["container_inflow_multiplier"] != 1.0):
         sources.append({"input": "stress scenario", "value": stress,
                         "source": "chosen by the user in the interface", "provenance": "USER INPUT"})
     if sc.data_end < sc.horizon_hours:
