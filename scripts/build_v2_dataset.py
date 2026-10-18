@@ -1,6 +1,6 @@
 """v1 (pure merge of the 3 agent files) -> v2 = v1 + berth-occupancy columns derived from raw AIS.
 
-Input : data/processed/merged_port_dataset_2025_v1.csv
+Input : data/processed/merged_port_dataset_2025_v1.csv (removed from the repo; v2 is the committed result)
         data/external/pola_berth_occupancy_2025_v2.csv   (from scripts/berth_occupancy_from_ais.py)
 Output: data/processed/merged_port_dataset_2025_v2.csv
 No existing column or row is modified; new columns are appended at the end.
