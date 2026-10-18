@@ -68,8 +68,10 @@ With no stress scenario and no action the twin reproduces the recorded AIS sched
 An optional user stress scenario (`berths_closed`, `arrival_multiplier`: ×1 = real schedule, ×2 = twice the real vessels, no upper limit) makes berths scarce; vessels then
 also wait for a free berth. Supported actions are `queue_policy` (fcfs / shortest_service_first),
 `add_berths` and `gate_capacity` ("max_recorded" = highest hourly container departures in the Cargo file up
-to the chosen hour, or a number). The yard replays the Cargo file; a faster gate lowers it from then on. The
-yard does not change vessel waiting (no data on that effect). Added vessels (`src/marsa/twin/estimates.py`)
+to the chosen hour, or a number). The yard replays the Cargo file; a faster gate lowers it from then on. With
+`twin.cargo_coupling: true` (default) a full yard slows vessel unloading under explicit normalized assumptions
+(docs/CARGO_COUPLING.md). Forecast mode (`twin_mode: "forecast"`, src/marsa/twin/forecast.py) uses only data
+known at the chosen hour; replay mode reproduces what happened. Added vessels (`src/marsa/twin/estimates.py`)
 get a stay from their own earlier stays, else from the 5 vessels closest in length (k chosen by
 `scripts/select_similar_k.py`), or a typed duration. The simulation is deterministic (no Monte Carlo). KPIs: total and capacity vessel-hours
 waiting, vessels waited, average/max wait, vessels arrived/berthed, waiting at the end, peak berths used,
@@ -121,9 +123,9 @@ stress and added vessels; `GET /api/twin/vessels` lists known vessels for the ad
 
 ## Known limitations
 
-- ML inference remains unavailable until an approved runtime source provides exact feature parity.
-- Cargo, yard, gate and event inputs are synthetic; the twin replays the yard from the Cargo file and
-  does not link it to vessel waiting.
+- The ML score is an uncalibrated cargo-congestion proxy at +6 h (retrospective prototype).
+- Cargo, yard, gate and event inputs are synthetic; the yard-vessel link (cargo coupling) rests on labelled assumptions.
+- Forecast mode estimates stays and waits from earlier calls; waiting counts are not better than a no-change baseline.
 - The twin treats the LA berths as one pool rather than terminal/operator-level resources.
 - In 2025 LA berths never filled; berth-shortage results appear only under a user stress scenario.
 - Simulation ranking is not guaranteed real-world superiority.

@@ -49,3 +49,11 @@ stays and never the vessel's own. k = 5 had the lowest median absolute error (10
 `config/port_config.yaml → twin.similar_vessels_k`.
 2025: 1,772 LA cargo stays (468 of them 2 h or shorter), 100 came after a wait (median wait 26.5 h);
 hourly occupancy matches `pola_berthed_cargo_vessels` (r = 0.96).
+
+`data/processed/vessel_cargo_workloads.csv` (from `scripts/build_vessel_cargo_workloads.py`): one row per
+`call_id`; `estimated_workload` = recorded berth hours × 1 normalized unit/hour (a labelled proxy for the cargo
+coupling, not containers). Details and manifest: docs/CARGO_COUPLING.md.
+
+`data/processed/twin_forecast_backtest.json` (from `scripts/backtest_twin_forecast.py`): forecast-mode errors
+on sampled 2025 hours (vessels at berth and waiting at +6/12/24 h, total waiting) against the recorded AIS and a
+no-change baseline.

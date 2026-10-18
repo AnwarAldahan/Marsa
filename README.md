@@ -8,7 +8,7 @@ tests every intervention in a digital twin, and returns a ranked recommendation 
 Nothing is executed automatically — the port operator takes the final decision.
 
 The optional [connected cargo extension](docs/CARGO_COUPLING.md) runs inside the existing Twin and APIs.
-With it enabled, FastAPI also serves Main's root website at `/`; simulated cargo uses labelled normalized service effort, not TEU.
+FastAPI also serves the dashboard (`dashboard/marsa.html`) at `/`; simulated cargo uses labelled normalized service effort, not TEU.
 Generate the separate per-call reference workload table with `python scripts/build_vessel_cargo_workloads.py`. The existing Twin reports simulated near/full-yard duration and cargo progress separately from its waiting-based ranking.
 
 <p align="center"><img src="docs/marsa_flow.png" width="900" alt="Marsa flow"></p>
@@ -116,9 +116,10 @@ Wait for `Application startup complete`. Swagger UI: http://127.0.0.1:8000/docs
 cd dashboard
 python -m http.server 5500 --bind 127.0.0.1
 ```
-Open **http://127.0.0.1:5500/marsa.html**.
-Type a UTC hour of 2025 and press **تحليل**. Optional stress scenario: **أرصفة مغلقة** (berths closed) and
-**مضاعف السفن القادمة** (×1 = the real schedule; ×2 = the real vessels of the next 48 h all arrive within 24 h; no upper limit).
+Open **http://127.0.0.1:5500/marsa.html** — or skip this terminal and open **http://127.0.0.1:8000/** (the API serves the same page).
+Press **اختر اللحظة الحالية**, choose the twin mode (**تنبؤ** = forecast from earlier data only, the default; **إعادة** = replay
+what happened) and a UTC hour of 2025. The Digital Twin page has the agent's options, an hour-by-hour replay and a manual
+test (berths closed, arrival multiplier ×, gate closure, container inflow ×, added vessels, your own decision, hours by weather/event).
 If the API is not running the page says so and shows no numbers.
 
 ### Step 9 — stop
@@ -226,6 +227,20 @@ real-world accuracy (see `docs/LIMITATIONS.md`).
 
 ## 7. Digital twin
 
+**Method:** discrete-event simulation (DES), deterministic and trace-driven from AIS. Entities = cargo vessels;
+resources = 23 container berths, the yard and the gate; queue = the anchorage; events = arrival, berthing,
+departure; service rules = FCFS or shortest service first; horizon = 24 h; main KPI = total vessel-hours waiting.
+A small custom DES kernel (priority queue of berth-free times, the same mechanism as SimPy) keeps the model
+transparent and fully tested.
+
+**Two modes** (`twin_mode` in the API, a selector in the dashboard):
+- **forecast** — treats the chosen hour as "today": vessels at berth, waiting and arriving come from AIS
+  (arrivals are known from arrival notices); stays and remaining waits are estimated only from calls that ended
+  before that hour (`src/marsa/twin/forecast.py`). Backtest on 724 hours of 2025
+  (`scripts/backtest_twin_forecast.py`): berth-count error 0.95 / 1.21 / 1.53 vessels at +6 / 12 / 24 h vs
+  1.19 / 1.50 / 1.97 for "no change" (about 20 % better); waiting counts are not better than "no change" (waiting is rare at LA).
+- **replay** — reproduces what happened (recorded stays and berth times).
+
 Berths of the Port of Los Angeles (cargo vessels only) plus the yard and gate. The vessel starting state at any hour comes from AIS:
 which vessels are at a berth (and when each one really left), which are waiting for an LA berth (destination
 taken from where the vessel berthed next), and which arrive in the next 24 h, each with its real service time.
@@ -242,7 +257,9 @@ Yard and gate come from the Cargo agent's file (synthetic, calibrated): the twin
 `containers_in_yard` exactly (the file satisfies yard[t] = yard[t-1] + arrivals − departures). The gate
 action clears up to N containers per hour; the data-based value is the highest hourly
 `container_departures` the file recorded up to the chosen hour (no future values), or a number typed by the
-user. The yard does not change vessel waiting (no data on that effect). The twin returns vessel and yard
+user. With `twin.cargo_coupling: true` (on, requested by the supervisor) a full yard slows vessel unloading under
+explicit normalized assumptions (see [docs/CARGO_COUPLING.md](docs/CARGO_COUPLING.md)); with it off the yard does not
+change vessel waiting. The twin returns vessel and yard
 measures side by side; options are listed by total vessel-hours waiting and the Strategy agent reads both.
 
 The user can add vessels for a what-if test. An added vessel's stay is: the median of its own earlier LA

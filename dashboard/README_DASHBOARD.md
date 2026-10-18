@@ -7,11 +7,13 @@ Terminal 2 (frontend):
     cd dashboard
     python -m http.server 5500
 
-Open: http://127.0.0.1:5500/marsa.html
+Open: http://127.0.0.1:5500/marsa.html — or open http://127.0.0.1:8000/ (the API serves the same page; then
+terminal 2 is not needed).
 
-Type a UTC hour of 2025 (for example 2025-07-10T19:00:00Z) and press "تحليل".
-Optional stress scenario: "أرصفة مغلقة" (0 = none) and "مضاعف السفن القادمة" (×1 = real schedule, ×2 = twice the real
-vessels arriving within 24 h, no upper limit). Leave them at 0 and ×1 to replay the real AIS schedule.
+Press "اختر اللحظة الحالية", choose the twin mode ("تنبؤ" = forecast from earlier data only, default;
+"إعادة" = replay what happened) and a 2025 UTC hour (list, calendar, or typed). Sections: ١ now, ٢ forecast
+(model +6 h and twin), ٣ what each agent sees, ٤ Strategy recommendation, ٥ your feedback (stored in the browser).
+Manual test scenario: berths closed, arrival multiplier (×1 = real schedule), gate closed hours, container inflow ×.
 Optional "إضافة سفن للتجربة": vessel number (IMO/MMSI, suggestions from GET /api/twin/vessels), length,
 stay hours and arrival hour. A stay left empty is estimated from earlier stays (badge "تقدير من التاريخ").
 The page calls POST /api/decision-support/analyze and shows only what the API returns.
