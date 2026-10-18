@@ -9,3 +9,4 @@ outputs/*.json
 .pytest_cache/
 .ruff_cache/
 .benchmarks/
+.wrangler/

@@ -1,0 +1,10 @@
+// Cloudflare Workers deploy for the static Marsa dashboard only.
+// The Python backend (FastAPI + models) cannot run on Workers; host it elsewhere
+// and enter its address in the dashboard's server address field.
+{
+  "name": "marsa",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dashboard"
+  }
+}
