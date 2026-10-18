@@ -1,0 +1,18 @@
+# Render Blueprint: deploys the Marsa API, which also serves the dashboard at /.
+# Render -> New -> Blueprint -> pick this repository.
+services:
+  - type: web
+    name: marsa
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn marsa.api.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHONPATH
+        value: src
+      - key: PYTHON_VERSION
+        value: 3.13.5
+      # Optional: Gemini-assisted wording; without it Marsa runs fully deterministic.
+      - key: GEMINI_API_KEY
+        sync: false
