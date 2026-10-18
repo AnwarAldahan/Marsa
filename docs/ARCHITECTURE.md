@@ -27,9 +27,10 @@ explains deterministic simulation ranking.
 The ML contract is an uncalibrated XGBoost score for the operational
 cargo-congestion proxy at `t + 6h`. It is a retrospective predictive prototype,
 not independently observed congestion ground truth or production online inference.
-The Digital Twin replays the real AIS schedule of Port of Los Angeles cargo vessels over
-24 hours (optionally under a user stress scenario) and ranks options by total vessel-hours
-waiting. Simulation output is not an ML forecast, and the ML forecast does not feed the twin.
+The Digital Twin is a deterministic discrete-event simulation of Port of Los Angeles cargo
+berths, yard and gate over 24 hours. In forecast mode it uses only data known at the chosen
+hour (stays and waits estimated from earlier calls); in replay mode it reproduces the recorded
+AIS schedule. Options are ranked by total vessel-hours waiting. Simulation output is not an ML forecast, and the ML forecast does not feed the twin.
 
 ## Runtime surfaces
 
