@@ -33,13 +33,9 @@ def _forecast_risk(forecast: dict) -> str | None:
     return None if forecast["status"] == "ml_unavailable" else forecast.get("classification")
 
 
-# Run evidence collection, the Digital Twin, strategy generation and ranking for one hour.
-# stress: optional user scenario {"berths_closed": int, "arrival_multiplier": float}.
-# added: optional vessels added by the user [{"arrival_in_hours", "vessel_id"|"length_m"|"service_hours"}].
-# user_actions: optional decision typed by the user; the Strategy agent evaluates it next to its own.
-def run(timestamp: str, cfg=None, df=None, llm=None, save=False,
-        agents=None, forecast_override: dict | None = None, stress: dict | None = None,
-        added: list[dict] | None = None, user_actions: list[dict] | None = None, advisory_evidence: dict | None = None) -> dict:
+def collect_evidence(timestamp: str, cfg=None, df=None, llm=None, agents=None,
+                     forecast_override: dict | None = None):
+    """Shared historical evidence only; does not run or rank any Digital Twin."""
     cfg = cfg or load_config()
     frame = df if df is not None else load_dataset()
     ts = parse_exact_utc_hour(timestamp)
@@ -69,6 +65,20 @@ def run(timestamp: str, cfg=None, df=None, llm=None, save=False,
 
     domain_results = {"maritime": maritime, "cargo": cargo, "events_weather": events_weather}
     investigation = strategy_agent.run_investigation(ts, forecast, domain_results, cfg, llm=llm)
+    return ts, snap, forecast, domain_results, investigation
+
+
+# Run evidence collection, the Digital Twin, strategy generation and ranking for one hour.
+# stress: optional user scenario {"berths_closed": int, "arrival_multiplier": float}.
+# added: optional vessels added by the user [{"arrival_in_hours", "vessel_id"|"length_m"|"service_hours"}].
+# user_actions: optional decision typed by the user; the Strategy agent evaluates it next to its own.
+def run(timestamp: str, cfg=None, df=None, llm=None, save=False,
+        agents=None, forecast_override: dict | None = None, stress: dict | None = None,
+        added: list[dict] | None = None, user_actions: list[dict] | None = None, advisory_evidence: dict | None = None) -> dict:
+    cfg = cfg or load_config()
+    ts, snap, forecast, domain_results, investigation = collect_evidence(
+        timestamp, cfg, df, llm, agents, forecast_override)
+    maritime, cargo, events_weather = (domain_results[k] for k in ("maritime", "cargo", "events_weather"))
     scenario, sources = build_scenario(ts, cfg, stress, added)
     baseline = simulate_candidate(scenario, {"id": "baseline", "actions": []})
     candidates = strategy_agent.generate_candidates(

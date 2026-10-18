@@ -106,3 +106,21 @@ sensitivity_analysis:
 # Optional additive evidence only. Ordinary requests never trigger sensitivity.
 strategy_decision_support:
   enabled: true
+
+# Website primary Twin. Explicit normalized demo assumptions, not measured POLA resources.
+# Inventory is independent of the historical Cargo CSV; no TEU/transaction conversion.
+unified_hybrid:
+  enabled: true
+  horizon_hours: 24
+  parameters:
+    berth_slots: 23
+    yard_capacity: 10000.0
+    initial_inventory: 0.0
+    unloading_units_per_hour: 100.0
+    gate_units_per_hour: 100.0
+    release_delay_hours: 0
+    initial_inventory_eligible_in_hours: 0
+    units: normalized_units
+    provenance: SYNTHETIC_SCENARIO_ASSUMPTION
+  gate_modest_factor: 1.2
+  gate_large_factor: 3.0

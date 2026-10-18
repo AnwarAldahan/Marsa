@@ -197,6 +197,12 @@ def _context_scenario(base: CoupledScenario, workload: dict, knobs: dict) -> Cou
 def analyze_sensitivity(request: HybridRequest, *, plan: SensitivityPlan | None = None, **inputs) -> dict:
     plan = plan or SensitivityPlan()
     base, metadata = build_hybrid(request, **inputs)
+    return analyze_frozen_sensitivity(base, metadata, plan=plan)
+
+
+def analyze_frozen_sensitivity(base: CoupledScenario, metadata: dict, *, plan: SensitivityPlan | None = None) -> dict:
+    """Explicit sensitivity on an already frozen population; never reads AIS again."""
+    plan = plan or SensitivityPlan()
     p = base.parameters
     workload = metadata["workload_estimation"]["settings"]
     occupancy = p.initial_inventory / p.yard_capacity

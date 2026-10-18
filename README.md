@@ -20,10 +20,10 @@ Nothing is executed automatically — the port operator takes the final decision
 | 3 | **Agent 1 · Maritime** | Vessel queue and waiting ratio from AIS (LA + Long Beach, cargo + tankers) | `src/marsa/agents/maritime_agent.py` |
 | 4 | **Agent 2 · Cargo** | Yard occupancy, container flow, dwell, truck/gate pressure | `src/marsa/agents/cargo_agent.py` |
 | 5 | **Agent 3 · Context** | Observed weather, synthetic external events, local calendar | `src/marsa/agents/events_weather_agent.py` |
-| 6 | **Strategy agent** | Reads forecast + 3 diagnoses; optional bounded historical investigation; picks which twin tests to run (berth, queue, gate) | `src/marsa/agents/strategy_agent.py` |
-| 7 | **Digital twin** | Replays the real AIS schedule of Port of Los Angeles cargo vessels over 24 h and the yard from the Cargo agent file; optional user stress scenario and added vessels; deterministic | `src/marsa/twin/` |
-| 8 | **Strategy agent** | Lists twin results by total vessel-hours waiting with yard measures beside them (no weights), writes the recommendation (Arabic, Gemini-assisted) | `src/marsa/agents/strategy_agent.py` |
-| 9 | **Dashboard / API** | Shows state, forecast, drivers, recommendation; lets the user try any decision | `dashboard/marsa.html` · `src/marsa/api/` |
+| 6 | **Evidence investigation** | Existing bounded Gemini investigation and deterministic fallback; historical context only | `src/marsa/pipeline.py` |
+| 7 | **Unified website twin** | Freeze an AIS cohort with explicit synthetic normalized workloads and yard inventory; compare native Coupled scenarios | `src/marsa/twin/unified.py` |
+| 8 | **Strategy recommendation** | Rank queue exposure in vessel-hours (baseline-first ties); report completions and unloading separately | `src/marsa/twin/unified.py` |
+| 9 | **Dashboard / API** | Main root design; operational cards, replay and manual decisions share the frozen Hybrid contract | `Marsa updated.html` · `src/marsa/api/` |
 
 Design rules: agents describe and diagnose, they never invent numbers. Gemini can optionally select validated
 historical diagnostics inside Strategy; Python computes the facts and hypotheses. Narrative rewriting
@@ -107,21 +107,19 @@ PYTHONPATH=src python -m uvicorn marsa.api.main:app --reload             # macOS
 ```
 Wait for `Application startup complete`. Swagger UI: http://127.0.0.1:8000/docs
 
-### Step 8 — start the dashboard (terminal 2)
-```bash
-cd dashboard
-python -m http.server 5500 --bind 127.0.0.1
-```
-Open **http://127.0.0.1:5500/marsa.html**.
-Type a UTC hour of 2025 and press **تحليل**. Optional stress scenario: **أرصفة مغلقة** (berths closed) and
-**مضاعف السفن القادمة** (×1 = the real schedule; ×2 = the real vessels of the next 48 h all arrive within 24 h; no upper limit).
-If the API is not running the page says so and shows no numbers.
+### Step 8 — open the canonical dashboard
+Open **http://127.0.0.1:8000/**. FastAPI serves the root `Marsa updated.html` directly; no separate frontend server is needed.
+Choose a historical hour, then open the existing Digital Twin controls. Comparisons and replay use the same frozen Hybrid scenario.
+The 23 slots are an abstract demo assumption, not verified available operational berths. Cargo quantities are synthetic normalized units, never TEU.
+See [the unified contract and limitations](docs/UNIFIED_TWIN.md) for parameters, API examples and a controlled congestion experiment.
+
+The CLI above and `/api/decision-support/analyze` retain their legacy ranking semantics for compatibility.
+`dashboard/marsa.html` is a legacy reference interface, not the canonical unified website.
 
 ### Step 9 — stop
-`Ctrl+C` in each terminal. After editing Python files or `.env`, restart terminal 1 only;
-after editing `marsa.html`, just refresh the browser.
+`Ctrl+C` in the backend terminal. Restart after Python/configuration changes; refresh after editing the root HTML.
 
-### Good hours to demo
+### Legacy replay examples (legacy API / reference dashboard only)
 | Hour (UTC) | Stress | Why |
 |---|---|---|
 | `2025-07-10T19:00:00Z` | none | busy hour: 17 of 23 LA berths used, 1 vessel waiting for its berth time → "no intervention needed" |

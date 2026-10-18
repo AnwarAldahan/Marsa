@@ -1,6 +1,7 @@
 """Active Marsa API with three domain agents and one integrated decision flow."""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, Response
 
 from marsa.api.routes import (
     cargo,
@@ -10,7 +11,9 @@ from marsa.api.routes import (
     flow,
     maritime,
     twin,
+    unified_twin,
 )
+from marsa.config import ROOT
 
 app = FastAPI(
     title="Marsa",
@@ -40,3 +43,17 @@ app.include_router(twin.router)
 app.include_router(flow.router)
 
 app.include_router(coupled_twin.router)
+app.include_router(unified_twin.router)
+
+
+@app.get("/", include_in_schema=False)
+@app.get("/marsa.html", include_in_schema=False)
+@app.get("/Marsa updated.html", include_in_schema=False)
+def dashboard():
+    """Serve only the canonical root website, never a repository directory."""
+    return FileResponse(ROOT / "Marsa updated.html", headers={"Cache-Control": "no-store"})
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return Response(status_code=204)

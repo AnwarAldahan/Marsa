@@ -1,4 +1,15 @@
-# Marsa dashboard — how to run
+# Canonical website
+
+Start the API from the repository root:
+
+```powershell
+python -m uvicorn marsa.api.main:app --app-dir src --host 127.0.0.1 --port 8000
+```
+
+Open **http://127.0.0.1:8000/** for Main's root `Marsa updated.html` design with the unified Hybrid contract.
+See [the unified contract](../docs/UNIFIED_TWIN.md). Instructions below describe the separate legacy reference dashboard and its legacy API semantics.
+
+# Legacy reference dashboard — how to run
 
 Terminal 1 (backend):
     $env:PYTHONPATH="src"; python -m uvicorn marsa.api.main:app --reload
