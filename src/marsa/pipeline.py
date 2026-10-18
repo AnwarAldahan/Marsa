@@ -39,7 +39,8 @@ def _forecast_risk(forecast: dict) -> str | None:
 # user_actions: optional decision typed by the user; the Strategy agent evaluates it next to its own.
 def run(timestamp: str, cfg=None, df=None, llm=None, save=False,
         agents=None, forecast_override: dict | None = None, stress: dict | None = None,
-        added: list[dict] | None = None, user_actions: list[dict] | None = None) -> dict:
+        added: list[dict] | None = None, user_actions: list[dict] | None = None,
+        twin_mode: str = "replay") -> dict:
     cfg = cfg or load_config()
     frame = df if df is not None else load_dataset()
     ts = parse_exact_utc_hour(timestamp)
@@ -69,7 +70,7 @@ def run(timestamp: str, cfg=None, df=None, llm=None, save=False,
 
     domain_results = {"maritime": maritime, "cargo": cargo, "events_weather": events_weather}
     investigation = strategy_agent.run_investigation(ts, forecast, domain_results, cfg, llm=llm)
-    scenario, sources = build_scenario(ts, cfg, stress, added)
+    scenario, sources = build_scenario(ts, cfg, stress, added, mode=twin_mode)
     baseline = simulate_candidate(scenario, {"id": "baseline", "actions": []})
     candidates = strategy_agent.generate_candidates(
         forecast, maritime, cargo, events_weather, baseline,
@@ -106,6 +107,7 @@ def run(timestamp: str, cfg=None, df=None, llm=None, save=False,
             "port": "Port of Los Angeles - cargo vessels (AIS types 70-79) and yard",
             "marker_hours": [int(cfg["ml_contract"]["horizon_hours"])],
             "simulation_horizon_hours": scenario.horizon_hours,
+            **({"mode": "forecast"} if twin_mode == "forecast" else {}),
             "scenario": scenario_summary(scenario),
             "sources": sources,
             "results": ranked,
@@ -130,6 +132,9 @@ def run(timestamp: str, cfg=None, df=None, llm=None, save=False,
             ("Connected mode retains historical arrivals and berth-readiness floors; it is a retrospective counterfactual, not exact AIS replay."
              if scenario.cargo is not None else
              "Without a stress scenario the Digital Twin replays the real AIS schedule; stress values are chosen by the user."),
+            *(["Forecast mode: the twin uses only what is known at the chosen hour; stays and remaining waits are "
+               "estimated from calls completed before it, arriving vessels are taken as known (arrival notices) and ready on arrival."]
+              if twin_mode == "forecast" else []),
             "No operational action is executed automatically.",
         ],
         "human_approval_required": True,

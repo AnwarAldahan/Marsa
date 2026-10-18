@@ -881,6 +881,10 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
 </style>
 <button id="marsaToggle" type="button">⏱ اختر اللحظة الحالية</button>
 <div id="marsaLive">
+  <select id="mlMode" aria-label="وضع التوأم">
+    <option value="forecast" selected>تنبؤ: يتوقع اليوم مما قبله فقط</option>
+    <option value="replay">إعادة: يعيد ما حدث فعلًا</option>
+  </select>
   <select id="mlPreset">
     <option value="2025-07-10T19:00:00Z">10 يوليو 2025 · 19:00 UTC</option>
     <option value="2025-07-07T22:00:00Z">7 يوليو 2025 · 22:00 UTC</option>
@@ -906,7 +910,8 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
 // مصدر كل رقم يُكتب بجانبه: AIS (مرصود) · اصطناعي (ملفات الوكلاء) · تنبؤ · محاكاة · مدخل المستخدم.
 // =====================================================================
 (function () {
-  const API = () => (window.MARSA_API_BASE || 'http://127.0.0.1:8000').replace(/\/+$/, '');
+  // opened from the Marsa server's root (/) -> same server; opened as a file or from another static server -> default local API
+  const API = () => (window.MARSA_API_BASE || (location.protocol.startsWith('http') && location.pathname === '/' ? location.origin : 'http://127.0.0.1:8000')).replace(/\/+$/, '');
   const $ = id => document.getElementById(id);
   const num = (v, d = 0) => (v === null || v === undefined || isNaN(v)) ? '—'
     : Number(v).toLocaleString('en-US', { maximumFractionDigits: d, minimumFractionDigits: 0 });
@@ -950,7 +955,7 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
   async function load(ts) {
     status('جارٍ التحليل…');
     try {
-      DATA = await post('/api/decision-support/analyze', { timestamp_utc: ts });
+      DATA = await post('/api/decision-support/analyze', { timestamp_utc: ts, twin_mode: $('mlMode').value });
       SEL = DATA.decision_support.highest_ranked_candidate;
       renderAll();
       status('✓ ' + ts, 'ok');
@@ -984,7 +989,11 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
     });
     return { berthed, waiting, coming };
   }
-  const methodAr = e => !e ? '' : e.method === 'user_input' ? 'مدة كتبها المستخدم'
+  const isFc = () => !!(DATA && DATA.digital_twin.mode === 'forecast');
+  const methodAr = e => !e ? '' : e.elapsed_h !== undefined
+    ? `تقدير من ${e.method === 'own_history' ? 'زيارات سابقة لنفس السفينة' : e.method === 'similar_length' ? 'سفن مشابهة بالطول' : 'كل الزيارات السابقة'} قبل هذه الساعة`
+      + (e.wait_remaining_h !== undefined ? ` · الانتظار المتبقي المقدّر ${hrs(e.wait_remaining_h)}` : '')
+    : e.method === 'user_input' ? 'مدة كتبها المستخدم'
     : e.method === 'own_history' ? `وسيط ${num(e.based_on)} زيارة سابقة لنفس السفينة`
     : `وسيط زيارات ${num(e.based_on)} سفن هي الأقرب طولًا (${num(e.length_m)} م)`;
   const vName = v => v.added ? `سفينة مضافة ${esc(v.id)}${v.est && v.est.vessel_id ? ' (' + esc(v.est.vessel_id) + ')' : ''}` : `سفينة MMSI ${esc(v.mmsi)}`;
@@ -1002,12 +1011,12 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
       const cls = closed ? 'pm-bx' : v ? 'pm-bx busy' : 'pm-bx free';
       const k = 'b' + i;
       tips[k] = closed ? { t:'رصيف مغلق', b:['سيناريو', 'warn'], rows:[], note:'أغلقه المستخدم في السيناريو.' }
-        : v ? { t:vName(v), b:['على الرصيف', 'info'], rows:[['يغادر بعد', hrs(v.leaves)]], note:v.added ? methodAr(v.est) : '' }
+        : v ? { t:vName(v), b:['على الرصيف', 'info'], rows:[['يغادر بعد', v.leaves == null ? 'بعد نهاية الأفق' : hrs(v.leaves)]], note:(v.added || isFc()) ? methodAr(v.est) : '' }
         : { t:extra ? 'رصيف إضافي (قرار)' : 'رصيف متاح', b:['فارغ', 'ok'], rows:[], note:'' };
       s += `<g class="pm-hit" data-k="${k}" tabindex="0"><rect class="${cls}" x="${x}" y="${y}" width="${bw}" height="${bh}" rx="7"
         ${closed ? 'style="fill:rgba(163,180,202,.18);stroke:var(--muted)"' : ''}${v && v.added ? ` style="stroke:${VIOLET};stroke-dasharray:4 3"` : ''}/>
         ${v ? `<use href="#pmShip" class="pm-shipb" x="${x + 9}" y="${y + 8}" width="60" height="22"/>
-              <text x="${x + bw / 2}" y="${y + 46}" text-anchor="middle" class="mono" font-size="11">${hrs(v.leaves)}</text>` : ''}</g>`;
+              <text x="${x + bw / 2}" y="${y + 46}" text-anchor="middle" class="mono" font-size="11">${v.leaves == null ? (DATA ? '+' + DATA.digital_twin.simulation_horizon_hours + ' س' : '—') : hrs(v.leaves)}</text>` : ''}</g>`;
     }
     const rows = Math.ceil(total / cols), yW = 36 + rows * (bh + gap) + 26;
     // map look v2: نفس السفن والبيانات، رسم أوضح
@@ -1020,7 +1029,7 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
       const x = x0 - 110 - i * 104, cap = v.cap > 0.01, k = 'w' + i;
       tips[k] = { t:vName(v), b:[cap ? 'تنتظر رصيفًا شاغرًا' : 'تنتظر موعد رسوها', cap ? 'bad' : 'warn'],
         rows:[['تنتظر منذ', hrs(v.waited)], cap ? ['منها بسبب امتلاء الأرصفة', hrs(v.cap)] : ['موعد رسوها المسجل بعد', hrs(Math.max(0, v.sched))]],
-        note:v.added ? methodAr(v.est) : '' };
+        note:(v.added || isFc()) ? methodAr(v.est) : '' };
       s += `<g class="pm-hit" data-k="${k}" tabindex="0"><rect x="${x - 4}" y="${yW + 12}" width="92" height="50" rx="8" fill="transparent"/>
         <use href="#pmShip" x="${x}" y="${yW + 20}" width="84" height="30"
         style="color:${v.added ? VIOLET : cap ? 'var(--red)' : 'var(--amber)'}"/></g>`;
@@ -1034,7 +1043,7 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
     st.coming.forEach((v, i) => {
       const x = x0 - 30 - Math.min(1, v.eta / Math.max(1, H - h)) * span, k = 'c' + i;
       const draw = i < CMAX && lastX - x >= 70;   // لا تتراكب الرسوم؛ الباقي في «أخرى»
-      tips[k] = { t:vName(v), b:['في الطريق', 'info'], rows:[['تصل بعد', hrs(v.eta)]], note:v.added ? methodAr(v.est) : '' };
+      tips[k] = { t:vName(v), b:['في الطريق', 'info'], rows:[['تصل بعد', hrs(v.eta)]], note:(v.added || isFc()) ? methodAr(v.est) : '' };
       if (draw) {
         lastX = x;
         s += `<g class="pm-hit" data-k="${k}" tabindex="0"><rect x="${x - 34}" y="${yC - 8}" width="68" height="52" rx="8" fill="transparent"/>
@@ -1338,7 +1347,7 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
     }).join('');
     $('twCards').querySelectorAll('.tw-card').forEach(b => b.onclick = () => { SEL = b.dataset.id; TW.h = 0; renderTwin(); });
     const r = result(SEL) || base;
-    $('twTitle').textContent = 'محاكاة: ' + title(r) + ' — ' + DATA.authoritative_timestamp.replace('+00:00', ' UTC').replace('T', ' ');
+    $('twTitle').textContent = (isFc() ? 'تنبؤ: ' : 'إعادة: ') + title(r) + ' — ' + DATA.authoritative_timestamp.replace('+00:00', ' UTC').replace('T', ' ');
     $('twBest').style.display = SEL === bestId ? '' : 'none';
     const e = DATA.domain_agents.events_weather, s = DATA.port_state;
     $('twWx').textContent = r.units === 'normalized_service_effort' ? 'محاكاة بأثر رجعي · التفريغ والساحة بوحدات جهد خدمة مطبّعة، ليست حاويات مرصودة.' : `الطقس: ${ar(e.weather_assessment.level)} · رياح ${num(s.wind_speed_10m, 1)} · موج ${num(s.wave_height, 2)} م — لا يدخل حساب التوأم`;
@@ -1440,7 +1449,7 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
       if (+$('mtBerths').value) actions.push({ type:'add_berths', value:+$('mtBerths').value });
       if ($('mtGate').value === 'max_recorded') actions.push({ type:'gate_capacity', value:'max_recorded' });
       if ($('mtGate').value === 'number') actions.push({ type:'gate_capacity', value:+$('mtGateN').value });
-      body = { timestamp_utc:ts, stress, added:readAdded(), user_actions:actions };
+      body = { timestamp_utc:ts, stress, added:readAdded(), user_actions:actions, twin_mode: $('mlMode').value };
     } catch (e) { banner.textContent = e.message; banner.classList.add('show'); return; }
     $('statusVal').textContent = 'جارٍ الحساب…';
     try {
@@ -1492,7 +1501,7 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
   tick(); setInterval(tick, 30000);
 
   function renderAll() {
-    $('lastUpdate').textContent = 'حالة الميناء: ' + DATA.authoritative_timestamp.replace('+00:00', ' UTC').replace('T', ' ') + ' (إعادة تشغيل تاريخية)';
+    $('lastUpdate').textContent = 'حالة الميناء: ' + DATA.authoritative_timestamp.replace('+00:00', ' UTC').replace('T', ' ') + (isFc() ? ' (تنبؤ: التوأم يستخدم ما قبل هذه الساعة فقط)' : ' (إعادة: ما حدث فعلًا)');
     renderFlow(); renderTimeline(); renderFactors(); renderAlert(); renderBell();
     window.MARSA_LAST = DATA;
     if (!$('consoleView').hidden) renderTwin();
@@ -1512,6 +1521,8 @@ h2.stitle { font-size:18px; font-weight:700; margin:0 0 16px; }
   };
   $('mlHour').onchange = () => { if (calTs()) $('mlLoad').click(); };
   $('mlPreset').onchange = () => { $('mlDay').value = ''; $('mlDay').onchange(); $('mlLoad').click(); };
+  // switching replay / forecast reloads the hour on screen
+  $('mlMode').onchange = () => { if (DATA) load(DATA.authoritative_timestamp.replace('+00:00', 'Z')); };
   $('marsaToggle').onclick = () => $('marsaLive').classList.toggle('open');
   load($('mlPreset').value);
 })();

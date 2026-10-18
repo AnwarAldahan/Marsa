@@ -12,10 +12,12 @@ import pandas as pd
 from marsa.twin.calls import CALLS_PATH, missing_ranges, scenario_at
 from marsa.twin.engine import Scenario, Vessel
 from marsa.twin.estimates import estimate_stay
+from marsa.twin.forecast import to_forecast
 from marsa.twin.workloads import attach_workloads
 from marsa.twin.yard import CARGO_PATH, yard_state
 
 ADDED_KEYS = {"arrival_in_hours", "vessel_id", "length_m", "service_hours"}
+TWIN_MODES = {"replay", "forecast"}   # replay = recorded AIS times; forecast = only what is known at ts
 
 
 # Check the user's stress inputs; invalid values are rejected, never clipped. There is no upper
@@ -85,19 +87,27 @@ def scenario_summary(sc: Scenario) -> dict:
         "yard_capacity": None if sc.yard is None else sc.yard["capacity"],
         "gate_max_recorded": None if sc.yard is None else sc.yard["max_recorded_departures"],
         "vessels_added": sum(1 for v in sc.vessels if v.source == "added"),
+        # only forecast runs carry the key, so replay outputs keep their original shape
+        **({"mode": "forecast"} if sc.mode == "forecast" else {}),
         **({"cargo_coupling": sc.cargo, "vessel_workloads": sc.workloads} if sc.cargo is not None else {}),
     }
 
 
 # Build the scenario at ts and the list of sources the interface shows next to the results.
+# mode: "replay" (recorded stays and berth times) or "forecast" (estimated from the past, see forecast.py).
 def build_scenario(ts: pd.Timestamp, cfg: dict, stress: dict | None = None,
-                   added: list[dict] | None = None) -> tuple[Scenario, list[dict]]:
+                   added: list[dict] | None = None, mode: str = "replay") -> tuple[Scenario, list[dict]]:
+    if mode not in TWIN_MODES:
+        raise ValueError(f"twin mode must be one of {sorted(TWIN_MODES)}")
     berths = int(cfg["capacity"]["container_berths"])
     horizon = int(cfg["twin"]["horizon_hours"])
     stress = validate_stress(stress, berths, horizon)
     sc = scenario_at(ts, berths=berths, horizon_hours=horizon,
                      berths_closed=stress["berths_closed"],
                      arrival_multiplier=stress["arrival_multiplier"])
+    if mode == "forecast":
+        sc = to_forecast(sc, ts, int(cfg["twin"]["similar_vessels_k"]))
+    sc.mode = mode
     sc.yard = yard_state(ts, horizon)
     if cfg["twin"].get("cargo_coupling", False):
         if sc.yard is None:
@@ -119,7 +129,18 @@ def build_scenario(ts: pd.Timestamp, cfg: dict, stress: dict | None = None,
                     "assumption": "Synthetic Cargo occupancy and clearance/capacity ratios proxy an abstract yard; "
                                   "one nominal berth-service hour is one workload unit; each occupied slot provides one unit/hour. Not TEU, measured unloading, "
                                   "or verified terminal membership. Historical service durations are retrospective references."}
-        workload_source = attach_workloads(sc, ts)
+        if mode == "forecast":
+            # the reference workload is the stay estimated from the past (no recorded future stay)
+            sc.workloads = {v.call_id: {"total_workload": v.service_h,
+                                        "initial_workload": max(0., v.service_h + v.berth_h) if v.berth_h is not None else v.service_h,
+                                        "method": "earlier_history_stay_estimate", "provenance": "ESTIMATED_FROM_EARLIER_HISTORY",
+                                        "available_at_utc": ts.isoformat()}
+                            for v in sc.berthed + sc.vessels}
+            workload_source = {"input": "per-call vessel cargo reference workloads", "units": "normalized_service_effort",
+                               "source": "stays estimated from calls completed before the chosen hour",
+                               "provenance": "ESTIMATED_FROM_EARLIER_HISTORY"}
+        else:
+            workload_source = attach_workloads(sc, ts)
     sc.gate_closed_hours = stress["gate_closed_hours"]
     sc.container_inflow_multiplier = stress["container_inflow_multiplier"]
     extra = added_vessels(ts, added, horizon, int(cfg["twin"]["similar_vessels_k"]))
@@ -131,7 +152,10 @@ def build_scenario(ts: pd.Timestamp, cfg: dict, stress: dict | None = None,
                 "provenance": "USER_INPUT_OR_EARLIER_HISTORY_ESTIMATE", "available_at_utc": ts.isoformat()}
     sources = [
         {"input": "vessels at berth, waiting and arriving; their arrival, berth and service times",
-         "source": str(CALLS_PATH.name), "provenance": "OBSERVED (AIS)"},
+         "source": str(CALLS_PATH.name), "provenance": "OBSERVED (AIS)"} if mode == "replay" else
+        {"input": "vessels at berth, waiting and arriving at the chosen hour (AIS); stays and remaining waits "
+                  "estimated only from calls completed before that hour", "kind": "forecast",
+         "source": str(CALLS_PATH.name), "provenance": "OBSERVED (AIS) + ESTIMATED FROM EARLIER HISTORY"},
         {"input": "container berths", "value": berths,
          "source": cfg["capacity"]["container_berths_source"], "provenance": "PUBLIC SOURCE"},
     ]
