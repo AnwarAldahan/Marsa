@@ -10,6 +10,7 @@ event) from the Events & Weather file, so the user can test decisions on hours t
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from typing import Literal
 
 import pandas as pd
 from fastapi import APIRouter, HTTPException
@@ -71,6 +72,7 @@ class SimulateRequest(BaseModel):
     actions: list[TwinAction] = Field(default_factory=list)
     stress: StressScenario | None = None
     added: list[AddedVessel] = Field(default_factory=list)
+    twin_mode: Literal["replay", "forecast"] = "replay"   # forecast = only what is known at the hour
 
     @field_validator("timestamp_utc")
     @classmethod
@@ -89,12 +91,13 @@ def simulate(request: SimulateRequest) -> dict:
         cfg = load_config()
         ts = parse_exact_utc_hour(request.timestamp_utc.isoformat())
         stress = request.stress.model_dump() if request.stress else None
-        scenario, sources = build_scenario(ts, cfg, stress, added_specs(request.added))
+        scenario, sources = build_scenario(ts, cfg, stress, added_specs(request.added),
+                                           mode=request.twin_mode)
         actions = [a.model_dump() for a in request.actions]
         baseline = simulate_candidate(scenario, {"id": "baseline", "actions": []})
         tried = simulate_candidate(scenario, {"id": "user_decision", "actions": actions})
         compared = {r["candidate_id"]: r for r in score_results([baseline, tried])}
-    except DataNotReadyError as error:
+    except DataNotReadyError as error:   # a required data file is missing -> clear 404, not a crash
         raise HTTPException(status_code=404, detail=str(error)) from error
     except (KeyError, ValueError) as error:
         raise HTTPException(status_code=422, detail=str(error)) from error

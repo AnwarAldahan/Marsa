@@ -1,0 +1,36 @@
+{
+  "hours_tested": 724,
+  "step_hours": 12,
+  "horizon_hours": 24,
+  "mean_absolute_error": {
+    "at_berth_6": {
+      "twin_forecast": 0.95,
+      "naive_no_change": 1.19
+    },
+    "at_berth_12": {
+      "twin_forecast": 1.21,
+      "naive_no_change": 1.5
+    },
+    "at_berth_24": {
+      "twin_forecast": 1.53,
+      "naive_no_change": 1.97
+    },
+    "waiting_6": {
+      "twin_forecast": 0.15,
+      "naive_no_change": 0.1
+    },
+    "waiting_12": {
+      "twin_forecast": 0.24,
+      "naive_no_change": 0.21
+    },
+    "waiting_24": {
+      "twin_forecast": 0.37,
+      "naive_no_change": 0.36
+    }
+  },
+  "total_wait_vessel_hours": {
+    "mean_abs_error": 5.3,
+    "mean_actual": 10.55
+  },
+  "note": "Truth = replay of recorded AIS (it reproduces 2025 exactly). Forecast uses only data before each hour."
+}

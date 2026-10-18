@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -20,6 +21,7 @@ class DecisionSupportRequest(BaseModel):
     stress: StressScenario | None = None
     added: list[AddedVessel] = Field(default_factory=list)
     user_actions: list[TwinAction] | None = None   # the user's own decision, evaluated by the Strategy agent
+    twin_mode: Literal["replay", "forecast"] = "replay"   # forecast = the twin uses only what is known at the hour
 
     @field_validator("timestamp_utc")
     @classmethod
@@ -34,7 +36,8 @@ def analyze(request: DecisionSupportRequest) -> dict:
         return run(request.timestamp_utc.isoformat(), llm=get_strategy_provider(), stress=stress,
                    added=added_specs(request.added),
                    user_actions=(None if request.user_actions is None
-                                 else [a.model_dump() for a in request.user_actions]))
+                                 else [a.model_dump() for a in request.user_actions]),
+                   twin_mode=request.twin_mode)
     except KeyError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except DataNotReadyError as error:

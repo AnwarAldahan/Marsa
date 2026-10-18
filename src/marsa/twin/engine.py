@@ -63,6 +63,7 @@ class Scenario:
     notes: list[str] = field(default_factory=list)
     cargo: dict | None = None  # Explicit normalized service-effort yard proxy; None preserves replay.
     workloads: dict | None = None  # Per-call derived reference effort, frozen across candidates.
+    mode: str = "replay"           # "replay" (recorded AIS times) or "forecast" (estimated from the past)
 
 
 # Apply a candidate's actions to a copy of the scenario.

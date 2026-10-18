@@ -36,4 +36,5 @@ app.include_router(flow.router)
 
 @app.get("/", include_in_schema=False)
 def website():
-    return FileResponse(ROOT / "Marsa updated.html", headers={"Cache-Control": "no-store"})
+    # the official dashboard (API-driven only); "Marsa updated.html" is kept in the repo but not served
+    return FileResponse(ROOT / "dashboard" / "marsa.html", headers={"Cache-Control": "no-store"})
